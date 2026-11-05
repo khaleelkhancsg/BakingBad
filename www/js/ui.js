@@ -49,17 +49,21 @@ const hud = () => '';
 function hudHTML() {
   const d = G.daysToPayment(s);
   const due = s.won
-    ? `<span class="pill ok">🏦 Debt cleared</span>`
-    : `<span class="pill ${d <= 2 ? 'warn' : ''}">🏦 ${money(G.nextDue(s))} due in ${d}d</span>`;
+    ? `<span class="badge ok">🏦 Debt cleared</span>`
+    : `<span class="badge ${d <= 2 ? 'warn' : ''}" title="Next bank payment">🏦 ${money(G.nextDue(s))} · ${d}d</span>`;
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   const showDirty = s.labUnlocked || s.dirty > 0;
+  // Floating badges over a see-through bar, so the bakery shows between them
   return `<header class="hud">
-    <div class="row"><b>Day ${s.day} <span class="phase">· ${PHASE[s.phase] || ''}</span></b>${due}</div>
-    <div class="row">
-      <span class="cash" title="Clean cash">💷 ${money(s.clean)}</span>
-      ${showDirty ? `<span class="cash dirty" title="Dirty cash">💜 ${money(s.dirty)}</span>` : ''}
-      ${showDirty ? `<span class="heat ${heatCls}" title="Police heat">🚨 <span class="meter"><i style="width:${s.heat}%"></i></span> ${Math.round(s.heat)}</span>` : ''}
-      <span title="Reputation">⭐ ${Math.round(s.rep)}</span>
+    <div class="hud-row">
+      <div class="badge daybadge"><b>Day ${s.day}</b><small>${PHASE[s.phase] || ''}</small></div>
+      ${due}
+    </div>
+    <div class="hud-row stats">
+      <span class="badge cash" title="Clean cash">💷 ${money(s.clean)}</span>
+      ${showDirty ? `<span class="badge cash dirty" title="Dirty cash">💜 ${money(s.dirty)}</span>` : ''}
+      ${showDirty ? `<span class="badge heat ${heatCls}" title="Police heat">🚨 <span class="meter"><i style="width:${s.heat}%"></i></span> ${Math.round(s.heat)}</span>` : ''}
+      <span class="badge" title="Reputation">⭐ ${Math.round(s.rep)}</span>
     </div>
   </header>`;
 }
@@ -461,6 +465,7 @@ function render() {
 function layoutScene() {
   const H = window.innerHeight;
   const top = app.querySelector('.hud')?.getBoundingClientRect().bottom || 0;
+  document.documentElement.style.setProperty('--hud-h', `${Math.round(top)}px`);
   const lower = app.querySelector('.sheet') || app.querySelector('.dock') || app.querySelector('.designbar');
   const shiftTop = app.querySelector('.shiftbar')?.getBoundingClientRect().bottom;
   const bottom = lower ? H - lower.getBoundingClientRect().top : 0;

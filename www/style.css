@@ -217,3 +217,34 @@ button.chip { cursor: pointer; }
 .dexp { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--card2); border-radius: 10px; padding: 8px 10px; }
 .dexp small { grid-column: 1; color: var(--mute); font-size: 12px; }
 .dexp button, .dexp .good { grid-column: 2; grid-row: 1 / span 3; }
+
+
+/* ---------- See-through HUD: solid badges, clear bar ---------- */
+#app .hud { background: transparent; border: none; padding: 8px 10px 0; pointer-events: none; }
+.hud-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; max-width: 520px; margin: 0 auto; }
+.hud-row.stats { justify-content: flex-start; flex-wrap: wrap; margin-top: 6px; }
+.badge { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  background: rgba(22, 16, 32, .94); border: 1px solid var(--line); border-radius: 12px; padding: 5px 10px;
+  font-size: 14px; box-shadow: 0 2px 10px #0007; }
+.badge.daybadge { flex-direction: column; align-items: flex-start; gap: 0; padding: 6px 14px 7px; border-radius: 14px;
+  background: linear-gradient(180deg, #33264a, #1c1428); border-color: #6a5285; }
+.badge.daybadge b { font-size: 19px; line-height: 1.1; }
+.badge.daybadge small { color: var(--mute); font-size: 12px; }
+.badge.cash { font-weight: 700; }
+.badge.dirty { color: var(--violet); }
+.badge.warn { border-color: var(--bad); color: var(--bad); }
+.badge.ok { border-color: var(--good); color: var(--good); }
+.badge.heat.hot { border-color: var(--bad); }
+
+/* Bars under the HUD follow its height */
+.shiftbar { top: calc(var(--hud-h, 70px) + 4px); width: min(420px, calc(100% - 20px)); background: rgba(22, 16, 32, .94); box-shadow: 0 2px 10px #0007; }
+.warn-line { top: calc(var(--hud-h, 70px) + 52px); }
+#toasts { top: calc(var(--hud-h, 70px) + 58px); }
+
+/* Shift dock: no panel behind it, just solid chips */
+#app .dock { pointer-events: none; background: transparent; border: none; box-shadow: none; padding: 0; gap: 5px; }
+#app .dock button { pointer-events: auto; }
+.dock .chip { background: rgba(29, 21, 40, .95); box-shadow: 0 2px 8px #0007; }
+.dock .strip { align-self: flex-start; background: rgba(22, 16, 32, .94); border: 1px solid var(--line); border-radius: 99px; padding: 4px 11px; box-shadow: 0 2px 8px #0007; }
+.feedline { align-items: flex-start; min-height: 0; }
+.feedline span { background: rgba(22, 16, 32, .92); border: 1px solid var(--line); border-radius: 99px; padding: 2px 10px; box-shadow: 0 2px 8px #0006; }
