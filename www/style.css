@@ -192,3 +192,28 @@ button.chip { cursor: pointer; }
 @keyframes rise { 0% { opacity: 0; margin-top: 6px; } 12% { opacity: 1; margin-top: 0; } 80% { opacity: 1; } 100% { opacity: 0; margin-top: -18px; } }
 .bub.think { pointer-events: none; min-width: 30px; height: 30px; padding: 0 5px; background: #fffdf8; border: 2px solid #e8dcc8; font-size: 16px; border-radius: 16px; }
 .bub.think::after { content: ''; position: absolute; bottom: -7px; left: 40%; width: 7px; height: 7px; border-radius: 50%; background: #fffdf8; border: 2px solid #e8dcc8; }
+
+/* ---------- Design mode toolbar ---------- */
+#app .designbar { pointer-events: auto; }
+.designbar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(6px + env(safe-area-inset-bottom));
+  width: min(520px, calc(100% - 12px)); background: rgba(18, 13, 26, .94); border: 1px solid var(--line); border-radius: 16px;
+  padding: 8px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 -6px 24px #0008; }
+.drow { display: flex; gap: 6px; align-items: center; }
+.dcats { display: flex; gap: 4px; overflow-x: auto; flex: 1; }
+.dcats button { white-space: nowrap; }
+.dinfo { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--mute); }
+.dinfo b { color: var(--text); }
+.dinfo .charm { white-space: nowrap; color: var(--meh); }
+.catalog { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.ditem { flex: 0 0 auto; width: 78px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; }
+.ditem .sw { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #0006; }
+.ditem .em { font-size: 28px; line-height: 40px; height: 40px; }
+.ditem small { font-size: 11px; line-height: 1.15; text-align: center; color: var(--text); }
+.ditem small.price { color: var(--mute); }
+.ditem.on { border-color: var(--warm); background: #3a2a1a; }
+.dsel { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; background: var(--card2); border-radius: 10px; padding: 6px 8px; font-size: 14px; }
+.dextra { display: flex; justify-content: flex-end; }
+.catalog.exp { flex-direction: column; overflow: visible; }
+.dexp { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; background: var(--card2); border-radius: 10px; padding: 8px 10px; }
+.dexp small { grid-column: 1; color: var(--mute); font-size: 12px; }
+.dexp button, .dexp .good { grid-column: 2; grid-row: 1 / span 3; }

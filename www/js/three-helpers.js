@@ -13,8 +13,17 @@ export const geo = (key, make) => { if (!geoCache.has(key)) geoCache.set(key, ma
 const matCache = new Map();
 export function mat(color, o = {}) {
   const key = color + JSON.stringify(o);
-  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, ...o }));
+  if (!matCache.has(key)) matCache.set(key, smat({ color, roughness: 0.8, ...o }));
   return matCache.get(key);
+}
+// Cheap materials for a low-poly look: Lambert for almost everything, Phong (a little shine) for glass,
+// metal, water and car paint. Accepts the same roughness/metalness hints as a standard material.
+export function smat(p = {}) {
+  const { roughness = 0.8, metalness = 0, ...rest } = p;
+  if (metalness >= 0.3 || roughness <= 0.3) {
+    return new THREE.MeshPhongMaterial({ shininess: Math.round((1 - roughness) * 70) + 15, specular: new THREE.Color(metalness >= 0.3 ? 0x555555 : 0x333333), ...rest });
+  }
+  return new THREE.MeshLambertMaterial(rest);
 }
 export function mesh(g, m, x = 0, y = 0, z = 0, cast = true) {
   const me = new THREE.Mesh(g, m);

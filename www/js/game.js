@@ -1,6 +1,7 @@
 // Game rules and state. No DOM in here, so the balance simulator can run it in Node.
 import { CFG, ITEMS, VELVET, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
          LINES, FACES, BUYER_NAMES, START_RECIPES } from './data.js';
+import { charmBonus, defaultDesign } from './design.js';
 
 export const SAVE_VERSION = 2;
 
@@ -33,7 +34,7 @@ export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce(
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
 export const customersExpected = s =>
-  (CFG.baseCustomers + s.rep * CFG.repCustomers) * (has(s, 'sign') ? 1.2 : 1) * (s.event?.cust || 1);
+  (CFG.baseCustomers + s.rep * CFG.repCustomers) * (has(s, 'sign') ? 1.2 : 1) * (s.event?.cust || 1) * charmBonus(s);
 export const buyersExpected = s => CFG.buyersBase + Math.min(CFG.buyersGrowMax, s.nightsActive);
 export const copChance = s => CFG.copBase + s.heat * CFG.copPerHeat;
 
@@ -82,6 +83,7 @@ export function newGame() {
     labUnlocked: false, offerDay: 2, offerPending: false, nightsActive: 0,
     display: {}, market: {}, event: null,
     today: null, report: null, shift: null,
+    design: defaultDesign(),
     over: null, won: false, dealerAssign: 0, stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0 },
   };
   for (const id in ITEMS) { s.priceLevel[id] = 'normal'; s.display[id] = { fresh: 0, stale: 0 }; }

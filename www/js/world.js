@@ -3,7 +3,7 @@
 // repeated things (trees, flowers, grass, bushes, pickets) drawn as instanced batches.
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
-import { V3, PI, geo, mat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
 const GX = -31, GZ = -26, GSIZE = 56, GPX = 2048 / GSIZE;
@@ -19,6 +19,8 @@ const PAVEMENTS = [
   { x0: GX, x1: GX + GSIZE, z0: 10.8, z1: 12.4 },
   { x0: 6.7, x1: 7.2, z0: GZ, z1: 7.0 },
   { x0: 10.6, x1: 12.2, z0: GZ, z1: 10.8 },
+  { x0: 4.75, x1: 7.2, z0: -4.75, z1: 4.8 },     // down the side of the bakery
+  { x0: -14.2, x1: -11.8, z0: -4.75, z1: 4.8 },  // the back alley
 ];
 const BUILT = [ // footprints of the bakery, back room, alley and buildings: no grass here
   { x0: -14.2, x1: 6.8, z0: -12, z1: 4.8 },
@@ -81,7 +83,7 @@ export function buildWorld(scene) {
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(GSIZE, GSIZE),
-    new THREE.MeshStandardMaterial({ map: groundTex, transparent: true, roughness: 1, depthWrite: false }));
+    smat({ map: groundTex, transparent: true, roughness: 1, depthWrite: false }));
   ground.rotation.x = -PI / 2;
   ground.position.set(GX + GSIZE / 2, -0.09, GZ + GSIZE / 2);
   ground.receiveShadow = true;
@@ -94,7 +96,7 @@ export function buildWorld(scene) {
   root.add(box(0.12, 0.09, 19, kerb, 7.2, -0.09, -2.5, false));
   root.add(box(0.12, 0.09, 22, kerb, 10.6, -0.09, -0.2, false));
   // Pond water and lily pads
-  const water = new THREE.MeshStandardMaterial({ color: '#4f9fd0', roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.9 });
+  const water = smat({ color: '#4f9fd0', roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.9 });
   const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 28), water);
   pond.scale.set(POND.rx - 0.1, POND.rz - 0.1, 1); pond.rotation.x = -PI / 2; pond.position.set(POND.x, -0.06, POND.z);
   root.add(pond);
@@ -133,11 +135,11 @@ export function buildWorld(scene) {
       c.fillStyle = '#000'; c.fillRect(0, 0, cw, ch);
       for (const l of lit) if (l && l.on) { c.fillStyle = r() < 0.7 ? '#ffcf86' : '#bfe0ff'; c.fillRect(l.x, l.y, l.ww, l.hh); }
     });
-    return night(new THREE.MeshStandardMaterial({ map, emissiveMap, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.85 }), 1.1);
+    return night(smat({ map, emissiveMap, emissive: '#ffffff', emissiveIntensity: 0, roughness: 0.85 }), 1.1);
   }
   function building(x0, x1, z0, z1, h, color, seed, { shopfront = false, roof = '#6f6b78', props = true } = {}) {
     const w = x1 - x0, d = z1 - z0;
-    const side = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
+    const side = smat({ color, roughness: 0.9 });
     const mats = [facade(d, h, color, seed + 1, shopfront), side, mat(roof), side, facade(w, h, color, seed, shopfront), side];
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
     b.position.set((x0 + x1) / 2, h / 2 - 0.09, (z0 + z1) / 2); b.castShadow = true; b.receiveShadow = true;
@@ -169,7 +171,7 @@ export function buildWorld(scene) {
   // A little corner café across the side road, with a striped awning
   building(12.4, 16.6, -1.6, 6.2, 2.3, '#f2c46d', 79, { shopfront: true, props: false, roof: '#8a6d4a' });
   const stripes = canvasTex(64, 16, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#ffffff' : '#e85d75'; c.fillRect(i * 8, 0, 8, h); } }, [6, 1]);
-  { const aw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 7.4), new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.8 }));
+  { const aw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 7.4), smat({ map: stripes, roughness: 0.8 }));
     aw.position.set(12.05, 1.75, 2.3); aw.rotation.z = -0.35; aw.castShadow = true; root.add(aw); }
   for (const z of [0.2, 2.3, 4.4]) { // café tables on the pavement
     root.add(cyl(0.32, 0.32, 0.04, '#f4f0e8', 11.45, 0.62, z, 14));
@@ -199,7 +201,7 @@ export function buildWorld(scene) {
     [-12, 11.7], [-20, 11.7], [14.5, 11.7], [19.5, 11.7], [-6.5, 11.7],
     [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27, 9], [21, 5]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
-  const leafy = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, flatShading: true });
+  const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
   instanced(geo('trunk', () => new THREE.CylinderGeometry(0.1, 0.15, 1.3, 6).translate(0, 0.65, 0)), mat('#7a5534'), TREES.map(t => ({ ...t, y: -0.09 })), { shadow: true });
   const canopyGeo = geo('canopy', () => new THREE.IcosahedronGeometry(0.85, 0));
   const greens = ['#5f9e4f', '#4f8f48', '#6aab57', '#7bb661', '#4b8a52'];
@@ -221,7 +223,7 @@ export function buildWorld(scene) {
       FLOWERS.push({ x: b.x + Math.cos(a) * r * b.rx, z: b.z + Math.sin(a) * r * b.rz, y: 0.12 + rand() * 0.1, s: 0.8 + rand() * 0.5, c: petals[Math.floor(rand() * petals.length)] });
     }
   }
-  instanced(geo('petal', () => new THREE.IcosahedronGeometry(0.075, 0)), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, flatShading: true }), FLOWERS, { colors: petals });
+  instanced(geo('petal', () => new THREE.IcosahedronGeometry(0.075, 0)), smat({ color: '#ffffff', roughness: 0.6, flatShading: true }), FLOWERS, { colors: petals });
   instanced(geo('leaf', () => new THREE.ConeGeometry(0.06, 0.2, 4).translate(0, 0.1, 0)), mat('#4f8f48', { flatShading: true }), FLOWERS.map(f => ({ x: f.x + 0.03, z: f.z, y: -0.09, s: 1 })));
   // Grass tufts scattered on the lawns
   const TUFTS = [];
@@ -230,7 +232,7 @@ export function buildWorld(scene) {
     if (!isGrass(x, z)) continue;
     for (let k = 0; k < 3; k++) TUFTS.push({ x: x + (rand() - 0.5) * 0.14, z: z + (rand() - 0.5) * 0.14, y: -0.09, s: 0.7 + rand() * 0.7, ry: rand() * PI, c: rand() < 0.5 ? '#5f9e4f' : '#79b35f' });
   }
-  instanced(geo('tuft', () => new THREE.ConeGeometry(0.045, 0.24, 3).translate(0, 0.12, 0)), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, flatShading: true }), TUFTS, { colors: ['#5f9e4f'] });
+  instanced(geo('tuft', () => new THREE.ConeGeometry(0.045, 0.24, 3).translate(0, 0.12, 0)), smat({ color: '#ffffff', roughness: 0.9, flatShading: true }), TUFTS, { colors: ['#5f9e4f'] });
   // Picket fence between the alley and the park
   const PICKETS = [];
   for (let z = -4.4; z < 7.6; z += 0.26) PICKETS.push({ x: -14.25, z, y: -0.09 });
@@ -238,7 +240,7 @@ export function buildWorld(scene) {
   for (const y of [0.2, 0.46]) root.add(box(0.04, 0.05, 12, '#f4efe6', -14.22, y - 0.09, 1.6, false));
 
   // ---------- Street furniture ----------
-  const lampM = night(new THREE.MeshStandardMaterial({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0 }), 2.4);
+  const lampM = night(smat({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0 }), 2.4);
   function streetLamp(x, z, ry = 0) {
     root.add(cyl(0.05, 0.08, 3.0, '#2b2d36', x, -0.09, z, 8));
     const arm = box(0.55, 0.06, 0.06, '#2b2d36', x + Math.cos(ry) * 0.25, 2.85, z - Math.sin(ry) * 0.25); arm.rotation.y = ry; root.add(arm);
@@ -250,7 +252,7 @@ export function buildWorld(scene) {
   // Bus stop on the far pavement
   {
     const x = -2.5, z = 11.75;
-    const glass = new THREE.MeshStandardMaterial({ color: '#cfefff', transparent: true, opacity: 0.35, roughness: 0.1 });
+    const glass = smat({ color: '#cfefff', transparent: true, opacity: 0.35, roughness: 0.1 });
     root.add(box(2.2, 1.7, 0.05, glass, x, 0.25, z + 0.45, false));
     for (const dx of [-1.08, 1.08]) root.add(box(0.07, 2.05, 0.07, '#3a3d44', x + dx, -0.09, z + 0.45));
     root.add(box(2.4, 0.08, 0.95, '#e85d75', x, 1.95, z + 0.1));
@@ -270,15 +272,15 @@ export function buildWorld(scene) {
   root.add(cyl(0.2, 0.2, 1.05, '#c8323c', -9.5, -0.09, 11.9, 14)); root.add(sphere(0.2, '#c8323c', -9.5, 0.96, 11.9));
 
   // ---------- Cars ----------
-  const headM = night(new THREE.MeshStandardMaterial({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
-  const tailM = night(new THREE.MeshStandardMaterial({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
+  const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
+  const tailM = night(smat({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
   const glassM = mat('#2b3444', { roughness: 0.15, metalness: 0.3 });
   const tyreM = mat('#1e1e24');
   const wheelGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.16, 12).rotateX(PI / 2);
   const CAR_COLOURS = ['#e85d75', '#4f9de8', '#f0b44c', '#5fcf8a', '#efefef', '#3a3f55', '#9b6bff', '#ff8a5c'];
-  function car(color, parent = root) {
+  function car(color, parent = root, ownPaint = false) {
     const g = new THREE.Group();
-    const paint = mat(color, { roughness: 0.35, metalness: 0.25 });
+    const paint = ownPaint ? smat({ color, roughness: 0.3, metalness: 0.3 }) : mat(color, { roughness: 0.3, metalness: 0.3 });
     g.add(rbox(1.9, 0.46, 0.92, paint, 0, 0.18, 0, 0.12));
     g.add(rbox(1.04, 0.4, 0.84, glassM, -0.12, 0.6, 0, 0.12));
     g.add(rbox(0.94, 0.07, 0.86, paint, -0.12, 0.98, 0, 0.03));
@@ -292,13 +294,13 @@ export function buildWorld(scene) {
   for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.4, 7.5, PI, 1], [0.3, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
     const c = car(CAR_COLOURS[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
   }
-  // Two cars that drive past, with a soft pool of headlight on the road at night
+  // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
-  const movers = [
-    { lane: 8.45, dir: 1, x: -20, speed: 3.4 },
-    { lane: 9.85, dir: -1, x: 12, speed: 3.0 },
-  ].map((m, i) => {
-    const c = car(CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene);
+  const LANES = [{ lane: 8.45, dir: 1 }, { lane: 9.85, dir: -1 }];
+  const movers = [6, 22].map((wait, i) => {
+    const m = { ...LANES[i], x: 0, speed: 3.2, active: false, wait };
+    const c = car(CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true);
+    c.group.visible = false;
     c.group.position.set(m.x, -0.09, m.lane); c.group.rotation.y = m.dir > 0 ? 0 : PI;
     const beamM = new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
     const beam = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.3), beamM);
@@ -315,9 +317,18 @@ export function buildWorld(scene) {
       for (const { m, k: mult } of nightMats) m.emissiveIntensity = nightK * mult;
       water.color.setHSL(0.56, 0.5, 0.52 + Math.sin(now * 1.3) * 0.02 - nightK * 0.25);
       for (const m of movers) {
+        if (!m.active) {
+          m.wait -= dt;
+          if (m.wait > 0) continue;
+          // Pull in from the end of the road, on a random side, in a random colour
+          const lane = LANES[Math.random() < 0.5 ? 0 : 1];
+          if (movers.some(o => o !== m && o.active && o.lane === lane.lane)) { m.wait = 3; continue; }
+          Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -30 : 24, speed: 2.8 + Math.random() * 1.2 });
+          m.group.position.z = m.lane; m.group.rotation.y = m.dir > 0 ? 0 : PI;
+          m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
+        }
         m.x += m.dir * m.speed * dt;
-        if (m.dir > 0 && m.x > 24) { m.x = -30; m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]); }
-        if (m.dir < 0 && m.x < -30) { m.x = 24; m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]); }
+        if ((m.dir > 0 && m.x > 24) || (m.dir < 0 && m.x < -30)) { m.active = false; m.group.visible = false; m.wait = 10 + Math.random() * 25; continue; }
         m.group.position.x = m.x;
         m.group.visible = Math.abs(m.x - CENTER.x) < FADE_OUT - 2;
         for (const w of m.wheels) w.rotation.z -= m.speed * dt / 0.19;

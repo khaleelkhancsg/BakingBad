@@ -2,6 +2,7 @@
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES } from './data.js';
 import { createScene } from './scene.js';
+import * as D from './design.js';
 
 const params = new URLSearchParams(location.search);
 // ?save=name keeps a separate save slot (handy for testing without touching the real game)
@@ -9,14 +10,17 @@ const KEY = 'bakingbad.save' + (params.get('save') ? '.' + params.get('save') : 
 const SPEED = Number(params.get('speed')) || 1;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
-const ui = { modal: null, paused: false };
+const ui = { modal: null, paused: false, design: null };
 let s = load() || G.newGame();
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
-  onPick: info => { if (s.shift && !ui.modal) act({ dataset: info }); },
+  onPick: info => {
+    if (info.act === 'design') { if (ui.design && s.phase === 'plan') designTap(info); return; }
+    if (s.shift && !ui.modal) act({ dataset: info });
+  },
 });
 
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); return d && d.v === G.SAVE_VERSION ? d : null; }
+  try { const d = JSON.parse(localStorage.getItem(KEY)); return d && d.v === G.SAVE_VERSION ? D.ensureDesign(d) : null; }
   catch { return null; }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage full or blocked */ } }
@@ -26,7 +30,7 @@ const money2 = v => '£' + Number(v).toFixed(2);
 const ingText = r => Object.entries(r.ing).map(([k, q]) => `${q}${INGREDIENTS[k].emoji}`).join(' ');
 const pathText = r => r.stages.map(st => `${STAGES[st].emoji}${r.times[st]}s`).join(' → ');
 
-G.onToast((text, kind) => {
+function showToast(text, kind = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = text;
@@ -34,7 +38,8 @@ G.onToast((text, kind) => {
   while (toastBox.children.length > 3) toastBox.firstChild.remove();
   setTimeout(() => el.classList.add('out'), 2300);
   setTimeout(() => el.remove(), 2700);
-});
+}
+G.onToast(showToast);
 
 // ---------- Shared pieces ----------
 
@@ -67,7 +72,7 @@ const line = (a, b, cls = '') => `<div class="line"><span>${a}</span><span class
 function planScreen() {
   const tabs = [['supplies', '🧺 Supplies'], ['menu', '📋 Menu'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['dez', '💜 Dez']);
-  tabs.push(['bank', '🏦 Bank']);
+  tabs.push(['design', '🎨 Design'], ['bank', '🏦 Bank']);
   if (!tabs.some(t => t[0] === s.tab)) s.tab = 'supplies';
   const body = { supplies: suppliesTab, menu: menuTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
   const intro = s.day === 1 && !s.introSeen ? `<div class="card story">
@@ -341,12 +346,103 @@ function modalHTML() {
   return `<div class="modal-bg" data-act="${m.type === 'pause' ? 'noop' : 'close'}"><div class="modal ${s.shift?.kind === 'night' ? 'night' : ''}" data-act="noop">${inner}</div></div>`;
 }
 
+// ---------- Design mode: tile, paper, decorate and expand the bakery ----------
+
+const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null };
+const openDesign = () => { ui.design = { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
+
+function swatch(id, f, on) {
+  const [a, b] = f.colors;
+  return `<button class="ditem ${on ? 'on' : ''}" data-act="d-item" data-id="${id}">
+    <span class="sw" style="background:linear-gradient(135deg, ${a} 0 50%, ${b} 50% 100%)"></span>
+    <small>${f.name}</small><small class="price">${f.price ? money(f.price) : 'free'}</small></button>`;
+}
+function emojiItem(id, d, on) {
+  return `<button class="ditem ${on ? 'on' : ''}" data-act="d-item" data-id="${id}">
+    <span class="em">${d.emoji}</span><small>${d.name}</small><small class="price">${money(d.price)} · ✨${d.charm}</small></button>`;
+}
+
+function designScreen() {
+  const dv = ui.design;
+  const cats = [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
+  const bonus = Math.round((D.charmBonus(s) - 1) * 100);
+  let items = '', hint = '', extra = '', sel = '';
+  if (dv.cat === 'floor') {
+    items = Object.entries(D.FLOORS).map(([id, f]) => swatch(id, f, dv.item === id)).join('');
+    const { n, cost } = D.fillFloorCost(s, dv.item);
+    hint = `Tap squares to lay <b>${D.FLOORS[dv.item].name}</b> (${money(D.FLOORS[dv.item].price)} a square).`;
+    if (n) extra = `<button class="small" data-act="d-fill">Do all ${n} squares · ${money(cost)}</button>`;
+  } else if (dv.cat === 'wall') {
+    items = Object.entries(D.WALLS).map(([id, f]) => swatch(id, f, dv.item === id)).join('');
+    const { n, cost } = D.fillWallCost(s, dv.item);
+    hint = `Tap a wall panel to hang <b>${D.WALLS[dv.item].name}</b> (${money(D.WALLS[dv.item].price)} a panel).`;
+    if (n) extra = `<button class="small" data-act="d-fill">Do all ${n} panels · ${money(cost)}</button>`;
+  } else if (dv.cat === 'decor') {
+    items = Object.entries(D.DECOR).map(([id, d]) => emojiItem(id, d, dv.item === id)).join('');
+    const it = dv.sel != null ? s.design.decor[dv.sel] : null;
+    if (dv.moving != null) hint = 'Tap a green square to move it there.';
+    else if (it) hint = 'Move it, turn it, or sell it back for half price.';
+    else if (dv.item) hint = `Tap a green square to place a <b>${D.DECOR[dv.item].name}</b>${D.DECOR[dv.item].outdoor ? ' (terraces only)' : D.DECOR[dv.item].indoor ? ' (inside only)' : ''}.`;
+    else hint = 'Pick something to place, or tap a decoration in the shop to move, turn or sell it.';
+    if (it) {
+      const d = D.DECOR[it.type];
+      sel = `<div class="dsel">${d.emoji} <b>${d.name}</b>
+        <button class="small" data-act="d-move">${dv.moving != null ? 'Moving…' : 'Move'}</button>
+        <button class="small" data-act="d-rotate">Turn</button>
+        <button class="small danger" data-act="d-sell">Sell ${money(Math.round(d.price * D.SELL_BACK))}</button>
+        <button class="small" data-act="d-deselect">✕</button></div>`;
+    }
+  } else if (dv.cat === 'art') {
+    items = Object.entries(D.ART).map(([id, d]) => emojiItem(id, d, dv.item === id)).join('')
+      + `<button class="ditem ${dv.item === 'remove' ? 'on' : ''}" data-act="d-item" data-id="remove"><span class="em">🗑️</span><small>Take down</small><small class="price">half back</small></button>`;
+    hint = dv.item === 'remove' ? 'Tap a panel to take its art down.' : `Tap a green wall panel to hang a <b>${D.ART[dv.item].name}</b>.`;
+  } else if (dv.cat === 'expand') {
+    hint = 'Expansions add squares you can tile and decorate.';
+    items = Object.entries(D.EXPANSIONS).map(([id, e]) => {
+      const owned = s.design.expansions[id];
+      return `<div class="dexp ${owned ? 'owned' : ''}"><b>${e.name}</b><small>${e.desc}</small><small>${e.cells} squares</small>
+        ${owned ? '<span class="good">✓ Yours</span>' : `<button class="small primary" data-act="d-buyexp" data-id="${id}" ${s.clean < e.price ? 'disabled' : ''}>${money(e.price)}</button>`}</div>`;
+    }).join('');
+  }
+  return `<div class="designbar">
+    <div class="drow"><div class="dcats">${cats.map(([id, label]) => `<button class="small ${dv.cat === id ? 'on' : ''}" data-act="d-cat" data-id="${id}">${label}</button>`).join('')}</div>
+      <button class="primary small" data-act="d-done">Done</button></div>
+    <div class="dinfo"><span>${hint}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
+    ${sel}
+    <div class="catalog ${dv.cat === 'expand' ? 'exp' : ''}">${items}</div>
+    ${extra ? `<div class="dextra">${extra}</div>` : ''}
+  </div>`;
+}
+
+function designTap(info) {
+  const dv = ui.design;
+  let r = null;
+  if (info.kind === 'panel') {
+    if (dv.cat === 'wall') r = D.paintWall(s, info.key, dv.item);
+    else if (dv.cat === 'art') r = dv.item === 'remove' ? D.removeArt(s, info.key) : D.placeArt(s, info.key, dv.item);
+  } else if (dv.cat === 'floor') {
+    r = D.paintFloor(s, info.cx, info.cz, dv.item);
+  } else if (dv.cat === 'decor') {
+    if (dv.moving != null) {
+      r = D.moveDecor(s, dv.moving, info.cx, info.cz);
+      if (r.ok) dv.moving = null;
+    } else if (info.kind === 'decor') { dv.sel = info.idx; dv.item = null; }
+    else if (dv.item) r = D.placeDecor(s, dv.item, info.cx, info.cz);
+    else { const i = D.decorAt(s, info.cx, info.cz); dv.sel = i >= 0 ? i : null; }
+  } else if (dv.cat === 'expand') {
+    const z = D.cellZone(info.cx, info.cz);
+    if (z && z !== 'inside' && !s.design.expansions[z]) showToast(`That's the ${D.EXPANSIONS[z].name.toLowerCase()}. Buy it here to use it.`);
+  }
+  if (r?.msg) showToast(r.msg, r.ok ? 'good' : 'bad');
+  save(); render();
+}
+
 // ---------- Render and input ----------
 
 function render() {
   let body, sheet = true;
   switch (s.phase) {
-    case 'plan': body = planScreen(); break;
+    case 'plan': if (ui.design) { body = designScreen(); sheet = false; } else body = planScreen(); break;
     case 'day': case 'night': if (s.shift) { body = shiftScreen(); sheet = false; } else body = planScreen(); break;
     case 'evening': body = eveningScreen(); break;
     case 'nightEnd': body = nightEndScreen(); break;
@@ -365,7 +461,7 @@ function render() {
 function layoutScene() {
   const H = window.innerHeight;
   const top = app.querySelector('.hud')?.getBoundingClientRect().bottom || 0;
-  const lower = app.querySelector('.sheet') || app.querySelector('.dock');
+  const lower = app.querySelector('.sheet') || app.querySelector('.dock') || app.querySelector('.designbar');
   const shiftTop = app.querySelector('.shiftbar')?.getBoundingClientRect().bottom;
   const bottom = lower ? H - lower.getBoundingClientRect().top : 0;
   const night = s.phase === 'night' || s.phase === 'nightEnd';
@@ -373,6 +469,7 @@ function layoutScene() {
     zone: night ? 'back' : 'shop',
     light: night ? 'night' : s.phase === 'evening' ? 'evening' : 'day',
     top: (shiftTop || top) + 34, bottom: bottom + 8,
+    design: s.phase === 'plan' && ui.design ? { ...ui.design } : null,
   });
 }
 window.addEventListener('resize', () => layoutScene());
@@ -400,7 +497,16 @@ function act(el) {
   const phaseBefore = s.phase;
   switch (a) {
     case 'noop': return;
-    case 'tab': s.tab = id; break;
+    case 'tab': if (id === 'design') openDesign(); else s.tab = id; break;
+    case 'd-cat': Object.assign(ui.design, { cat: id, item: DESIGN_DEFAULT[id], sel: null, moving: null }); break;
+    case 'd-item': Object.assign(ui.design, { item: id, sel: null, moving: null }); break;
+    case 'd-fill': { const r = ui.design.cat === 'floor' ? D.fillFloor(s, ui.design.item) : D.fillWalls(s, ui.design.item); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
+    case 'd-move': if (ui.design.sel != null) ui.design.moving = ui.design.sel; break;
+    case 'd-rotate': if (ui.design.sel != null) D.rotateDecor(s, ui.design.sel); break;
+    case 'd-sell': if (ui.design.sel != null) { const r = D.sellDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
+    case 'd-deselect': ui.design.sel = null; ui.design.moving = null; break;
+    case 'd-buyexp': { const r = D.buyExpansion(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
+    case 'd-done': ui.design = null; break;
     case 'intro-ok': s.introSeen = true; break;
     case 'buy': G.buyIngredient(s, id, Number(el.dataset.n)); break;
     case 'price': G.setPriceLevel(s, id, el.dataset.lvl); break;
@@ -410,7 +516,7 @@ function act(el) {
     case 'kit': G.buyKit(s, id); break;
     case 'bribe': G.bribe(s); break;
     case 'pay': G.payBank(s, id === 'all' ? s.balance : Number(id)); break;
-    case 'open': s.introSeen = true; G.startShift(s, 'day'); break;
+    case 'open': s.introSeen = true; ui.design = null; G.startShift(s, 'day'); break;
     case 'slot': {
       const stage = el.dataset.stage, i = Number(el.dataset.i);
       const slot = s.shift?.slots[stage]?.[i];
@@ -446,7 +552,7 @@ function act(el) {
       if (!confirm('Start a new game? This run will be lost.')) return;
       s = G.newGame(); ui.modal = null; ui.paused = false;
       break;
-    case 'new': s = G.newGame(); ui.modal = null; ui.paused = false; break;
+    case 'new': s = G.newGame(); ui.modal = null; ui.paused = false; ui.design = null; break;
   }
   save();
   render();

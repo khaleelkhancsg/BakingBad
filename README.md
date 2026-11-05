@@ -9,6 +9,18 @@ It's a 3D game: you look down into the shop at an angle. By day it's a bright ba
 that fills with what you bake while customers walk in and queue. By night the camera moves next door to the back room, which is
 lit purple. Tap a station (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
+## Designing the bakery
+
+In the morning, open **🎨 Design**:
+
+- **Floor**: tap single squares to lay tiles (10 styles), or do the whole floor.
+- **Walls**: wallpaper each wall panel (9 styles).
+- **Decor**: place plants, café tables, a bread rack, a grandfather clock, a shop cat, a fountain and more on the green squares. Tap one to move, turn or sell it (half back).
+- **Wall art**: paintings, clocks, jar shelves and plate racks on the wall panels.
+- **Expand**: buy the front terrace and the side terrace to get more squares outside.
+
+Decor adds **charm**. Each point of charm brings about 1% more customers, up to +30%.
+
 ## How a day works
 
 1. **Morning**: buy ingredients (prices change daily), set prices, buy upgrades, hire crew, buy kits from Dez, pay a bribe.
@@ -45,6 +57,7 @@ All numbers live in `www/js/data.js`. At the time of writing: honest 0%, careful
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
 - `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). All models are built from simple shapes in code.
+- `www/js/design.js` holds the design catalogue and rules (squares, charm, expansions); `www/js/world.js` the neighbourhood.
 - `www/js/data.js` holds the numbers and content, `www/js/game.js` the rules (no DOM), and `www/js/ui.js` the screens and input.
 - `tools/sim.mjs` is the balance simulator.
 
