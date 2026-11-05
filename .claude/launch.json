@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "baking-bad",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\khale\\Documents\\Claude projects\\BakingBad\\server.mjs"],
+      "port": 5190
+    }
+  ]
+}
