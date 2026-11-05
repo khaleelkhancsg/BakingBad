@@ -33,6 +33,7 @@ function bestRecipe(s) {
 
 function plan(s, st) {
   if (s.offerPending) G.answerOffer(s, st.crook);
+  s.levelUps.length = 0;
   const reserve = G.daysToPayment(s) <= 3 ? G.nextDue(s) : 300;
   for (const id of st.upgrades) {
     const u = UPGRADES.find(x => x.id === id);

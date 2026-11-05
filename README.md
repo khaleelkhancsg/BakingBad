@@ -9,6 +9,20 @@ It's a 3D game: you look down into the shop at an angle. By day it's a bright ba
 that fills with what you bake while customers walk in and queue. By night the camera moves next door to the back room, which is
 lit purple. Tap a station (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
+## XP and levels
+
+Everything earns XP: each item sold (pricier items give more), each batch out of the oven (longer recipes give more), each cook in the back room, each bag sold (Velvet Gold gives double), courier orders and seeing off rivals. There are 20 levels, and each one pays a small bonus and unlocks things:
+
+- **Supplies**: cream (6) and nuts (11).
+- **Menu**: baguettes (2), muffins (4), crème caramel (7), cheesecake (9), honey nut rolls (12), layer cake (15). The case holds 6 things, or 8 with the bigger display case. Choose what's on the menu.
+- **Shop**: equipment by level, plus a bigger display case (6), a coffee machine (8), a floor safe (6) and a delivery van (10).
+- **Crew**: Tom the cashier (5), Ash the lookout (6), Sam the night cook (8), Big Ron the muscle (9).
+- **Night**: haggling (3), courier bulk orders (5), Velvet Gold (7), rival crews who rob you unless you have muscle (9).
+- **Bank**: loans (4), a one-off payment holiday (10).
+- **Design**: floors, wallpapers, decor, wall art and both terraces unlock as you go.
+
+Locked things show 🔒 and their level, and every card's ⓘ explains it.
+
 ## Designing the bakery
 
 In the morning, open **🎨 Design**:

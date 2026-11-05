@@ -2,56 +2,58 @@
 // wall art on panels, and terrace expansions. No DOM here; actions return { ok, msg }.
 
 export const FLOORS = {
-  checker:    { name: "Rosa's checker", price: 0,  colors: ['#f2e2c8', '#e2c9a6'] },
-  mint:       { name: 'Mint tile',      price: 12, colors: ['#bfe8d6', '#9fd4bd'] },
-  rose:       { name: 'Rose tile',      price: 12, colors: ['#f6c6cf', '#e9a9b6'] },
-  lemon:      { name: 'Lemon check',    price: 14, colors: ['#fff1a8', '#ffffff'] },
-  terracotta: { name: 'Terracotta',     price: 16, colors: ['#d9825b', '#bf6a45'] },
-  wood:       { name: 'Oak planks',     price: 18, colors: ['#c28a55', '#a8723f'] },
-  navy:       { name: 'Navy mosaic',    price: 22, colors: ['#2f3e66', '#e9e4d8'] },
-  herring:    { name: 'Herringbone',    price: 25, colors: ['#b98255', '#93603a'] },
-  marble:     { name: 'Marble',         price: 30, colors: ['#f4f1ec', '#c9c1b8'] },
-  stone:      { name: 'Patio stone',    price: 10, colors: ['#c9c2b6', '#ada595'] },
+  checker:    { level: 1, name: "Rosa's checker", price: 0,  colors: ['#f2e2c8', '#e2c9a6'] },
+  mint:       { level: 1, name: 'Mint tile',      price: 12, colors: ['#bfe8d6', '#9fd4bd'] },
+  rose:       { level: 2, name: 'Rose tile',      price: 12, colors: ['#f6c6cf', '#e9a9b6'] },
+  lemon:      { level: 3, name: 'Lemon check',    price: 14, colors: ['#fff1a8', '#ffffff'] },
+  terracotta: { level: 4, name: 'Terracotta',     price: 16, colors: ['#d9825b', '#bf6a45'] },
+  wood:       { level: 5, name: 'Oak planks',     price: 18, colors: ['#c28a55', '#a8723f'] },
+  navy:       { level: 7, name: 'Navy mosaic',    price: 22, colors: ['#2f3e66', '#e9e4d8'] },
+  herring:    { level: 9, name: 'Herringbone',    price: 25, colors: ['#b98255', '#93603a'] },
+  marble:     { level: 11, name: 'Marble',         price: 30, colors: ['#f4f1ec', '#c9c1b8'] },
+  stone:      { level: 1, name: 'Patio stone',    price: 10, colors: ['#c9c2b6', '#ada595'] },
 };
 export const WALLS = {
-  plaster: { name: 'Peach plaster', price: 0,  colors: ['#f6d2b0', '#f0c49d'] },
-  tiles:   { name: 'White tiles',   price: 20, colors: ['#fbf7f0', '#d9d2c6'] },
-  stripes: { name: 'Candy stripes', price: 25, colors: ['#ffd6de', '#ffffff'] },
-  mintdot: { name: 'Mint polka',    price: 25, colors: ['#cdeee0', '#ffffff'] },
-  lemon:   { name: 'Lemon stripes', price: 25, colors: ['#fff1a8', '#ffe066'] },
-  wood:    { name: 'Wood panels',   price: 30, colors: ['#a8703f', '#8a5a32'] },
-  brick:   { name: 'Exposed brick', price: 35, colors: ['#b0604c', '#e8d8c8'] },
-  sky:     { name: 'Sky & clouds',  price: 35, colors: ['#bfe6ff', '#ffffff'] },
-  damask:  { name: 'Plum damask',   price: 40, colors: ['#6b3a5a', '#8e5479'] },
+  plaster: { level: 1, name: 'Peach plaster', price: 0,  colors: ['#f6d2b0', '#f0c49d'] },
+  tiles:   { level: 1, name: 'White tiles',   price: 20, colors: ['#fbf7f0', '#d9d2c6'] },
+  stripes: { level: 2, name: 'Candy stripes', price: 25, colors: ['#ffd6de', '#ffffff'] },
+  mintdot: { level: 3, name: 'Mint polka',    price: 25, colors: ['#cdeee0', '#ffffff'] },
+  lemon:   { level: 4, name: 'Lemon stripes', price: 25, colors: ['#fff1a8', '#ffe066'] },
+  wood:    { level: 6, name: 'Wood panels',   price: 30, colors: ['#a8703f', '#8a5a32'] },
+  brick:   { level: 8, name: 'Exposed brick', price: 35, colors: ['#b0604c', '#e8d8c8'] },
+  sky:     { level: 10, name: 'Sky & clouds',  price: 35, colors: ['#bfe6ff', '#ffffff'] },
+  damask:  { level: 12, name: 'Plum damask',   price: 40, colors: ['#6b3a5a', '#8e5479'] },
 };
 // outdoor: terrace only. indoor: inside only. Otherwise either.
 export const DECOR = {
-  plant:     { name: 'Potted plant',      emoji: '🪴', price: 40,  charm: 1 },
-  flowers:   { name: 'Flower stand',      emoji: '💐', price: 60,  charm: 1 },
-  rug:       { name: 'Round rug',         emoji: '🟣', price: 70,  charm: 1, indoor: true },
-  lamp:      { name: 'Floor lamp',        emoji: '💡', price: 80,  charm: 1 },
-  ficus:     { name: 'Tall ficus',        emoji: '🌳', price: 90,  charm: 2 },
-  bench:     { name: 'Bench',             emoji: '🪑', price: 120, charm: 2 },
-  table:     { name: 'Café table',        emoji: '☕', price: 150, charm: 3 },
-  breadrack: { name: 'Bread rack',        emoji: '🥖', price: 160, charm: 2, indoor: true },
-  clock:     { name: 'Grandfather clock', emoji: '🕰️', price: 180, charm: 2, indoor: true },
-  cake:      { name: 'Cake stand',        emoji: '🎂', price: 200, charm: 3, indoor: true },
-  parasol:   { name: 'Parasol table',     emoji: '⛱️', price: 220, charm: 4, outdoor: true },
-  cat:       { name: 'Shop cat',          emoji: '🐈', price: 300, charm: 4 },
-  fountain:  { name: 'Fountain',          emoji: '⛲', price: 400, charm: 5, outdoor: true },
-  sacks:     { name: 'Flour sacks',       emoji: '🌾', price: 20,  charm: 0, indoor: true },
+  plant:     { level: 1, name: 'Potted plant',      emoji: '🪴', price: 40,  charm: 1 },
+  flowers:   { level: 1, name: 'Flower stand',      emoji: '💐', price: 60,  charm: 1 },
+  rug:       { level: 2, name: 'Round rug',         emoji: '🟣', price: 70,  charm: 1, indoor: true },
+  lamp:      { level: 2, name: 'Floor lamp',        emoji: '💡', price: 80,  charm: 1 },
+  ficus:     { level: 4, name: 'Tall ficus',        emoji: '🌳', price: 90,  charm: 2 },
+  bench:     { level: 3, name: 'Bench',             emoji: '🪑', price: 120, charm: 2 },
+  table:     { level: 3, name: 'Café table',        emoji: '☕', price: 150, charm: 3 },
+  breadrack: { level: 5, name: 'Bread rack',        emoji: '🥖', price: 160, charm: 2, indoor: true },
+  clock:     { level: 6, name: 'Grandfather clock', emoji: '🕰️', price: 180, charm: 2, indoor: true },
+  cake:      { level: 7, name: 'Cake stand',        emoji: '🎂', price: 200, charm: 3, indoor: true },
+  parasol:   { level: 8, name: 'Parasol table',     emoji: '⛱️', price: 220, charm: 4, outdoor: true },
+  cat:       { level: 10, name: 'Shop cat',          emoji: '🐈', price: 300, charm: 4 },
+  fountain:  { level: 12, name: 'Fountain',          emoji: '⛲', price: 400, charm: 5, outdoor: true },
+  sacks:     { level: 1, name: 'Flour sacks',       emoji: '🌾', price: 20,  charm: 0, indoor: true },
 };
 export const ART = {
-  painting: { name: 'Painting',   emoji: '🖼️', price: 60, charm: 1 },
-  clock:    { name: 'Wall clock', emoji: '🕒', price: 50, charm: 1 },
-  shelf:    { name: 'Jar shelf',  emoji: '🫙', price: 80, charm: 1 },
-  plates:   { name: 'Plate rack', emoji: '🍽️', price: 70, charm: 1 },
+  painting: { level: 2, name: 'Painting',   emoji: '🖼️', price: 60, charm: 1 },
+  clock:    { level: 3, name: 'Wall clock', emoji: '🕒', price: 50, charm: 1 },
+  shelf:    { level: 5, name: 'Jar shelf',  emoji: '🫙', price: 80, charm: 1 },
+  plates:   { level: 6, name: 'Plate rack', emoji: '🍽️', price: 70, charm: 1 },
 };
 export const EXPANSIONS = {
-  front: { name: 'Front terrace', desc: 'Two rows of pavement in front of the shop become yours, for tiles, tables and plants.', price: 1200, cells: 18 },
-  side:  { name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
+  front: { level: 5, name: 'Front terrace', desc: 'Two rows of pavement in front of the shop become yours, for tiles, tables and plants.', price: 1200, cells: 18 },
+  side:  { level: 9, name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
 };
 export const SELL_BACK = 0.5;
+export const levelOk = (s, item) => (s.level || 1) >= (item?.level || 1);
+const lockMsg = item => ({ msg: `${item.name} unlocks at level ${item.level}.` });
 export const CHARM_PER_CUSTOMER = 0.01, CHARM_CAP = 0.3;
 
 // ---------- The grid ----------
@@ -151,6 +153,7 @@ function pay(s, cost) {
 export function paintFloor(s, cx, cz, style) {
   const zone = cellZone(cx, cz);
   if (!zone || !FLOORS[style]) return { msg: 'Not part of the shop.' };
+  if (!levelOk(s, FLOORS[style])) return lockMsg(FLOORS[style]);
   if (!cellOwned(s, cx, cz)) return { msg: `Buy the ${EXPANSIONS[zone].name.toLowerCase()} first.` };
   if (floorAt(s, cx, cz) === style) return { ok: false };
   if (!pay(s, FLOORS[style].price)) return { msg: 'Not enough clean cash.' };
@@ -163,6 +166,7 @@ export function fillFloorCost(s, style) {
   return { n, cost: n * FLOORS[style].price };
 }
 export function fillFloor(s, style) {
+  if (!levelOk(s, FLOORS[style])) return lockMsg(FLOORS[style]);
   const { n, cost } = fillFloorCost(s, style);
   if (!n) return { msg: 'The whole floor is already that.' };
   if (!pay(s, cost)) return { msg: `Not enough clean cash (£${cost} for ${n} squares).` };
@@ -172,6 +176,7 @@ export function fillFloor(s, style) {
 
 export function paintWall(s, key, style) {
   if (!PANELS.includes(key) || !WALLS[style]) return { msg: 'Not a wall panel.' };
+  if (!levelOk(s, WALLS[style])) return lockMsg(WALLS[style]);
   if (wallAt(s, key) === style) return { ok: false };
   if (!pay(s, WALLS[style].price)) return { msg: 'Not enough clean cash.' };
   s.design.wall[key] = style;
@@ -182,6 +187,7 @@ export function fillWallCost(s, style) {
   return { n, cost: n * WALLS[style].price };
 }
 export function fillWalls(s, style) {
+  if (!levelOk(s, WALLS[style])) return lockMsg(WALLS[style]);
   const { n, cost } = fillWallCost(s, style);
   if (!n) return { msg: 'Every panel is already that.' };
   if (!pay(s, cost)) return { msg: `Not enough clean cash (£${cost} for ${n} panels).` };
@@ -192,6 +198,7 @@ export function fillWalls(s, style) {
 export function placeDecor(s, type, cx, cz) {
   const d = DECOR[type];
   if (!d) return { msg: 'Pick something to place first.' };
+  if (!levelOk(s, d)) return lockMsg(d);
   const why = canPlace(s, type, cx, cz);
   if (why) return { msg: why };
   if (!pay(s, d.price)) return { msg: 'Not enough clean cash.' };
@@ -226,6 +233,7 @@ export function placeArt(s, key, type) {
   if (!artAllowed(key)) return { msg: 'No room on that panel (window, menu board or door).' };
   const a = ART[type];
   if (!a) return { msg: 'Pick a piece of wall art first.' };
+  if (!levelOk(s, a)) return lockMsg(a);
   if (s.design.art[key] === type) return { ok: false };
   if (!pay(s, a.price)) return { msg: 'Not enough clean cash.' };
   s.design.art[key] = type;
@@ -243,6 +251,7 @@ export function removeArt(s, key) {
 export function buyExpansion(s, id) {
   const e = EXPANSIONS[id];
   if (!e || s.design.expansions[id]) return { msg: 'Already yours.' };
+  if (!levelOk(s, e)) return lockMsg(e);
   if (!pay(s, e.price)) return { msg: 'Not enough clean cash.' };
   s.design.expansions[id] = true;
   return { ok: true, msg: `The ${e.name.toLowerCase()} is yours.` };

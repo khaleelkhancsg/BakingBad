@@ -1,6 +1,6 @@
 // Game rules and state. No DOM in here, so the balance simulator can run it in Node.
-import { CFG, ITEMS, VELVET, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
-         LINES, FACES, BUYER_NAMES, START_RECIPES } from './data.js';
+import { CFG, ITEMS, VELVET, GOLD, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
+         LINES, FACES, BUYER_NAMES, START_RECIPES, CREW, FEATURES } from './data.js';
 import { charmBonus, defaultDesign } from './design.js';
 
 export const SAVE_VERSION = 2;
@@ -23,7 +23,56 @@ export function onToast(fn) { sink = fn; }
 function toast(text, kind = 'info') { sink(text, kind); }
 
 export const has = (s, id) => !!s.upgrades[id];
-export const recipeOf = id => (id === 'velvet' ? VELVET : ITEMS[id]);
+export const recipeOf = id => (id === 'velvet' ? VELVET : id === 'gold' ? GOLD : ITEMS[id]);
+
+// ---------- XP and levels ----------
+export const xpToNext = level => CFG.levelBase + CFG.levelStep * (level - 1);
+export const unlocked = (s, level) => (s.level || 1) >= (level || 1);
+export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.level);
+// A finished batch is worth its total stage time: longer, harder recipes give more XP.
+export const batchXp = id => Math.max(2, Math.round(Object.values(recipeOf(id).times).reduce((a, b) => a + b, 0) * CFG.xpPerSecond));
+export const saleXp = id => Math.max(1, Math.round(ITEMS[id].price / 2.5));
+export function addXp(s, n) {
+  if (!n) return;
+  s.xp += n;
+  if (s.today) s.today.xp = (s.today.xp || 0) + n;
+  while (s.level < CFG.maxLevel && s.xp >= xpToNext(s.level)) {
+    s.xp -= xpToNext(s.level);
+    s.level++;
+    const cash = CFG.levelCash * s.level;
+    s.clean = round2(s.clean + cash);
+    s.levelUps.push(s.level);
+    toast(`⬆️ Level ${s.level}! +£${cash}`, 'good');
+  }
+  if (s.level >= CFG.maxLevel) s.xp = Math.min(s.xp, xpToNext(s.level));
+}
+
+// ---------- The menu: which recipes are in the display case ----------
+export const menuSlots = s => CFG.menuSlots + (has(s, 'case2') ? CFG.caseSlotsExtra : 0);
+export const menuOf = s => (s.onMenu || s.recipes).filter(id => s.recipes.includes(id)).slice(0, menuSlots(s));
+export function toggleMenu(s, id) {
+  if (!s.recipes.includes(id)) return;
+  const on = s.onMenu.includes(id);
+  if (on) {
+    if (s.onMenu.length <= 1) return toast('Keep at least one thing on the menu.', 'bad');
+    s.onMenu = s.onMenu.filter(x => x !== id);
+  } else {
+    if (s.onMenu.length >= menuSlots(s)) return toast(`The case holds ${menuSlots(s)}. Take something off first.`, 'bad');
+    s.onMenu.push(id);
+  }
+}
+
+// Older saves: fill in everything added since.
+export function migrate(s) {
+  s.level ||= 1; s.xp ||= 0; s.levelUps ||= [];
+  s.recipes ||= [...START_RECIPES];
+  s.onMenu ||= s.recipes.slice(0, CFG.menuSlots);
+  for (const k in INGREDIENTS) { s.inv[k] ??= 0; s.market[k] ??= 1; }
+  for (const id in ITEMS) { s.priceLevel[id] ||= 'normal'; s.display[id] ||= { fresh: 0, stale: 0 }; }
+  for (const role in CREW) s.crew[role] ??= false;
+  s.gold ??= 0; s.goldKits ??= 0; s.loanDay ??= -99; s.holidayUsed ??= false; s.holidayNext ??= false;
+  return s;
+}
 export const velvetYield = s => VELVET.yield + (has(s, 'glass') ? 4 : 0);
 export const launderRatio = s => CFG.launderRatio + (has(s, 'catering') ? 0.4 : 0);
 export const ingPrice = (s, ing) => round2(INGREDIENTS[ing].base * s.market[ing]);
@@ -54,7 +103,8 @@ export function stationLayout(s, kind) {
 function freshLedger(s) {
   return {
     sales: 0, itemsSold: 0, served: 0, missed: 0, pricedOut: 0, missedBy: {}, repMissLost: 0,
-    ingSpent: 0, upgradesSpent: 0, rent: 0, wages: 0, lostBatches: 0, burnt: 0, spoiled: 0,
+    ingSpent: 0, upgradesSpent: 0, rent: 0, wages: 0, nightWages: 0, lostBatches: 0, burnt: 0, spoiled: 0, coffees: 0, xp: 0,
+    nightEvents: [], pushed: 0, pushedAway: 0, couriers: 0, goldSold: 0,
     laundered: null, launderCap: 0, launderHeat: 0,
     nightOpen: false, nightOps: false, batches: 0, bagsMade: 0, nightSales: 0, bagsSold: 0,
     buyersServed: 0, buyersTurned: 0, buyersLost: 0, copsServed: 0, copsTurned: 0, kitsWasted: 0,
@@ -76,10 +126,12 @@ export function newGame() {
     v: SAVE_VERSION, day: 1, phase: 'plan', tab: 'supplies',
     clean: CFG.startClean, dirty: 0, heat: 0, rep: 40,
     balance: CFG.debtTotal, arrears: 0, strikes: 0, paymentsMade: 0,
-    inv: { flour: 15, butter: 8, sugar: 6, eggs: 6, chocolate: 4, fruit: 0 },
-    kits: 0, bags: 0,
-    priceLevel: {}, recipes: [...START_RECIPES], upgrades: {},
-    crew: { baker: false, dealer: false },
+    inv: { flour: 15, butter: 8, sugar: 6, eggs: 6, chocolate: 4, fruit: 0, cream: 0, nuts: 0 },
+    kits: 0, bags: 0, goldKits: 0, gold: 0,
+    level: 1, xp: 0, levelUps: [],
+    priceLevel: {}, recipes: [...START_RECIPES], onMenu: [...START_RECIPES], upgrades: {},
+    crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
+    loanDay: -99, holidayUsed: false, holidayNext: false,
     labUnlocked: false, offerDay: 2, offerPending: false, nightsActive: 0,
     display: {}, market: {}, event: null,
     today: null, report: null, shift: null,
@@ -97,6 +149,7 @@ export function newGame() {
 // ---------- Morning planning ----------
 
 export function buyIngredient(s, ing, qty) {
+  if (!unlocked(s, INGREDIENTS[ing].level)) return toast(`${INGREDIENTS[ing].name} unlocks at level ${INGREDIENTS[ing].level}.`, 'bad');
   const cost = round2(ingPrice(s, ing) * qty);
   if (s.clean < cost) return toast('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - cost);
@@ -116,26 +169,52 @@ export function upgradeAvailable(s, u) {
 export function buyUpgrade(s, id) {
   const u = UPGRADES.find(x => x.id === id);
   if (!u || !upgradeAvailable(s, u)) return;
+  if (!unlocked(s, u.level)) return toast(`${u.name} unlocks at level ${u.level}.`, 'bad');
   if (s[u.cash] < u.cost) return toast(`Not enough ${u.cash} cash.`, 'bad');
   s[u.cash] = round2(s[u.cash] - u.cost);
   s.upgrades[u.id] = true;
-  if (u.recipe && !s.recipes.includes(u.recipe)) s.recipes.push(u.recipe);
+  if (u.recipe && !s.recipes.includes(u.recipe)) {
+    s.recipes.push(u.recipe);
+    if (s.onMenu.length < menuSlots(s)) s.onMenu.push(u.recipe);
+    else toast('The case is full: add it to the menu in 📋 Menu.', 'info');
+  }
   if (u.cash === 'clean') s.today.upgradesSpent += u.cost;
   toast(`Bought: ${u.name}`, 'good');
 }
 
 export function hire(s, role) {
-  if (role === 'dealer' && !s.labUnlocked) return;
+  const c = CREW[role];
+  if (!c || (c.lab && !s.labUnlocked)) return;
+  if (!unlocked(s, c.level)) return toast(`${c.name} is available from level ${c.level}.`, 'bad');
   s.crew[role] = true;
-  toast(role === 'baker' ? 'Priya starts today.' : 'Jay\'s in. He keeps a quarter of what he sells.', 'good');
+  toast(`${c.name} (${c.role.toLowerCase()}) starts ${c.shift === 'night' ? 'tonight' : 'today'}.`, 'good');
 }
+export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [, c]) => a + c.wage, 0);
 export function fire(s, role) { s.crew[role] = false; }
 
-export function buyKit(s, cash) {
+export function buyKit(s, cash, type = 'velvet') {
   if (!s.labUnlocked) return;
-  if (s[cash] < CFG.kitCost) return toast(`Not enough ${cash} cash.`, 'bad');
-  s[cash] = round2(s[cash] - CFG.kitCost);
-  s.kits++;
+  const gold = type === 'gold';
+  if (gold && !feature(s, 'gold')) return toast('Velvet Gold unlocks at level 7.', 'bad');
+  const cost = gold ? CFG.goldKitCost : CFG.kitCost;
+  if (s[cash] < cost) return toast(`Not enough ${cash} cash.`, 'bad');
+  s[cash] = round2(s[cash] - cost);
+  if (gold) s.goldKits++; else s.kits++;
+}
+
+// ---------- Bank: loans (level 4) and a payment holiday (level 10) ----------
+export const loanReady = s => feature(s, 'loan') && s.day - s.loanDay >= CFG.loanEvery && !s.won;
+export function takeLoan(s) {
+  if (!loanReady(s)) return toast(feature(s, 'loan') ? 'One loan a week.' : 'Loans unlock at level 4.', 'bad');
+  s.clean = round2(s.clean + CFG.loanAmount);
+  s.balance = round2(s.balance + CFG.loanAmount * (1 + CFG.loanFee));
+  s.loanDay = s.day;
+  toast(`Borrowed £${CFG.loanAmount.toLocaleString('en-GB')}. The debt goes up £${(CFG.loanAmount * (1 + CFG.loanFee)).toLocaleString('en-GB')}.`, 'good');
+}
+export function useHoliday(s) {
+  if (!feature(s, 'holiday') || s.holidayUsed) return toast('No payment holiday available.', 'bad');
+  s.holidayUsed = true; s.holidayNext = true;
+  toast('The bank agrees: your next payment is skipped.', 'good');
 }
 
 export function bribe(s) {
@@ -175,6 +254,12 @@ export function startShift(s, kind) {
   sh.gap = sh.len / expected;
   sh.next = kind === 'day' ? CFG.openingQuiet + expRand(sh.gap) : 4 + expRand(sh.gap);
   if (kind === 'day') sh.gap = (sh.len - CFG.openingQuiet) / expected;
+  if (kind === 'night') {
+    sh.courierAt = feature(s, 'courier') && rand() < CFG.courierChance ? sh.len * (0.25 + rand() * 0.35) : null;
+    sh.rival = feature(s, 'rivals') && rand() < CFG.rivalChance;
+    sh.rivalAt = sh.len * (0.45 + rand() * 0.25);
+    if (sh.rival) { sh.gap /= CFG.rivalBuyers; sh.feed.push({ face: '👥', text: 'Word is a rival crew is about tonight', kind: 'bad', t: 0 }); }
+  }
   s.shift = sh;
   s.phase = kind;
   if (kind === 'night') s.today.nightOpen = true;
@@ -213,7 +298,7 @@ export function tick(s, dt) {
           else { s.today.kitsWasted++; toast('🔥 A batch of Velvet scorched on the burner. Kit wasted.', 'bad'); }
           continue;
         }
-        if (sh.kind === 'day' && s.crew.baker && slot.over > 1) advance(s, stage, i, true);
+        if (slot.over > 1 && ((sh.kind === 'day' && s.crew.baker) || (sh.kind === 'night' && s.crew.cook))) advance(s, stage, i, true);
       }
     }
   }
@@ -228,8 +313,10 @@ export function tick(s, dt) {
     sh.customers = sh.customers.filter(c => sh.t - c.t0 < stay);
   }
   if (sh.kind === 'night') {
+    if (sh.courierAt != null && !sh.courierDone && sh.t >= sh.courierAt) { sh.courierDone = true; courierArrives(s); }
+    if (sh.rival && !sh.rivalDone && sh.t >= sh.rivalAt) { sh.rivalDone = true; rivalsStrike(s); }
     for (const b of [...sh.buyers]) {
-      if (sh.t - b.t0 > CFG.buyerPatience) {
+      if (sh.t - b.t0 > (b.patience || CFG.buyerPatience)) {
         sh.buyers = sh.buyers.filter(x => x !== b);
         s.today.buyersLost++;
         feed(sh, '🚪', `${b.name} got tired of waiting`, 'meh');
@@ -246,7 +333,11 @@ export function tapSlot(s, stage, i) {
   if (!slot.item) {
     const first = sh.kind === 'day' ? 'mix' : 'prep';
     if (stage !== first) { toast(`Finished batches move here from the ${sh.kind === 'day' ? 'mixer' : 'previous station'}.`); return null; }
-    if (sh.kind === 'night') { startVelvet(s, i); return null; }
+    if (sh.kind === 'night') {
+      if (s.kits > 0 && s.goldKits > 0) return { pickLab: true };
+      startVelvet(s, i, s.kits > 0 || !s.goldKits ? 'velvet' : 'gold');
+      return null;
+    }
     return { pick: true };
   }
   if (!slot.done) { toast(`${STAGES[stage].verb}… ${Math.ceil(slot.dur - slot.t)}s left`); return null; }
@@ -262,9 +353,17 @@ function advance(s, stage, i, silent) {
   if (idx === r.stages.length - 1) {
     if (sh.kind === 'day') {
       s.display[slot.item].fresh += r.yield;
-      feed(sh, r.emoji, `+${r.yield} ${r.name} in the case`, 'good');
+      addXp(s, batchXp(slot.item));
+      feed(sh, r.emoji, `+${r.yield} ${r.name} · +${batchXp(slot.item)} xp`, 'good');
+    } else if (slot.item === 'gold') {
+      s.gold += GOLD.yield;
+      s.today.batches++; s.today.bagsMade += GOLD.yield; s.today.nightOps = true;
+      s.heat = clamp(s.heat + CFG.heatPerBatch * 2, 0, 100);
+      addXp(s, CFG.xpGoldBatch);
+      feed(sh, '💛', `+${GOLD.yield} bags of Velvet Gold`, 'good');
     } else {
       const n = velvetYield(s);
+      addXp(s, CFG.xpVelvetBatch);
       s.bags += n;
       s.today.batches++;
       s.today.bagsMade += n;
@@ -297,11 +396,13 @@ export function startRecipe(s, id, i) {
   sh.slots.mix[i] = { item: id, t: 0, dur: r.times.mix, done: false, over: 0 };
 }
 
-function startVelvet(s, i) {
+export function startVelvet(s, i, product = 'velvet') {
   const sh = s.shift;
-  if (s.kits < 1) return toast('No kits left. Buy them from Dez in the morning.', 'bad');
-  s.kits--;
-  sh.slots.prep[i] = { item: 'velvet', t: 0, dur: VELVET.times.prep, done: false, over: 0 };
+  if (!sh || sh.kind !== 'night' || sh.slots.prep[i]?.item) return;
+  const gold = product === 'gold';
+  if (gold ? s.goldKits < 1 : s.kits < 1) return toast('No kits left. Buy them from Dez in the morning.', 'bad');
+  if (gold) s.goldKits--; else s.kits--;
+  sh.slots.prep[i] = { item: gold ? 'gold' : 'velvet', t: 0, dur: (gold ? GOLD : VELVET).times.prep, done: false, over: 0 };
 }
 
 function sellTo(s, id) {
@@ -309,13 +410,17 @@ function sellTo(s, id) {
   const avail = d.fresh + d.stale;
   if (!avail) return { none: true };
   const lvl = PRICE_LEVELS[s.priceLevel[id]];
-  if (rand() > lvl.buy) return { pricey: true };
+  const buy = s.crew.cashier ? lvl.buy + (1 - lvl.buy) / 2 : lvl.buy;
+  if (rand() > buy) return { pricey: true };
   let qty = 1 + (rand() < 0.45 ? 1 : 0) + (ITEMS[id].group === 'sweet' && rand() < 0.3 ? 1 : 0);
   qty = Math.min(qty, avail);
   const fresh = Math.min(qty, d.fresh), stale = qty - fresh;
   d.fresh -= fresh; d.stale -= stale;
-  const price = itemPrice(s, id);
-  const rev = round2(fresh * price + stale * price * CFG.staleMult);
+  const price = itemPrice(s, id) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1);
+  let rev = round2(fresh * price + stale * price * CFG.staleMult);
+  let xp = qty * saleXp(id);
+  if (has(s, 'coffee') && rand() < CFG.coffeeChance) { rev = round2(rev + CFG.coffeePrice); s.today.coffees++; xp += CFG.xpCoffee; }
+  addXp(s, xp);
   s.clean = round2(s.clean + rev);
   const t = s.today;
   t.sales = round2(t.sales + rev); t.itemsSold += qty; t.served++;
@@ -343,15 +448,16 @@ function chooseWant(s) {
           : { bread: 0.15, pastry: 0.3, sweet: 0.55 };
   if (s.event?.sweet) { w.sweet *= s.event.sweet; w.bread *= 0.5; }
   const group = weighted(w);
-  let options = s.recipes.filter(id => ITEMS[id].group === group);
-  if (!options.length) options = [...s.recipes];
+  const menu = menuOf(s);
+  let options = menu.filter(id => ITEMS[id].group === group);
+  if (!options.length) options = [...menu];
   return pick(options);
 }
 
 function resolveCustomer(s, c) {
   const sh = s.shift;
   const want = c.want, face = c.face;
-  const options = s.recipes.filter(id => ITEMS[id].group === ITEMS[want].group);
+  const options = menuOf(s).filter(id => ITEMS[id].group === ITEMS[want].group);
   let r = sellTo(s, want);
   if (r.none) {
     const subs = options.filter(id => id !== want && s.display[id].fresh + s.display[id].stale > 0);
@@ -380,37 +486,91 @@ function resolveCustomer(s, c) {
 
 function buyerArrives(s) {
   const sh = s.shift;
-  const cop = rand() < copChance(s);
+  const product = feature(s, 'gold') && rand() < CFG.goldShare ? 'gold' : 'velvet';
+  const cop = rand() < copChance(s) + (product === 'gold' ? CFG.goldCopExtra : 0);
   const offLine = cop ? rand() < 0.8 : rand() < 0.12;
-  const hint = has(s, 'camera') && (cop ? rand() < 0.5 : rand() < 0.05);
-  const want = Number(weighted({ 1: 0.35, 2: 0.4, 3: 0.25 }));
-  const b = { id: sh.nextId++, name: pick(BUYER_NAMES), cop, line: pick(offLine ? LINES.off : LINES.normal), hint, want, t0: sh.t, look: newLook() };
+  const hint = (has(s, 'camera') && (cop ? rand() < 0.5 : rand() < 0.05))
+    || (s.crew.lookout && (cop ? rand() < CFG.lookoutCatch : rand() < CFG.lookoutFalse));
+  const want = product === 'gold' ? Number(weighted({ 1: 0.6, 2: 0.4 })) : Number(weighted({ 1: 0.35, 2: 0.4, 3: 0.25 }));
+  const b = { id: sh.nextId++, name: pick(BUYER_NAMES), cop, line: pick(offLine ? LINES.off : LINES.normal), hint, want, product, t0: sh.t, look: newLook() };
   sh.buyers.push(b);
   feed(sh, '🚪', `${b.name} knocks at the back door`, 'info');
 }
 
-export function sellToBuyer(s, id) {
+export const bagPrice = b => (b.courier ? CFG.courierPrice : b.product === 'gold' ? CFG.goldBagDoor : CFG.bagDoor);
+export const stockFor = (s, b) => (b.product === 'gold' ? s.gold : s.bags);
+
+export function sellToBuyer(s, id, push = false) {
   const sh = s.shift;
   const b = sh?.buyers.find(x => x.id === id);
   if (!b) return;
-  const qty = Math.min(b.want, s.bags);
-  if (qty < 1) return toast('No bags to sell. Cook some first.', 'bad');
-  sh.buyers = sh.buyers.filter(x => x !== b);
-  s.bags -= qty;
-  const cash = qty * CFG.bagDoor;
-  s.dirty += cash;
+  const gold = b.product === 'gold';
+  const have = stockFor(s, b);
+  if (b.courier && have < b.want) return toast(`The courier wants all ${b.want} bags at once.`, 'bad');
+  const qty = Math.min(b.want, have);
+  if (qty < 1) return toast(gold ? 'No Velvet Gold to sell.' : 'No bags to sell. Cook some first.', 'bad');
   const t = s.today;
+  push = push && !b.courier && feature(s, 'haggle');
+  if (push) {
+    t.pushed++;
+    // Ordinary buyers sometimes walk off at a higher price. Undercover officers never argue.
+    if (!b.cop && rand() < CFG.pushRefuse) {
+      sh.buyers = sh.buyers.filter(x => x !== b);
+      t.pushedAway++;
+      feed(sh, '🚪', `${b.name} won't pay that and leaves`, 'meh');
+      return toast(`${b.name} won't pay that and leaves.`, 'bad');
+    }
+  }
+  sh.buyers = sh.buyers.filter(x => x !== b);
+  if (gold) s.gold -= qty; else s.bags -= qty;
+  const cash = Math.round(qty * bagPrice(b) * (push ? CFG.pushMult : 1));
+  s.dirty += cash;
   t.nightSales += cash; t.bagsSold += qty; t.buyersServed++; t.nightOps = true;
+  if (gold) t.goldSold += qty;
   s.stats.totalBags += qty;
   s.heat = clamp(s.heat + CFG.heatPerBag * qty, 0, 100);
+  addXp(s, qty * (gold ? CFG.xpGoldBag : CFG.xpBag) + (b.courier ? CFG.xpCourier : 0));
+  if (b.courier) {
+    t.couriers++;
+    s.heat = clamp(s.heat + CFG.courierHeat, 0, 100);
+    feed(sh, '📦', `Courier took ${qty} bags · +£${cash}`, 'good');
+    return toast(`📦 Bulk order done: +£${cash}.`, 'good');
+  }
   if (b.cop) {
     t.copsServed++;
     s.heat = clamp(s.heat + CFG.copServedHeat, 0, 100);
     toast(`🚨 ${b.name} was undercover. Heat +${CFG.copServedHeat}.`, 'bad');
     feed(sh, '🚨', `${b.name} was a cop`, 'bad');
   } else {
-    feed(sh, '💜', `${b.name} ×${qty} +£${cash}`, 'good');
+    feed(sh, gold ? '💛' : '💜', `${b.name} ×${qty} +£${cash}${push ? ' (haggled)' : ''}`, 'good');
   }
+}
+
+// Dez's courier (level 5): a bulk order, all at once, no undercover risk, a bit more heat.
+function courierArrives(s) {
+  const sh = s.shift;
+  const want = CFG.courierMin + Math.floor(rand() * (CFG.courierMax - CFG.courierMin + 1));
+  sh.buyers.push({ id: sh.nextId++, name: "Dez's courier", courier: true, cop: false, product: 'velvet', want, hint: false,
+    line: `Dez sent me. ${want} bags, all at once, and I'm gone.`, t0: sh.t, patience: CFG.courierPatience, look: newLook() });
+  feed(sh, '📦', `A courier wants ${want} bags`, 'info');
+  toast(`📦 Dez's courier is at the back door for ${want} bags.`, 'info');
+}
+
+// Rival crews (level 9): they try to rob you unless your muscle is on.
+function rivalsStrike(s) {
+  const sh = s.shift, t = s.today;
+  if (s.crew.muscle) {
+    addXp(s, CFG.xpRival);
+    feed(sh, '💪', 'Big Ron saw off a rival crew', 'good');
+    t.nightEvents.push({ kind: 'good', text: '💪 A rival crew came round the back. Big Ron saw them off.' });
+    return toast('💪 Big Ron saw off a rival crew.', 'good');
+  }
+  const cash = Math.round(s.dirty * CFG.rivalRob), bags = Math.floor(s.bags * CFG.rivalRob);
+  s.dirty -= cash; s.bags -= bags;
+  s.heat = clamp(s.heat + 3, 0, 100);
+  feed(sh, '👥', `Rivals took £${cash} and ${bags} bags`, 'bad');
+  t.nightEvents.push({ kind: 'bad', text: `👥 A rival crew robbed the back room: £${cash} and ${bags} bags gone. Muscle would have stopped them.` });
+  toast(`👥 Robbed! A rival crew took £${cash} and ${bags} bags.`, 'bad');
 }
 
 export function turnAway(s, id) {
@@ -438,13 +598,19 @@ export function endShift(s) {
     for (const c of sh.customers) if (!c.res) resolveCustomer(s, c);
     const t = s.today;
     t.rent = CFG.rent;
-    t.wages = s.crew.baker ? CFG.bakerWage : 0;
+    t.wages = crewWages(s, 'day');
     s.clean = round2(s.clean - t.rent - t.wages);
     t.launderCap = Math.round(t.sales * launderRatio(s));
     s.stats.totalSales += t.sales;
     s.phase = 'evening';
   } else {
     s.today.buyersLost += sh.buyers.length;
+    const w = crewWages(s, 'night');
+    if (w) {
+      s.today.nightWages = w;
+      const fromDirty = Math.min(w, Math.floor(s.dirty));
+      s.dirty -= fromDirty; s.clean = round2(s.clean - (w - fromDirty));
+    }
     s.dealerAssign = s.crew.dealer ? s.bags : 0;
     s.phase = 'nightEnd';
   }
@@ -486,7 +652,7 @@ export function goHome(s) {
   if (s.crew.dealer && s.dealerAssign > 0) {
     const n = Math.min(s.dealerAssign, s.bags);
     s.bags -= n;
-    if (rand() < CFG.dealerArrestBase + s.heat * CFG.dealerArrestPerHeat) {
+    if (rand() < (CFG.dealerArrestBase + s.heat * CFG.dealerArrestPerHeat) * (has(s, 'van') ? CFG.vanArrestMult : 1)) {
       s.crew.dealer = false;
       s.heat = clamp(s.heat + CFG.dealerArrestHeat, 0, 100);
       t.dealer = { n, arrested: true };
@@ -497,6 +663,7 @@ export function goHome(s) {
       s.heat = clamp(s.heat + CFG.heatPerBag * n, 0, 100);
       t.dealer = { n, cash };
       s.stats.totalBags += n;
+      addXp(s, n * CFG.xpDealerBag);
       lines.push({ kind: 'good', text: `🧢 Jay sold ${n} bags on the street. Your share: £${cash}.` });
     }
   }
@@ -510,6 +677,7 @@ export function goHome(s) {
     d.fresh = 0;
   }
 
+  lines.push(...t.nightEvents);
   if (t.nightOps) s.nightsActive++;
   s.heat = clamp(s.heat - CFG.heatDecay - (t.nightOps ? 0 : CFG.lieLowBonus), 0, 100);
   s.rep = clamp(s.rep + CFG.repDrift, 0, 100);
@@ -518,12 +686,13 @@ export function goHome(s) {
   if (s.heat >= 100) {
     s.over = { reason: 'arrested', text: 'Armed police come through the back door at dawn. They find the lab, the cash and the bags. It\'s over.' };
   } else if (s.heat >= CFG.raidAt && rand() < (s.heat - 50) / 100) {
-    const lostDirty = Math.round(s.dirty / 2);
-    if (s.bags + s.kits > 0 && rand() < (s.heat - 60) / 60) {
-      s.over = { reason: 'arrested', text: `A dawn raid. This time they find ${s.bags ? s.bags + ' bags' : s.kits + ' kits'} in the back room. You're arrested.` };
+    const lostDirty = Math.round(s.dirty * (has(s, 'safe') ? CFG.safeRaidShare : 0.5));
+    const product = s.bags + s.kits + s.gold + s.goldKits;
+    if (product > 0 && rand() < (s.heat - 60) / 60) {
+      s.over = { reason: 'arrested', text: `A dawn raid. This time they find ${s.bags + s.gold ? (s.bags + s.gold) + ' bags' : (s.kits + s.goldKits) + ' kits'} in the back room. You're arrested.` };
     }
-    lines.push({ kind: 'bad', text: `🚓 Raid! They took ${s.bags} bags, ${s.kits} kits and £${lostDirty} of dirty cash. Not enough to charge you. Yet.` });
-    s.bags = 0; s.kits = 0; s.dirty -= lostDirty;
+    lines.push({ kind: 'bad', text: `🚓 Raid! They took ${s.bags + s.gold} bags, ${s.kits + s.goldKits} kits and £${lostDirty} of dirty cash${has(s, 'safe') ? ' (the safe kept the rest)' : ''}. Not enough to charge you. Yet.` });
+    s.bags = 0; s.kits = 0; s.gold = 0; s.goldKits = 0; s.dirty -= lostDirty;
     s.heat = clamp(s.heat - 10, 0, 100);
   } else if (s.heat >= CFG.inspectAt && rand() < CFG.inspectChance) {
     if (t.launderHeat > 0) {
@@ -541,7 +710,10 @@ export function goHome(s) {
   let payment = null;
   if (!s.over && !s.won && s.day >= CFG.firstPaymentDay && (s.day - CFG.firstPaymentDay) % 7 === 0) {
     const due = nextDue(s);
-    if (s.clean >= due) {
+    if (s.holidayNext) {
+      s.holidayNext = false;
+      payment = { holiday: true, due };
+    } else if (s.clean >= due) {
       s.clean = round2(s.clean - due);
       s.balance = round2(s.balance - due);
       s.arrears = 0;
@@ -563,7 +735,7 @@ export function goHome(s) {
   if (!s.labUnlocked && !s.offerPending && s.day >= s.offerDay) s.offerPending = true;
 
   rollDay(s);
-  s.report = { day: s.day - 1, ledger: t, lines, payment, heatFrom: t.start.heat, heatMid: heatBefore, heatTo: s.heat,
+  s.report = { day: s.day - 1, ledger: t, lines, payment, xp: t.xp, level: s.level, heatFrom: t.start.heat, heatMid: heatBefore, heatTo: s.heat,
                repFrom: t.start.rep, repTo: s.rep, cleanFrom: t.start.clean, dirtyFrom: t.start.dirty };
   s.today = freshLedger(s);
   s.phase = 'report';

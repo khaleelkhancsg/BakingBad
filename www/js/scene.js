@@ -14,7 +14,7 @@ const PAL = {
   pants: ['#2f3b5c', '#3d3d3d', '#6b5a45', '#24344a', '#5c2f3b'],
   hoodie: ['#2a2a33', '#1f2b2a', '#3a2433', '#33302a', '#22263a'],
 };
-const DOUGH = { sourdough: '#e8d3a9', croissant: '#f1d49a', cookies: '#c98a4b', donuts: '#efd2a0', tart: '#e6c08a', bun: '#d9b07a', velvet: '#b58cff' };
+const DOUGH = { sourdough: '#e8d3a9', croissant: '#f1d49a', cookies: '#c98a4b', donuts: '#efd2a0', tart: '#e6c08a', bun: '#d9b07a', velvet: '#b58cff', baguette: '#ead7a8', muffin: '#e8c48e', caramel: '#f2d27a', cheesecake: '#f6e7c4', honeyroll: '#e3b77a', layercake: '#f6e7c4', gold: '#ffd447' };
 
 // ---------- Baked goods for the display case ----------
 
@@ -43,6 +43,28 @@ function itemModel(id) {
     b.rotation.x = -PI / 2; b.position.y = 0.05; g.add(b);
     g.add(sphere(0.055, '#b87338', 0, 0.06, 0));
     const ic = box(0.12, 0.01, 0.02, '#fff3e0', 0, 0.105, 0); ic.rotation.y = 0.6; g.add(ic);
+  } else if (id === 'baguette') {
+    const b = mesh(geo('bag', () => new THREE.CapsuleGeometry(0.045, 0.2, 4, 8)), mat('#c98a4b'), 0, 0.05, 0);
+    b.rotation.z = PI / 2; b.rotation.y = 0.4; g.add(b);
+  } else if (id === 'muffin') {
+    g.add(cyl(0.06, 0.05, 0.07, '#e85d75', 0, 0, 0, 12));
+    const top = sphere(0.075, '#c98a4b', 0, 0.08, 0); top.scale.y = 0.7; g.add(top);
+    g.add(sphere(0.018, '#7a2a4a', 0.02, 0.125, 0.01));
+  } else if (id === 'caramel') {
+    g.add(cyl(0.08, 0.09, 0.07, '#f2d27a', 0, 0, 0, 14));
+    g.add(cyl(0.075, 0.08, 0.015, '#8a4a1a', 0, 0.07, 0, 14));
+  } else if (id === 'cheesecake') {
+    const sl = mesh(geo('slice', () => new THREE.CylinderGeometry(0.12, 0.12, 0.08, 10, 1, false, 0, PI / 3)), mat('#f6e7c4'), 0, 0.04, 0); g.add(sl);
+    const top = mesh(geo('slicetop', () => new THREE.CylinderGeometry(0.12, 0.12, 0.018, 10, 1, false, 0, PI / 3)), mat('#c8323c'), 0, 0.088, 0); g.add(top);
+  } else if (id === 'honeyroll') {
+    const b = mesh(geo('roll', () => new THREE.TorusGeometry(0.065, 0.045, 8, 16)), mat('#d99a4a'));
+    b.rotation.x = -PI / 2; b.position.y = 0.045; g.add(b);
+    g.add(sphere(0.05, '#f0b44c', 0, 0.06, 0));
+    for (const [x, z] of [[0.04, 0.02], [-0.03, 0.04], [0.0, -0.05]]) g.add(sphere(0.015, '#7a5534', x, 0.1, z));
+  } else if (id === 'layercake') {
+    g.add(cyl(0.11, 0.11, 0.06, '#f6e7c4', 0, 0, 0, 16)); g.add(cyl(0.112, 0.112, 0.015, '#ff9fb2', 0, 0.06, 0, 16));
+    g.add(cyl(0.11, 0.11, 0.05, '#f6e7c4', 0, 0.075, 0, 16)); g.add(cyl(0.115, 0.115, 0.02, '#ffffff', 0, 0.125, 0, 16));
+    g.add(sphere(0.025, '#e2394b', 0, 0.16, 0));
   }
   return g;
 }
@@ -479,9 +501,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
   statics.add(box(5.1, 0.55, 0.9, glass, 0, 0.99, 0.95, false));
   statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 1.54, 0.95));
   const trays = [];
-  for (let k = 0; k < 6; k++) {
-    const x = -2.05 + k * 0.82;
-    statics.add(box(0.72, 0.03, 0.62, '#f6f1e6', x, 0.99, 0.95));
+  for (let k = 0; k < 8; k++) {
+    const x = -2.17 + k * 0.62;
+    statics.add(box(0.56, 0.03, 0.62, '#f6f1e6', x, 0.99, 0.95));
     const tg = new THREE.Group(); tg.position.set(x, 1.02, 0.95); scene.add(tg);
     trays.push({ x, group: tg, sig: '' });
   }
@@ -1017,7 +1039,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
       if (before.item === 'velvet') {
         for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
       } else {
-        const idx = Math.min(5, Math.max(0, s.recipes.indexOf(before.item)));
+        const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(before.item)));
         for (let k = 0; k < 3; k++) launch(itemModel(before.item), from, V3(trays[idx].x, 1.08, 0.95), { delay: k * 0.09 });
       }
     }
@@ -1051,7 +1073,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
       const lines = new Map();
       for (const c of [...sh.customers].sort((a, b) => a.t0 - b.t0)) {
         if (c.res && sh.t - c.t0 > CFG.walkIn + CFG.browse) continue;
-        const idx = Math.min(5, Math.max(0, s.recipes.indexOf(c.want)));
+        const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(c.want)));
         if (!lines.has(idx)) lines.set(idx, []);
         lines.get(idx).push(c.id);
       }
@@ -1063,7 +1085,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
         if (!e.leaving) {
           if (!e.inside) { e.agent.target.copy(GAP); e.agent.face = null; if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = true; }
           else {
-            const idx = Math.min(5, Math.max(0, s.recipes.indexOf(c.want)));
+            const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(c.want)));
             const k = lines.get(idx)?.indexOf(c.id) ?? 0;
             e.agent.target.set(trays[idx].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
             e.agent.face = PI;
@@ -1220,11 +1242,12 @@ export function createScene(canvas, overlayEl, { onPick }) {
       }
     }
     // Display case
-    const tsig = s.recipes.map(id => id + (s.display[id].fresh + s.display[id].stale)).join(',');
+    const menu = G.menuOf(s);
+    const tsig = menu.map(id => id + (s.display[id].fresh + s.display[id].stale)).join(',');
     if (tsig !== traySig) {
       traySig = tsig;
       trays.forEach((t, k) => {
-        const id = s.recipes[k];
+        const id = menu[k];
         const n = id ? Math.min(6, s.display[id].fresh + s.display[id].stale) : 0;
         const tsg = id + n;
         if (t.sig === tsg) return;
@@ -1232,7 +1255,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
         t.group.clear();
         for (let j = 0; j < n; j++) {
           const m = itemModel(id);
-          m.position.set(((j % 3) - 1) * 0.21, 0, (Math.floor(j / 3) - 0.5) * 0.24);
+          m.position.set(((j % 3) - 1) * 0.16, 0, (Math.floor(j / 3) - 0.5) * 0.24);
+          m.scale.setScalar(0.85);
           m.rotation.y = (j * 1.7) % PI;
           t.group.add(m);
         }
@@ -1241,7 +1265,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
     // Back room props
     cash.forEach((c, k) => { c.visible = k < Math.min(12, Math.ceil(s.dirty / 150)); });
     kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, s.kits); });
-    bagPile.forEach((b, k) => { b.visible = k < Math.min(24, s.bags); });
+    bagPile.forEach((b, k) => { b.visible = k < Math.min(24, s.bags + (s.gold || 0)); });
+    kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, s.kits + (s.goldKits || 0)); });
     camGroup.visible = G.has(s, 'camera');
     camLed.color.set(Math.sin(now * 4) > 0 ? '#ff3a3a' : '#551111');
     catering.visible = G.has(s, 'catering');
