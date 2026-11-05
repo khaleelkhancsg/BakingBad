@@ -1,12 +1,10 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import { CFG, ITEMS, STAGES } from './data.js';
 import * as G from './game.js';
-
-const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
-const PI = Math.PI;
+import { V3, PI, geo, mat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
+import { buildWorld } from './world.js';
 
 const PAL = {
   skin: ['#f5d0b0', '#e0ac85', '#c68a5e', '#9a6440', '#6b4428'],
@@ -16,52 +14,6 @@ const PAL = {
   hoodie: ['#2a2a33', '#1f2b2a', '#3a2433', '#33302a', '#22263a'],
 };
 const DOUGH = { sourdough: '#e8d3a9', croissant: '#f1d49a', cookies: '#c98a4b', donuts: '#efd2a0', tart: '#e6c08a', bun: '#d9b07a', velvet: '#b58cff' };
-
-// ---------- Small helpers with shared geometry and materials ----------
-
-const geoCache = new Map();
-const geo = (key, make) => { if (!geoCache.has(key)) geoCache.set(key, make()); return geoCache.get(key); };
-const matCache = new Map();
-function mat(color, o = {}) {
-  const key = color + JSON.stringify(o);
-  if (!matCache.has(key)) matCache.set(key, new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, ...o }));
-  return matCache.get(key);
-}
-function mesh(g, m, x = 0, y = 0, z = 0, cast = true) {
-  const me = new THREE.Mesh(g, m);
-  me.position.set(x, y, z);
-  me.castShadow = cast;
-  me.receiveShadow = true;
-  return me;
-}
-// Box positioned by its bottom centre. Anything chunkier than a wall gets softly rounded edges.
-function box(w, h, d, m, x = 0, y = 0, z = 0, cast = true) {
-  const mn = Math.min(w, h, d);
-  const g = mn >= 0.22
-    ? geo(`rb${w}|${h}|${d}`, () => new RoundedBoxGeometry(w, h, d, 2, Math.min(0.07, mn * 0.18)))
-    : geo(`b${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d));
-  return mesh(g, typeof m === 'string' ? mat(m) : m, x, y + h / 2, z, cast);
-}
-// A rounded box with a chosen radius (for small things that should still look soft).
-function rbox(w, h, d, m, x = 0, y = 0, z = 0, r = 0.03) {
-  return mesh(geo(`rr${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2, h / 2, d / 2))), typeof m === 'string' ? mat(m) : m, x, y + h / 2, z);
-}
-function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, seg = 16, cast = true) {
-  return mesh(geo(`c${rt}|${rb}|${h}|${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)), typeof m === 'string' ? mat(m) : m, x, y + h / 2, z, cast);
-}
-function sphere(r, m, x = 0, y = 0, z = 0, cast = true) {
-  return mesh(geo(`s${r}`, () => new THREE.SphereGeometry(r, 16, 12)), typeof m === 'string' ? mat(m) : m, x, y, z, cast);
-}
-function canvasTex(w, h, draw, repeat) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
-  if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0], repeat[1]); }
-  return t;
-}
 
 // ---------- Baked goods for the display case ----------
 
@@ -405,7 +357,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const sun = new THREE.DirectionalLight('#ffe2b8', 2.4);
   sun.castShadow = true;
   sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 13, bottom: -13, near: 1, far: 70 });
+  Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 19, bottom: -19, near: 1, far: 90 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   sun.target.position.set(-3.5, 0, 0);
@@ -417,9 +369,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const street = new THREE.PointLight('#ffd27a', 0, 9, 2); street.position.set(5.5, 2.5, -3.4); scene.add(street);
   const alley = new THREE.PointLight('#ffb05a', 0, 8, 2); alley.position.set(-12.6, 2.3, 3.3); scene.add(alley);
   const LIGHTS = {
-    day:     { hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#2b2140', lamp: 0, bulb: 3, neon: 4, street: 0, alley: 0, lampI: 0.3, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
-    evening: { hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#2a1830', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
-    night:   { hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#0b0912', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
+    day:     { nightK: 0, hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#2b2140', lamp: 0, bulb: 3, neon: 4, street: 0, alley: 0, lampI: 0.3, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
+    evening: { nightK: 0.55, hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#2a1830', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
+    night:   { nightK: 1, hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#0b0912', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
   };
   const cur = { ...LIGHTS.day, bgC: new THREE.Color(LIGHTS.day.bg), winC: new THREE.Color(LIGHTS.day.win), hemiCC: new THREE.Color(LIGHTS.day.hemiC), sunCC: new THREE.Color(LIGHTS.day.sunC) };
 
@@ -428,6 +380,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const lampGlows = [];
   const windows = [];
 
+  const statics = new THREE.Group(); // fixed fittings, merged into a few meshes once built
   // ---------- Static room ----------
   const floorTex = canvasTex(64, 64, (c, w, h) => {
     c.fillStyle = '#f2e2c8'; c.fillRect(0, 0, w, h);
@@ -447,30 +400,30 @@ export function createScene(canvas, overlayEl, { onPick }) {
 
   // Floors (with a base slab so each room reads as a diorama)
   const shopFloor = mesh(new THREE.PlaneGeometry(9, 9), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.9 }), 0, 0.001, 0, false);
-  shopFloor.rotation.x = -PI / 2; scene.add(shopFloor);
-  scene.add(box(9.25, 0.45, 9.25, '#3a2b45', 0, -0.45, 0, false));
+  shopFloor.rotation.x = -PI / 2; statics.add(shopFloor);
+  statics.add(box(9.25, 0.45, 9.25, '#3a2b45', 0, -0.45, 0, false));
   const backFloor = mesh(new THREE.PlaneGeometry(6.9, 9), new THREE.MeshStandardMaterial({ map: concreteTex, roughness: 0.95 }), -8.15, 0.001, 0, false);
-  backFloor.rotation.x = -PI / 2; scene.add(backFloor);
-  scene.add(box(7.15, 0.45, 9.25, '#24212b', -8.15, -0.45, 0, false));
+  backFloor.rotation.x = -PI / 2; statics.add(backFloor);
+  statics.add(box(7.15, 0.45, 9.25, '#24212b', -8.15, -0.45, 0, false));
 
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
   const backWall = mat('#41464f'), backWain = mat('#30343b');
   function wallX(x0, x1, z, upper, lower, tiles) { // runs along x
     const w = x1 - x0, cx = (x0 + x1) / 2;
-    scene.add(box(w, 1.0, 0.2, lower, cx, 0, z));
-    scene.add(box(w, 2.0, 0.2, upper, cx, 1.0, z));
-    scene.add(box(w, 0.06, 0.24, trim, cx, 1.0, z));
-    if (tiles) { const t = mesh(new THREE.PlaneGeometry(w, 1.0), new THREE.MeshStandardMaterial({ map: tiles, roughness: 0.4 }), cx, 1.55, z + 0.105, false); scene.add(t); }
+    statics.add(box(w, 1.0, 0.2, lower, cx, 0, z));
+    statics.add(box(w, 2.0, 0.2, upper, cx, 1.0, z));
+    statics.add(box(w, 0.06, 0.24, trim, cx, 1.0, z));
+    if (tiles) { const t = mesh(new THREE.PlaneGeometry(w, 1.0), new THREE.MeshStandardMaterial({ map: tiles, roughness: 0.4 }), cx, 1.55, z + 0.105, false); statics.add(t); }
   }
   function wallZ(z0, z1, x, upper, lower, group) { // runs along z
     const d = z1 - z0, cz = (z0 + z1) / 2;
     const parts = [box(0.2, 1.0, d, lower, x, 0, cz), box(0.2, 2.0, d, upper, x, 1.0, cz), box(0.24, 0.06, d, trim, x, 1.0, cz)];
-    for (const p of parts) (group || scene).add(p);
+    for (const p of parts) (group || statics).add(p);
   }
   wallX(-4.5, 4.6, -4.6, shopWall, shopWain, null);
   // Tiled splashback behind the ovens
-  { const t = mesh(new THREE.PlaneGeometry(5.0, 0.9), new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.4 }), -0.75, 1.95, -4.49, false); scene.add(t); }
+  { const t = mesh(new THREE.PlaneGeometry(5.0, 0.9), new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.4 }), -0.75, 1.95, -4.49, false); statics.add(t); }
   // The partition between shop and back room (hidden at night so you can see in)
   const partition = new THREE.Group();
   wallZ(-4.7, 2.55, -4.6, shopWall, shopWain, partition);
@@ -483,7 +436,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   wallX(-11.6, -4.7, -4.6, backWall, backWain, null);
   wallZ(-4.7, 1.6, -11.7, backWall, backWain);
   wallZ(2.8, 4.6, -11.7, backWall, backWain);
-  scene.add(box(0.2, 0.95, 1.2, backWall, -11.7, 2.05, 2.2));
+  statics.add(box(0.2, 0.95, 1.2, backWall, -11.7, 2.05, 2.2));
   const backDoorPivot = new THREE.Group(); backDoorPivot.position.set(-11.68, 0, 1.62);
   const backDoor = box(0.08, 2.0, 1.15, '#55606b', 0, 0, 0.58); backDoorPivot.add(backDoor);
   backDoorPivot.add(box(0.1, 0.1, 0.1, '#c9ccd3', 0.05, 1.0, 1.02));
@@ -494,8 +447,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const frame = box(w + 0.16, h + 0.16, 0.08, '#fff0dc', x, y - 0.08, z + 0.1);
     const m = new THREE.MeshStandardMaterial({ color: '#1c2233', emissive: '#bfe6ff', emissiveIntensity: 0.9, roughness: 0.2 });
     const pane = box(w, h, 0.04, m, x, y, z + 0.15, false);
-    scene.add(frame, pane);
-    scene.add(box(0.04, h, 0.05, '#fff0dc', x, y, z + 0.18, false));
+    statics.add(frame, pane);
+    statics.add(box(0.04, h, 0.05, '#fff0dc', x, y, z + 0.18, false));
     windows.push(m);
   }
   windowOn(3.0, -4.6, 1.7, 1.2, 1.2);
@@ -508,7 +461,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     ['Sourdough', 'Croissants', 'Cookies', 'Donuts', 'Tarts'].forEach((t, i) => c.fillText('~ ' + t, 30, 78 + i * 22));
   });
   const menu = mesh(new THREE.PlaneGeometry(1.2, 0.9), new THREE.MeshStandardMaterial({ map: menuTex, roughness: 0.9 }), 2.3, 2.45, -4.49, false);
-  menu.position.x = 1.85; menu.position.y = 2.35; scene.add(menu);
+  menu.position.x = 1.85; menu.position.y = 2.35; statics.add(menu);
   const woodSignTex = canvasTex(256, 64, (c, w, h) => {
     c.fillStyle = '#8a5a36'; c.fillRect(0, 0, w, h);
     c.fillStyle = '#ffe7c2'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText("Rosa's Bakery", w / 2, 44);
@@ -524,51 +477,51 @@ export function createScene(canvas, overlayEl, { onPick }) {
   neonSign.visible = false; scene.add(neonSign);
 
   // Display case and till
-  scene.add(box(5.1, 0.95, 0.9, '#9c5f3b', 0, 0, 0.95));
-  scene.add(box(5.14, 0.08, 0.94, '#5c3520', 0, 0, 0.95));
-  scene.add(box(5.0, 0.6, 0.02, '#b67a52', 0, 0.2, 1.41));
-  scene.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 0.95, 0.95));
+  statics.add(box(5.1, 0.95, 0.9, '#9c5f3b', 0, 0, 0.95));
+  statics.add(box(5.14, 0.08, 0.94, '#5c3520', 0, 0, 0.95));
+  statics.add(box(5.0, 0.6, 0.02, '#b67a52', 0, 0.2, 1.41));
+  statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 0.95, 0.95));
   const glass = new THREE.MeshStandardMaterial({ color: '#cfefff', transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false });
-  scene.add(box(5.1, 0.55, 0.9, glass, 0, 0.99, 0.95, false));
-  scene.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 1.54, 0.95));
+  statics.add(box(5.1, 0.55, 0.9, glass, 0, 0.99, 0.95, false));
+  statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 1.54, 0.95));
   const trays = [];
   for (let k = 0; k < 6; k++) {
     const x = -2.05 + k * 0.82;
-    scene.add(box(0.72, 0.03, 0.62, '#f6f1e6', x, 0.99, 0.95));
+    statics.add(box(0.72, 0.03, 0.62, '#f6f1e6', x, 0.99, 0.95));
     const tg = new THREE.Group(); tg.position.set(x, 1.02, 0.95); scene.add(tg);
     trays.push({ x, group: tg, sig: '' });
   }
-  scene.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
-  scene.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
-  scene.add(box(0.5, 0.22, 0.4, '#2e2f36', 3.1, 1.0, 0.9));
+  statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
+  statics.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
+  statics.add(box(0.5, 0.22, 0.4, '#2e2f36', 3.1, 1.0, 0.9));
   const screenM = new THREE.MeshStandardMaterial({ color: '#0a2a1a', emissive: '#5fd38d', emissiveIntensity: 0.8 });
-  { const scr = box(0.36, 0.22, 0.03, screenM, 3.1, 1.22, 0.78); scr.rotation.x = -0.4; scene.add(scr); }
+  { const scr = box(0.36, 0.22, 0.03, screenM, 3.1, 1.22, 0.78); scr.rotation.x = -0.4; statics.add(scr); }
   for (const x of [-1.6, 0, 1.6]) {
-    scene.add(cyl(0.01, 0.01, 0.6, '#222', x, 2.4, 1.0, 6, false));
+    statics.add(cyl(0.01, 0.01, 0.6, '#222', x, 2.4, 1.0, 6, false));
     const shade = mesh(geo('shade', () => new THREE.ConeGeometry(0.22, 0.2, 14, 1, true)), mat('#2f2a3a', { side: THREE.DoubleSide }), x, 2.35, 1.0);
-    scene.add(shade);
+    statics.add(shade);
     const bm = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffd59a', emissiveIntensity: 0.6 });
-    glowMats.push(bm); scene.add(sphere(0.07, bm, x, 2.27, 1.0, false));
+    glowMats.push(bm); statics.add(sphere(0.07, bm, x, 2.27, 1.0, false));
   }
   // Decor: plants, rug, flour sacks, crates
   function plant(x, z, s = 1) {
-    scene.add(cyl(0.2 * s, 0.15 * s, 0.35 * s, '#c96f4a', x, 0, z, 12));
-    for (const [dx, dy, dz, r] of [[0, 0.55, 0, 0.26], [0.12, 0.72, 0.05, 0.18], [-0.12, 0.68, -0.06, 0.2]]) scene.add(sphere(r * s, '#4f9a5a', x + dx * s, dy * s, z + dz * s));
+    statics.add(cyl(0.2 * s, 0.15 * s, 0.35 * s, '#c96f4a', x, 0, z, 12));
+    for (const [dx, dy, dz, r] of [[0, 0.55, 0, 0.26], [0.12, 0.72, 0.05, 0.18], [-0.12, 0.68, -0.06, 0.2]]) statics.add(sphere(r * s, '#4f9a5a', x + dx * s, dy * s, z + dz * s));
   }
   plant(4.0, -4.0, 1.1); plant(4.05, 1.0, 0.9);
-  { const rug = mesh(new THREE.PlaneGeometry(1.6, 1.1), mat('#b8485e'), 3.8, 0.004, 3.6, false); rug.rotation.x = -PI / 2; scene.add(rug); }
-  for (const [x, z] of [[2.4, -3.9], [2.85, -3.75]]) { const s = sphere(0.3, '#e9dcc1', x, 0.28, z); s.scale.set(1, 1.1, 0.8); scene.add(s); }
+  { const rug = mesh(new THREE.PlaneGeometry(1.6, 1.1), mat('#b8485e'), 3.8, 0.004, 3.6, false); rug.rotation.x = -PI / 2; statics.add(rug); }
+  for (const [x, z] of [[2.4, -3.9], [2.85, -3.75]]) { const s = sphere(0.3, '#e9dcc1', x, 0.28, z); s.scale.set(1, 1.1, 0.8); statics.add(s); }
   // Back room clutter
-  scene.add(box(0.9, 0.6, 0.7, '#7d6448', -11.0, 0, -1.6)); scene.add(box(0.7, 0.5, 0.6, '#8d7354', -10.95, 0.6, -1.55));
-  scene.add(box(0.8, 0.5, 0.8, '#6b5540', -10.9, 0, 3.9));
+  statics.add(box(0.9, 0.6, 0.7, '#7d6448', -11.0, 0, -1.6)); statics.add(box(0.7, 0.5, 0.6, '#8d7354', -10.95, 0.6, -1.55));
+  statics.add(box(0.8, 0.5, 0.8, '#6b5540', -10.9, 0, 3.9));
   const ledM = new THREE.MeshStandardMaterial({ color: '#2a1840', emissive: '#a46bff', emissiveIntensity: 1.2 });
   glowMats.push(ledM);
-  scene.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48, false));
-  scene.add(cyl(0.01, 0.01, 0.5, '#222', -9.4, 2.5, -1.6, 6, false));
+  statics.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48, false));
+  statics.add(cyl(0.01, 0.01, 0.5, '#222', -9.4, 2.5, -1.6, 6, false));
   const bulbM = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: '#ffcc88', emissiveIntensity: 1 }); glowMats.push(bulbM);
-  scene.add(sphere(0.09, bulbM, -9.4, 2.45, -1.6, false));
+  statics.add(sphere(0.09, bulbM, -9.4, 2.45, -1.6, false));
   // Cash table, kit boxes, bag pile (filled from state)
-  scene.add(box(1.2, 0.75, 0.75, '#5a4632', -6.9, 0, 1.0));
+  statics.add(box(1.2, 0.75, 0.75, '#5a4632', -6.9, 0, 1.0));
   const cash = [];
   for (let k = 0; k < 12; k++) {
     const c = box(0.22, 0.05, 0.12, mat('#6fbf73', { roughness: 0.9 }), -7.3 + (k % 4) * 0.26, 0.75 + Math.floor(k / 4) * 0.06, 0.95 + (k % 2) * 0.05);
@@ -579,7 +532,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const b = box(0.32, 0.22, 0.28, '#c9b38a', -11.2 + (k % 2) * 0.34, Math.floor(k / 2) * 0.23, -3.0 + (k % 2) * 0.02);
     b.visible = false; scene.add(b); kitsBoxes.push(b);
   }
-  scene.add(box(0.9, 0.8, 0.6, '#4f4639', -6.0, 0, -1.2));
+  statics.add(box(0.9, 0.8, 0.6, '#4f4639', -6.0, 0, -1.2));
   const bagPile = [];
   for (let k = 0; k < 24; k++) {
     const b = box(0.11, 0.14, 0.04, mat('#c79bff', { roughness: 0.3, transparent: true, opacity: 0.88 }), -6.3 + (k % 6) * 0.12, 0.8 + Math.floor(k / 12) * 0.15, -1.35 + Math.floor((k % 12) / 6) * 0.2);
@@ -605,49 +558,52 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const w = x1 - x0, d = z1 - z0;
     const t = paveImg.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(w / 1.1, d / 1.1); t.needsUpdate = true;
     const top = mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: t, color: tint, roughness: 0.95 }), (x0 + x1) / 2, -0.04, (z0 + z1) / 2, false);
-    top.rotation.x = -PI / 2; scene.add(top);
-    scene.add(box(w, 0.4, d, '#2c2635', (x0 + x1) / 2, -0.44, (z0 + z1) / 2, false));
+    top.rotation.x = -PI / 2; statics.add(top);
+    statics.add(box(w, 0.4, d, '#2c2635', (x0 + x1) / 2, -0.44, (z0 + z1) / 2, false));
   }
   pave(-4.75, 6.7, 4.75, 6.5, '#ffffff');
   pave(4.75, 6.7, -4.75, 4.75, '#ffffff');
-  scene.add(box(11.45, 0.12, 0.16, '#77737f', 0.97, -0.04, 6.45, false));
-  scene.add(box(0.16, 0.12, 11.25, '#77737f', 6.65, -0.04, 0.88, false));
+  statics.add(box(11.45, 0.12, 0.16, '#77737f', 0.97, -0.04, 6.45, false));
+  statics.add(box(0.16, 0.12, 11.25, '#77737f', 6.65, -0.04, 0.88, false));
   // Knee-high front walls so the shop reads as a room, with a doorway on the street side
-  scene.add(box(9.4, 0.5, 0.2, shopWain, 0, 0, 4.6)); scene.add(box(9.44, 0.06, 0.26, trim, 0, 0.5, 4.6));
-  scene.add(box(0.2, 0.5, 7.5, shopWain, 4.6, 0, -0.95)); scene.add(box(0.26, 0.06, 7.54, trim, 4.6, 0.5, -0.95));
-  for (const z of [2.85, 4.55]) { scene.add(box(0.24, 1.05, 0.24, '#7a4a2e', 4.62, 0, z)); scene.add(sphere(0.13, '#7a4a2e', 4.62, 1.12, z)); }
+  statics.add(box(9.4, 0.5, 0.2, shopWain, 0, 0, 4.6)); statics.add(box(9.44, 0.06, 0.26, trim, 0, 0.5, 4.6));
+  statics.add(box(0.2, 0.5, 7.5, shopWain, 4.6, 0, -0.95)); statics.add(box(0.26, 0.06, 7.54, trim, 4.6, 0.5, -0.95));
+  for (const z of [2.85, 4.55]) { statics.add(box(0.24, 1.05, 0.24, '#7a4a2e', 4.62, 0, z)); statics.add(sphere(0.13, '#7a4a2e', 4.62, 1.12, z)); }
   const openTex = canvasTex(128, 64, (c, w, h) => {
     c.fillStyle = '#fff4e0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#b8485e'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
     c.fillStyle = '#b8485e'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText('OPEN', w / 2, 44);
   });
-  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), new THREE.MeshStandardMaterial({ map: openTex, side: THREE.DoubleSide }), 4.76, 1.55, 2.85, false); sign.rotation.y = PI / 2; sign.position.y = 0.78; sign.position.z = 2.85; scene.add(sign); }
+  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), new THREE.MeshStandardMaterial({ map: openTex, side: THREE.DoubleSide }), 4.76, 1.55, 2.85, false); sign.rotation.y = PI / 2; sign.position.y = 0.78; sign.position.z = 2.85; statics.add(sign); }
   // Street lamp, bench and a planter
-  scene.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 6.1, 0, -3.6, 10));
-  scene.add(box(0.5, 0.06, 0.06, '#2b2d36', 5.88, 2.85, -3.6));
+  statics.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 6.1, 0, -3.6, 10));
+  statics.add(box(0.5, 0.06, 0.06, '#2b2d36', 5.88, 2.85, -3.6));
   const lampM = new THREE.MeshStandardMaterial({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0.4 });
   lampGlows.push(lampM);
-  scene.add(sphere(0.13, lampM, 5.66, 2.74, -3.6, false));
-  scene.add(box(1.5, 0.08, 0.42, '#a8703f', 1.5, 0.42, 5.75)); scene.add(box(1.5, 0.36, 0.06, '#a8703f', 1.5, 0.5, 5.95));
-  for (const x of [0.88, 2.12]) scene.add(box(0.07, 0.42, 0.38, '#2b2d36', x, 0, 5.75));
-  scene.add(box(0.7, 0.45, 0.7, '#8a8790', -2.8, 0, 5.6));
-  scene.add(cyl(0.05, 0.07, 0.6, '#6b4a2e', -2.8, 0.45, 5.6, 8));
-  for (const [dx, dy, dz, r] of [[0, 1.25, 0, 0.36], [0.2, 1.05, 0.12, 0.26], [-0.18, 1.1, -0.1, 0.27]]) scene.add(sphere(r, '#5aa36a', -2.8 + dx, dy, 5.6 + dz));
+  statics.add(sphere(0.13, lampM, 5.66, 2.74, -3.6, false));
+  statics.add(box(1.5, 0.08, 0.42, '#a8703f', 1.5, 0.42, 5.75)); statics.add(box(1.5, 0.36, 0.06, '#a8703f', 1.5, 0.5, 5.95));
+  for (const x of [0.88, 2.12]) statics.add(box(0.07, 0.42, 0.38, '#2b2d36', x, 0, 5.75));
+  statics.add(box(0.7, 0.45, 0.7, '#8a8790', -2.8, 0, 5.6));
+  statics.add(cyl(0.05, 0.07, 0.6, '#6b4a2e', -2.8, 0.45, 5.6, 8));
+  for (const [dx, dy, dz, r] of [[0, 1.25, 0, 0.36], [0.2, 1.05, 0.12, 0.26], [-0.18, 1.1, -0.1, 0.27]]) statics.add(sphere(r, '#5aa36a', -2.8 + dx, dy, 5.6 + dz));
   // String lights along the top of the shop's back wall
   for (let k = 0; k < 13; k++) {
     const x = -4.2 + k * 0.7;
     const y = 2.82 - Math.sin((k % 4) / 4 * PI) * 0.12;
     const bm = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: ['#ffcf7a', '#ff9fb2', '#9fe1ff'][k % 3], emissiveIntensity: 0.6 });
-    glowMats.push(bm); scene.add(sphere(0.045, bm, x, y, -4.43, false));
+    glowMats.push(bm); statics.add(sphere(0.045, bm, x, y, -4.43, false));
   }
   // Back alley behind the back door
   pave(-14.0, -11.85, -4.75, 4.75, '#8f8a9a');
-  scene.add(box(1.0, 0.85, 1.45, '#3f6b4f', -13.2, 0, -2.5));
-  scene.add(box(1.06, 0.08, 1.5, '#2f5240', -13.2, 0.85, -2.5));
-  for (const [x, z, r] of [[-12.5, -1.4, 0.24], [-12.75, -1.15, 0.2], [-13.3, 0.4, 0.22]]) { const b = sphere(r, '#1c1c22', x, r * 0.8, z); b.scale.y = 0.85; scene.add(b); }
-  scene.add(box(0.12, 0.24, 0.2, '#2b2d36', -11.85, 2.45, 3.5));
+  statics.add(box(1.0, 0.85, 1.45, '#3f6b4f', -13.2, 0, -2.5));
+  statics.add(box(1.06, 0.08, 1.5, '#2f5240', -13.2, 0.85, -2.5));
+  for (const [x, z, r] of [[-12.5, -1.4, 0.24], [-12.75, -1.15, 0.2], [-13.3, 0.4, 0.22]]) { const b = sphere(r, '#1c1c22', x, r * 0.8, z); b.scale.y = 0.85; statics.add(b); }
+  statics.add(box(0.12, 0.24, 0.2, '#2b2d36', -11.85, 2.45, 3.5));
   const alleyM = new THREE.MeshStandardMaterial({ color: '#ffe2b0', emissive: '#ffb05a', emissiveIntensity: 0.4 });
   lampGlows.push(alleyM);
-  scene.add(sphere(0.08, alleyM, -11.98, 2.45, 3.5, false));
+  statics.add(sphere(0.08, alleyM, -11.98, 2.45, 3.5, false));
+
+  scene.add(mergeStatic(statics));
+  const hood = buildWorld(scene);
 
   // ---------- Stations from state ----------
   let stationSig = '';
@@ -992,7 +948,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function applyLights(dt, now, frac) {
     const L = LIGHTS[view.light] || LIGHTS.day;
     const k = 1 - Math.exp(-dt * 3);
-    for (const key of ['hemi', 'sun', 'lamp', 'bulb', 'neon', 'street', 'alley', 'lampI', 'winI', 'glow']) cur[key] += (L[key] - cur[key]) * k;
+    for (const key of ['nightK', 'hemi', 'sun', 'lamp', 'bulb', 'neon', 'street', 'alley', 'lampI', 'winI', 'glow']) cur[key] += (L[key] - cur[key]) * k;
     cur.bgC.lerp(new THREE.Color(L.bg), k);
     cur.winC.lerp(new THREE.Color(L.win), k);
     cur.hemiCC.lerp(new THREE.Color(L.hemiC), k);
@@ -1020,7 +976,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const bh = Math.max(140, H - view.top - view.bottom);
     const yc = view.top + bh / 2;
     unit = Math.max(z.needW / W, z.needH / bh) / cam.zoom;
-    const lim = 5 * (1 - 1 / cam.zoom) + 1;
+    const lim = 4 + 5 / cam.zoom;
     cam.panR = Math.max(-lim, Math.min(lim, cam.panR));
     cam.panU = Math.max(-lim * 0.7, Math.min(lim * 0.7, cam.panU));
     camera.left = -W * unit / 2; camera.right = W * unit / 2;
@@ -1059,7 +1015,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && ptrs.size >= 2) {
       const [a, b] = [...ptrs.values()];
-      cam.zoom = Math.max(1, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+      cam.zoom = Math.max(0.5, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
     } else if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (Math.hypot(dx, dy) > 8) drag.moved = true;
@@ -1075,7 +1031,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(1, Math.min(2.6, cam.zoom * Math.exp(-e.deltaY * 0.0015))); }, { passive: false });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(0.5, Math.min(2.6, cam.zoom * Math.exp(-e.deltaY * 0.0015))); }, { passive: false });
 
   function pick(x, y) {
     ray.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
@@ -1112,6 +1068,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
       }
       const frac = s.shift?.kind === 'day' ? s.shift.t / s.shift.len : s.phase === 'evening' ? 1 : s.phase === 'plan' || s.phase === 'report' ? 0.08 : 0.5;
       applyLights(dt, now, frac);
+      hood.update(dt, now, cur.nightK);
       updateCamera(dt);
       renderer.render(scene, camera);
       updateOverlay(s, now);
