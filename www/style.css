@@ -285,3 +285,29 @@ button.chip { cursor: pointer; }
 /* A soft fade at the right edge shows there's more to swipe */
 .catalog:not(.exp), .dcats { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
 .catalog, .dcats { overscroll-behavior-x: contain; }
+
+
+/* ---------- ⓘ buttons and info sheets ---------- */
+.pcard, .ditem, .dexp { position: relative; }
+.ibtn { position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; padding: 0; border-radius: 50%; z-index: 1;
+  display: flex; align-items: center; justify-content: center; font: italic 700 12px Georgia, serif; line-height: 1;
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .25); color: var(--text); }
+.ibtn:hover { background: rgba(255, 255, 255, .18); }
+.pcard .ptop { padding-right: 18px; }
+.ditem { cursor: pointer; border: 1px solid var(--line); background: var(--card2); border-radius: 10px; padding-top: 10px; }
+.ditem .ibtn { top: 3px; right: 3px; width: 18px; height: 18px; font-size: 11px; }
+.dexp { padding-right: 34px; }
+.dexp .ibtn { top: 8px; right: 8px; }
+.meter.wide { width: 100%; height: 8px; }
+.pcard .heat { display: block; margin-top: auto; }
+.infobody p { margin: 8px 0; }
+.infobody small { color: var(--mute); }
+.itable { width: 100%; border-collapse: collapse; margin: 10px 0 4px; font-size: 13px; }
+.itable th { text-align: left; color: var(--mute); font-weight: 600; padding: 4px; border-bottom: 1px solid var(--line); }
+.itable td { padding: 5px 4px; border-bottom: 1px dashed #ffffff14; }
+.itable tr.on td { color: var(--warm); font-weight: 700; }
+
+/* ---------- Scrolling rows ---------- */
+.catalog, .dcats { overflow-x: auto; overflow-y: hidden; touch-action: pan-x; cursor: grab; }
+.catalog.dragging, .dcats.dragging { cursor: grabbing; }
+.catalog.dragging * { pointer-events: none; }
