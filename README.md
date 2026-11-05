@@ -5,6 +5,10 @@ The bank wants £2,000 a week, starting after two weeks' grace. Miss three payme
 
 Bread alone won't cover it. Dez, one of Rosa's regulars, knows what the back room used to be for.
 
+It's a 3D game: you look down into the shop at an angle. By day it's a bright bakery: ovens, mixers, proofing racks, and a glass case
+that fills with what you bake while customers walk in and queue. By night the camera moves next door to the back room, which is
+lit purple. Tap a station (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
+
 ## How a day works
 
 1. **Morning**: buy ingredients (prices change daily), set prices, buy upgrades, hire crew, buy kits from Dez, pay a bribe.
@@ -35,11 +39,12 @@ Bots play full runs with three strategies (honest, careful, greedy):
 node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 60
 ```
 
-All numbers live in `www/js/data.js`. At the time of writing: honest 0%, careful about 60%, greedy about 30% (mostly arrested).
+All numbers live in `www/js/data.js`. At the time of writing: honest 0%, careful about 60%, greedy 10–30% (mostly arrested).
 
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
+- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). All models are built from simple shapes in code.
 - `www/js/data.js` holds the numbers and content, `www/js/game.js` the rules (no DOM), and `www/js/ui.js` the screens and input.
 - `tools/sim.mjs` is the balance simulator.
 

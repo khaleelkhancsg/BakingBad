@@ -141,3 +141,52 @@ input[type=range] { width: 100%; accent-color: var(--violet); margin: 10px 0 4px
   transition: opacity .35s, transform .35s; }
 .toast.good { border-color: var(--good); } .toast.bad { border-color: var(--bad); }
 .toast.out { opacity: 0; transform: translateY(-6px); }
+
+/* ---------- 3D scene layers ---------- */
+html, body { overflow: hidden; height: 100%; }
+#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; touch-action: none; }
+#overlay { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+#app { position: fixed; inset: 0; z-index: 3; padding: 0; max-width: none; pointer-events: none; }
+#app .hud, #app .shiftbar, #app .dock, #app .sheet, #app .modal-bg, #app .actions, #app .warn-line { pointer-events: auto; }
+#app .hud { position: absolute; top: 0; left: 0; right: 0; margin: 0; }
+#app .hud .row { max-width: 520px; margin-left: auto; margin-right: auto; }
+
+.shiftbar { position: absolute; left: 50%; transform: translateX(-50%); width: min(500px, calc(100% - 20px)); top: 64px;
+  background: rgba(18, 13, 26, .82); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; }
+.warn-line { position: absolute; top: 108px; left: 0; right: 0; text-align: center; margin: 0; text-shadow: 0 1px 3px #000; }
+.dock { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(8px + env(safe-area-inset-bottom)); width: min(500px, calc(100% - 16px));
+  background: rgba(18, 13, 26, .88); border: 1px solid var(--line); border-radius: 14px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { background: var(--card2); border: 1px solid var(--line); border-radius: 99px; padding: 3px 9px; font-size: 14px; }
+.chip.out { opacity: .5; }
+button.chip { cursor: pointer; }
+.buyerchip { border-color: var(--violet); }
+.buyerchip.flag { border-color: var(--meh); }
+.feedline { min-height: 20px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.feedline .good { color: var(--good); } .feedline .bad { color: var(--bad); } .feedline .meh { color: var(--meh); } .feedline .info { color: var(--violet); }
+
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; top: 44vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: linear-gradient(180deg, rgba(18,13,26,.94), var(--bg) 60px); border-top: 1px solid var(--line);
+  border-radius: 20px 20px 0 0; padding: 14px 10px 180px; box-shadow: 0 -8px 30px #0008; }
+.sheet > * { max-width: 520px; margin-left: auto; margin-right: auto; }
+.sheet .card { margin-bottom: 10px; }
+
+/* Bubbles over stations and people */
+.bub { position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer; user-select: none;
+  min-width: 34px; height: 34px; border-radius: 99px; display: flex; align-items: center; justify-content: center; gap: 2px;
+  font-size: 15px; background: #1d1528ee; border: 2px solid var(--line); box-shadow: 0 3px 8px #0007; color: var(--text); white-space: nowrap; }
+.bub small { font-size: 11px; color: var(--mute); }
+.bub.add { border-color: var(--warm); color: var(--warm); font-size: 18px; animation: bob 1.2s ease-in-out infinite; }
+.bub.run { background: radial-gradient(#1d1528 58%, transparent 60%), conic-gradient(var(--warm) var(--p, 0%), #3a2c4f 0); border-color: transparent; padding: 0 6px; }
+.bub.done { border-color: var(--good); background: #183424ee; animation: bob .7s ease-in-out infinite; padding: 0 6px; }
+.bub.done b { color: var(--good); }
+.bub.burn { border-color: var(--bad); background: #3a1418ee; animation: shake .3s infinite; padding: 0 6px; }
+.bub.burn small { color: var(--bad); font-weight: 700; }
+.bub.buyer { flex-direction: column; width: 104px; height: auto; padding: 4px 8px 5px; border-radius: 10px; border-color: var(--violet); font-size: 13px; gap: 3px; }
+.bub.buyer.flag { border-color: var(--meh); }
+.bub.buyer i { display: block; height: 4px; width: 100%; background: var(--meh); border-radius: 2px; align-self: flex-start; }
+.bub.react { pointer-events: none; height: auto; padding: 4px 9px; font-size: 13px; border-radius: 10px; animation: rise 2.2s ease-out forwards; }
+.bub.react.good { border-color: var(--good); } .bub.react.bad { border-color: var(--bad); } .bub.react.meh { border-color: var(--meh); }
+@keyframes bob { 50% { margin-top: -5px; } }
+@keyframes shake { 25% { margin-left: -2px; } 75% { margin-left: 2px; } }
+@keyframes rise { 0% { opacity: 0; margin-top: 6px; } 12% { opacity: 1; margin-top: 0; } 80% { opacity: 1; } 100% { opacity: 0; margin-top: -18px; } }

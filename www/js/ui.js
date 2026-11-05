@@ -1,6 +1,7 @@
 // Screens, input and the main loop.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES } from './data.js';
+import { createScene } from './scene.js';
 
 const KEY = 'bakingbad.save';
 const params = new URLSearchParams(location.search);
@@ -9,6 +10,9 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, paused: false };
 let s = load() || G.newGame();
+const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
+  onPick: info => { if (s.shift && !ui.modal) act({ dataset: info }); },
+});
 
 function load() {
   try { const d = JSON.parse(localStorage.getItem(KEY)); return d && d.v === G.SAVE_VERSION ? d : null; }
@@ -35,7 +39,8 @@ G.onToast((text, kind) => {
 
 const PHASE = { plan: 'Morning', day: 'Bakery open', evening: 'Closing up', night: 'Back room', nightEnd: 'Small hours', report: 'Morning' };
 
-function hud() {
+const hud = () => '';
+function hudHTML() {
   const d = G.daysToPayment(s);
   const due = s.won
     ? `<span class="pill ok">🏦 Debt cleared</span>`
@@ -175,76 +180,30 @@ function bankTab() {
     </div></div>`;
 }
 
-// ---------- Shifts ----------
-
-function slotHTML(stage, i, slot) {
-  const st = STAGES[stage];
-  const at = `data-act="slot" data-stage="${stage}" data-i="${i}"`;
-  if (!slot.item) {
-    const first = stage === 'mix' || stage === 'prep';
-    return `<button class="slot empty ${first ? 'startable' : ''}" ${at}>${first
-      ? `<span class="plus">＋</span><small>${stage === 'mix' ? 'Start a batch' : 'Start a cook'}</small>`
-      : '<small>empty</small>'}</button>`;
-  }
-  const r = G.recipeOf(slot.item);
-  if (!slot.done) {
-    const pct = Math.min(100, slot.t / slot.dur * 100);
-    return `<button class="slot running" ${at}><span class="em">${r.emoji}</span><small>${st.verb}</small>
-      <div class="bar"><i style="width:${pct}%"></i></div><small>${Math.ceil(slot.dur - slot.t)}s</small></button>`;
-  }
-  const last = r.stages.at(-1) === stage;
-  const burnIn = Math.max(0, Math.ceil(CFG.burnAfter - slot.over));
-  return `<button class="slot done ${st.burns && burnIn <= 5 ? 'burning' : ''}" ${at}><span class="em">${r.emoji}</span>
-    <small>${last ? 'Collect' : 'Move on'} ✓</small>${st.burns ? `<small class="burn">🔥 ${burnIn}s</small>` : ''}</button>`;
-}
-
-function stationsHTML(sh) {
-  return G.stationLayout(s, sh.kind).map(({ stage }) => {
-    const st = STAGES[stage];
-    return `<div class="station"><div class="st-title">${st.emoji} ${st.name}</div>
-      <div class="slots">${sh.slots[stage].map((sl, i) => slotHTML(stage, i, sl)).join('')}</div></div>`;
-  }).join('<div class="arrow">↓</div>');
-}
-
-function feedHTML(sh) {
-  const recent = sh.feed.filter(f => sh.t - f.t < 6).slice(-4).reverse();
-  return `<div class="card"><div class="feed">${recent.map(f => `<div class="${f.kind}">${f.face} ${f.text}</div>`).join('') || '<small>…</small>'}</div></div>`;
-}
+// ---------- Shifts: the 3D scene does the work, this is the status bar and dock ----------
 
 function shiftScreen() {
   const sh = s.shift;
   const left = sh.len - sh.t;
   const day = sh.kind === 'day';
-  let bottom;
+  const last = sh.feed.filter(f => sh.t - f.t < 5).slice(-2).reverse();
+  const feedLine = `<div class="feedline">${last.map(f => `<span class="${f.kind}">${f.face} ${f.text}</span>`).join('')}</div>`;
+  let dock;
   if (day) {
     const cs = s.recipes.map(id => {
-      const d = s.display[id];
-      const n = d.fresh + d.stale;
-      return `<div class="ci ${n ? '' : 'out'}"><div class="em">${ITEMS[id].emoji}</div><b>${d.fresh}</b>${d.stale ? `<s>+${d.stale} old</s>` : ''}</div>`;
+      const d = s.display[id], n = d.fresh + d.stale;
+      return `<span class="chip ${n ? '' : 'out'}">${ITEMS[id].emoji} ${n}</span>`;
     }).join('');
-    const inv = Object.entries(INGREDIENTS).map(([k, ing]) => `<span class="${s.inv[k] < 2 ? 'low' : ''}">${ing.emoji} ${s.inv[k]}</span>`).join('');
-    bottom = `<div class="card"><h3>In the case</h3><div class="case">${cs}</div></div>
-      ${feedHTML(sh)}
-      <div class="card"><div class="strip">${inv}</div></div>`;
+    const inv = Object.entries(INGREDIENTS).map(([k, ing]) => `<span class="${s.inv[k] < 2 ? 'low' : ''}">${ing.emoji}${s.inv[k]}</span>`).join('');
+    dock = `<div class="chips">${cs}</div><div class="strip">${inv}</div>`;
   } else {
-    const door = sh.buyers.map(b => {
-      const pct = Math.max(0, 100 - (sh.t - b.t0) / CFG.buyerPatience * 100);
-      return `<button class="buyer ${b.hint ? 'flag' : ''}" data-act="buyer" data-id="${b.id}"><span class="em">👤</span>
-        <span class="grow"><b>${b.name}</b> wants ${b.want} ${b.hint ? '<small class="meh">📷 feels off</small>' : ''}</span>
-        <span class="bar"><i style="width:${pct}%"></i></span></button>`;
-    }).join('');
-    bottom = `<div class="bigstat" style="margin-bottom:10px"><div><small>Bags</small><b>💜 ${s.bags}</b></div><div><small>Kits</small><b>📦 ${s.kits}</b></div></div>
-      <div class="card"><h3>Back door</h3><div class="door">${door || '<small>Nobody yet.</small>'}</div></div>
-      ${feedHTML(sh)}`;
+    const door = sh.buyers.map(b => `<button class="chip buyerchip ${b.hint ? 'flag' : ''}" data-act="buyer" data-id="${b.id}">👤 ${b.name} ×${b.want}</button>`).join('');
+    dock = `<div class="chips"><span class="chip">💜 ${s.bags} bags</span><span class="chip">📦 ${s.kits} kits</span>${door || '<span class="chip out">nobody at the door</span>'}</div>`;
   }
-  return hud() + `<div class="${day ? '' : 'night'}">
-    <div class="shiftbar"><span class="clock">${G.shiftClock(sh)}</span><span class="prog"><i style="width:${sh.t / sh.len * 100}%"></i></span>
+  return `<div class="shiftbar ${day ? '' : 'night'}"><span class="clock">${G.shiftClock(sh)}</span><span class="prog"><i style="width:${sh.t / sh.len * 100}%"></i></span>
       <button class="small" data-act="pause">⏸</button></div>
     ${left < 20 ? `<div class="warn-line">${day ? 'Closing soon. Unfinished batches get thrown out.' : 'Dawn soon. Unfinished cooks are wasted.'}</div>` : ''}
-    ${stationsHTML(sh)}
-    <div style="height:10px"></div>
-    ${bottom}
-  </div>`;
+    <div class="dock ${day ? '' : 'night'}">${feedLine}${dock}</div>`;
 }
 
 // ---------- Evening / small hours ----------
@@ -384,18 +343,38 @@ function modalHTML() {
 // ---------- Render and input ----------
 
 function render() {
-  let html;
+  let body, sheet = true;
   switch (s.phase) {
-    case 'plan': html = planScreen(); break;
-    case 'day': case 'night': html = s.shift ? shiftScreen() : planScreen(); break;
-    case 'evening': html = eveningScreen(); break;
-    case 'nightEnd': html = nightEndScreen(); break;
-    case 'report': html = reportScreen(); break;
-    default: html = planScreen();
+    case 'plan': body = planScreen(); break;
+    case 'day': case 'night': if (s.shift) { body = shiftScreen(); sheet = false; } else body = planScreen(); break;
+    case 'evening': body = eveningScreen(); break;
+    case 'nightEnd': body = nightEndScreen(); break;
+    case 'report': body = reportScreen(); break;
+    default: body = planScreen();
   }
-  app.innerHTML = html + modalHTML();
+  const oldSheet = app.querySelector('.sheet');
+  const keep = oldSheet && oldSheet.dataset.phase === s.phase + s.tab ? oldSheet.scrollTop : 0;
+  app.innerHTML = hudHTML() + (sheet ? `<div class="sheet" data-phase="${s.phase + s.tab}">${body}</div>` : body) + modalHTML();
+  const newSheet = app.querySelector('.sheet');
+  if (newSheet) newSheet.scrollTop = keep;
   syncSliders();
+  layoutScene();
 }
+
+function layoutScene() {
+  const H = window.innerHeight;
+  const top = app.querySelector('.hud')?.getBoundingClientRect().bottom || 0;
+  const lower = app.querySelector('.sheet') || app.querySelector('.dock');
+  const shiftTop = app.querySelector('.shiftbar')?.getBoundingClientRect().bottom;
+  const bottom = lower ? H - lower.getBoundingClientRect().top : 0;
+  const night = s.phase === 'night' || s.phase === 'nightEnd';
+  world.setView({
+    zone: night ? 'back' : 'shop',
+    light: night ? 'night' : s.phase === 'evening' ? 'evening' : 'day',
+    top: (shiftTop || top) + 34, bottom: bottom + 8,
+  });
+}
+window.addEventListener('resize', () => layoutScene());
 
 function syncSliders() {
   const l = document.getElementById('launder');
@@ -465,8 +444,8 @@ function act(el) {
 
 // Shifts react on pointerdown so taps never get lost to the screen redrawing.
 let lastPointerAct = 0;
-app.addEventListener('pointerdown', e => {
-  if (!s.shift) return;
+document.addEventListener('pointerdown', e => {
+  if (!s.shift || e.target.id === 'scene') return;
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
   e.preventDefault();
@@ -491,6 +470,7 @@ function frame(now) {
   last = now;
   if (s.shift && !ui.paused) {
     G.tick(s, real * SPEED);
+    if (!s.shift && ui.modal?.type === 'recipes') ui.modal = null;
     if (!s.shift) { ui.modal = null; save(); render(); window.scrollTo(0, 0); }
     else {
       acc += real; saveAcc += real;
@@ -498,6 +478,7 @@ function frame(now) {
       if (saveAcc >= 3) { saveAcc = 0; save(); }
     }
   }
+  world.frame(s);
   requestAnimationFrame(frame);
 }
 
@@ -507,4 +488,4 @@ render();
 requestAnimationFrame(frame);
 
 // Debug hooks for testing in the browser console.
-window.__game = { get s() { return s; }, G, render, save };
+window.__game = { get s() { return s; }, G, render, save, world, step(sec, dt = 0.1) { for (let t = 0; t < sec; t += dt) { if (s.shift) G.tick(s, dt); world.frame(s, dt); } render(); world.frame(s, 0.001); } };

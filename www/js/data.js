@@ -23,6 +23,7 @@ export const CFG = {
   repCustomers: 0.6,     // extra customers per reputation point
   staleMult: 0.6,        // day-old goods sell at 60%
   repServed: 0.15, repMissed: -0.3, repMissCap: 6, repPricey: -0.1, repStale: -0.05, repDrift: -1,
+  walkIn: 3.2, browse: 1.4, walkOut: 3.2, // seconds a customer spends walking in, at the counter, walking out
   openingQuiet: 12,      // seconds after opening before the first customers turn up
 
   // Laundering

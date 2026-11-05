@@ -2,7 +2,7 @@
 import { CFG, ITEMS, VELVET, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
          LINES, FACES, BUYER_NAMES, START_RECIPES } from './data.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const rand = () => Math.random();
 export const pick = a => a[Math.floor(rand() * a.length)];
@@ -167,7 +167,7 @@ export function answerOffer(s, yes) {
 const emptySlot = () => ({ item: null, t: 0, dur: 0, done: false, over: 0 });
 
 export function startShift(s, kind) {
-  const sh = { kind, t: 0, len: kind === 'day' ? CFG.dayLen : CFG.nightLen, slots: {}, feed: [], buyers: [], nextId: 1, next: 0 };
+  const sh = { kind, t: 0, len: kind === 'day' ? CFG.dayLen : CFG.nightLen, slots: {}, feed: [], buyers: [], customers: [], nextId: 1, next: 0 };
   for (const { stage, n } of stationLayout(s, kind)) sh.slots[stage] = Array.from({ length: n }, emptySlot);
   const expected = kind === 'day' ? customersExpected(s) : buyersExpected(s);
   sh.gap = sh.len / expected;
@@ -215,9 +215,15 @@ export function tick(s, dt) {
       }
     }
   }
-  while (sh.t >= sh.next && sh.next < sh.len) {
+  const lastArrival = sh.len - (sh.kind === 'day' ? CFG.walkIn + 0.5 : 4);
+  while (sh.t >= sh.next && sh.next < lastArrival) {
     if (sh.kind === 'day') customerArrives(s); else buyerArrives(s);
     sh.next += expRand(sh.gap);
+  }
+  if (sh.kind === 'day') {
+    const stay = CFG.walkIn + CFG.browse + CFG.walkOut;
+    for (const c of sh.customers) if (!c.res && sh.t - c.t0 >= CFG.walkIn) resolveCustomer(s, c);
+    sh.customers = sh.customers.filter(c => sh.t - c.t0 < stay);
   }
   if (sh.kind === 'night') {
     for (const b of [...sh.buyers]) {
@@ -315,7 +321,19 @@ function sellTo(s, id) {
   return { qty, rev, id };
 }
 
+// Looks are stored so a customer keeps the same appearance after a reload.
+const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
+  pants: Math.floor(rand() * 5), h: round2(0.9 + rand() * 0.2), hat: rand() < 0.2 });
+
 function customerArrives(s) {
+  const sh = s.shift;
+  const used = new Set(sh.customers.map(c => c.spot));
+  const free = [0, 1, 2, 3, 4, 5].filter(i => !used.has(i));
+  sh.customers.push({ id: sh.nextId++, t0: sh.t, look: newLook(), spot: free.length ? pick(free) : Math.floor(rand() * 6),
+    face: pick(FACES), want: chooseWant(s), res: null });
+}
+
+function chooseWant(s) {
   const sh = s.shift;
   const hour = 8 + 10 * sh.t / sh.len;
   const w = hour < 11 ? { bread: 0.5, pastry: 0.4, sweet: 0.1 }
@@ -325,8 +343,13 @@ function customerArrives(s) {
   const group = weighted(w);
   let options = s.recipes.filter(id => ITEMS[id].group === group);
   if (!options.length) options = [...s.recipes];
-  const want = pick(options);
-  const face = pick(FACES);
+  return pick(options);
+}
+
+function resolveCustomer(s, c) {
+  const sh = s.shift;
+  const want = c.want, face = c.face;
+  const options = s.recipes.filter(id => ITEMS[id].group === ITEMS[want].group);
   let r = sellTo(s, want);
   if (r.none) {
     const subs = options.filter(id => id !== want && s.display[id].fresh + s.display[id].stale > 0);
@@ -341,12 +364,15 @@ function customerArrives(s) {
       s.rep = clamp(s.rep + CFG.repMissed, 0, 100);
     }
     feed(sh, face, `wanted ${W.emoji}, none left`, 'bad');
+    c.res = { kind: 'bad', text: `no ${W.emoji}` };
   } else if (r.pricey) {
     s.today.pricedOut++;
     s.rep = clamp(s.rep + CFG.repPricey, 0, 100);
     feed(sh, face, `${W.emoji} too pricey`, 'meh');
+    c.res = { kind: 'meh', text: `${W.emoji} too dear` };
   } else {
     feed(sh, face, `${ITEMS[r.id].emoji}×${r.qty} +£${r.rev.toFixed(2)}`, 'good');
+    c.res = { kind: 'good', text: `+£${r.rev.toFixed(2)}`, item: r.id, qty: r.qty };
   }
 }
 
@@ -356,7 +382,7 @@ function buyerArrives(s) {
   const offLine = cop ? rand() < 0.8 : rand() < 0.12;
   const hint = has(s, 'camera') && (cop ? rand() < 0.5 : rand() < 0.05);
   const want = Number(weighted({ 1: 0.35, 2: 0.4, 3: 0.25 }));
-  const b = { id: sh.nextId++, name: pick(BUYER_NAMES), cop, line: pick(offLine ? LINES.off : LINES.normal), hint, want, t0: sh.t };
+  const b = { id: sh.nextId++, name: pick(BUYER_NAMES), cop, line: pick(offLine ? LINES.off : LINES.normal), hint, want, t0: sh.t, look: newLook() };
   sh.buyers.push(b);
   feed(sh, '🚪', `${b.name} knocks at the back door`, 'info');
 }
@@ -407,6 +433,7 @@ export function endShift(s) {
     }
   }
   if (sh.kind === 'day') {
+    for (const c of sh.customers) if (!c.res) resolveCustomer(s, c);
     const t = s.today;
     t.rent = CFG.rent;
     t.wages = s.crew.baker ? CFG.bakerWage : 0;
