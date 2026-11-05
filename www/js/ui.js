@@ -73,121 +73,108 @@ const line = (a, b, cls = '') => `<div class="line"><span>${a}</span><span class
 
 // ---------- Morning planning ----------
 
-function planScreen() {
-  const tabs = [['supplies', '🧺 Supplies'], ['menu', '📋 Menu'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
-  if (s.labUnlocked) tabs.push(['dez', '💜 Dez']);
-  tabs.push(['design', '🎨 Design'], ['bank', '🏦 Bank']);
-  if (!tabs.some(t => t[0] === s.tab)) s.tab = 'supplies';
-  const body = { supplies: suppliesTab, menu: menuTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
-  const intro = s.day === 1 && !s.introSeen ? `<div class="card story">
-      <h2>Aunt Rosa's stall</h2>
-      <p>Aunt Rosa ran this bakery stall at the night market for thirty years. She left it to you, along with
-      <b>${money(CFG.debtTotal)}</b> she owed the bank.</p>
-      <p>The bank wants <b>${money(CFG.weekly)}</b> every week, starting in two weeks. Miss ${CFG.maxStrikes} payments and they take the stall.</p>
-      <p class="mute">Buy ingredients, open up, and tap each station to move batches along: mixer → proofing → oven. Don't leave anything in the oven too long.</p>
-      <button class="small" data-act="intro-ok">Got it</button></div>` : '';
-  const ev = s.event ? `<div class="card">${s.event.text}</div>` : '';
-  return hud() + intro + ev +
-    `<nav class="tabs">${tabs.map(([id, label]) => `<button class="${s.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}">${label}</button>`).join('')}</nav>
-    <main>${body}</main>
-    <p class="mute" style="text-align:center;margin-top:18px"><button class="small danger" data-act="restart">Start a new game</button></p>` +
-    footer(`<button class="primary big" data-act="open">☀️ Open the bakery</button>`);
-}
+// The morning dock: same shape as the design toolbar. Tabs on top, a row of cards you swipe through,
+// and the open button. The shop stays visible above it.
+const pcard = (inner, cls = '') => `<div class="pcard ${cls}">${inner}</div>`;
+const buyBtns = (k, p) => `<div class="pbtns">
+  <button class="small" data-act="buy" data-id="${k}" data-n="5" ${s.clean < p * 5 ? 'disabled' : ''}>+5<small>${money(p * 5)}</small></button>
+  <button class="small" data-act="buy" data-id="${k}" data-n="20" ${s.clean < p * 20 ? 'disabled' : ''}>+20<small>${money(p * 20)}</small></button></div>`;
 
 function suppliesTab() {
-  const rows = Object.entries(INGREDIENTS).map(([k, ing]) => {
-    const p = G.ingPrice(s, k);
-    const m = s.market[k];
-    const tag = m >= 1.12 ? '<span class="up">▲ dear</span>' : m <= 0.92 ? '<span class="down">▼ cheap</span>' : '';
-    return `<div class="item"><span class="em">${ing.emoji}</span>
-      <div class="grow"><b>${ing.name}</b> <small>× ${s.inv[k]}</small><br><small>${money2(p)} each</small> ${tag}</div>
-      <div class="btns">
-        <button class="small" data-act="buy" data-id="${k}" data-n="5" ${s.clean < p * 5 ? 'disabled' : ''}>+5<br><small>${money(p * 5)}</small></button>
-        <button class="small" data-act="buy" data-id="${k}" data-n="20" ${s.clean < p * 20 ? 'disabled' : ''}>+20<br><small>${money(p * 20)}</small></button>
-      </div></div>`;
+  const cards = Object.entries(INGREDIENTS).map(([k, ing]) => {
+    const p = G.ingPrice(s, k), m = s.market[k];
+    const tag = m >= 1.12 ? '<span class="up">▲ dear</span>' : m <= 0.92 ? '<span class="down">▼ cheap</span>' : '<span>steady</span>';
+    return pcard(`<div class="ptop"><span class="em">${ing.emoji}</span><div><b>${ing.name}</b><small>× ${s.inv[k]} in stock</small></div></div>
+      <small>${money2(p)} each · ${tag}</small>${buyBtns(k, p)}`);
   }).join('');
-  const makes = s.recipes.map(id => `${ITEMS[id].emoji} ${G.batchesPossible(s, id)}`).join(' &nbsp; ');
-  return `<div class="card"><h3>Today's market</h3><div class="list">${rows}</div></div>
-    <div class="card"><small>Batches your stock can make:</small><div style="margin-top:4px">${makes}</div></div>`;
+  const makes = s.recipes.map(id => `${ITEMS[id].emoji} ${G.batchesPossible(s, id)}`).join(' · ');
+  return { cards, hint: `Today's market. Your stock makes: ${makes} batches.` };
 }
 
 function menuTab() {
-  const rows = s.recipes.map(id => {
-    const r = ITEMS[id];
-    const lvl = s.priceLevel[id];
-    return `<div class="item"><span class="em">${r.emoji}</span><div class="grow">
-      <b>${r.name}</b> <small>makes ${r.yield} · ${money2(G.itemPrice(s, id))} each</small><br>
-      <small>${ingText(r)} (${money2(G.batchCost(s, id))}/batch) · ${pathText(r)}</small>
+  const cards = s.recipes.map(id => {
+    const r = ITEMS[id], lvl = s.priceLevel[id];
+    return pcard(`<div class="ptop"><span class="em">${r.emoji}</span><div><b>${r.name}</b><small>makes ${r.yield} · ${money2(G.itemPrice(s, id))} each</small></div></div>
+      <small>${ingText(r)} · ${money2(G.batchCost(s, id))} a batch</small><small>${pathText(r)}</small>
       <div class="seg">${Object.entries(PRICE_LEVELS).map(([k, L]) =>
-        `<button class="${lvl === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label} ${money2(r.price * L.mult)}</button>`).join('')}</div>
-    </div></div>`;
+        `<button class="${lvl === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}<br>${money2(r.price * L.mult)}</button>`).join('')}</div>`, 'wide');
   }).join('');
   const locked = Object.keys(ITEMS).filter(id => !s.recipes.includes(id));
-  return `<div class="card"><h3>What you sell</h3>
-    <p class="mute">Mornings want bread, afternoons want sweet things. High prices earn more per sale, but more people walk away.</p>
-    <div class="list">${rows}</div>
-    ${locked.length ? `<p class="mute">More recipes in the 🛠️ Shop: ${locked.map(id => ITEMS[id].emoji + ' ' + ITEMS[id].name).join(', ')}</p>` : ''}</div>`;
-}
-
-function upgradeRow(u) {
-  const cash = u.cash === 'dirty' ? '💜' : '💷';
-  const afford = s[u.cash] >= u.cost;
-  return `<div class="item"><div class="grow"><b>${u.name}</b><br><small>${u.desc}</small></div>
-    <div class="btns"><button class="small ${u.cash === 'dirty' ? 'violet' : ''}" data-act="upgrade" data-id="${u.id}" ${afford ? '' : 'disabled'}>${cash} ${money(u.cost)}</button></div></div>`;
+  return { cards, hint: `Mornings want bread, afternoons want sweet things. Higher prices earn more, but more people walk away.${locked.length ? ` More recipes in 🛠️ Shop.` : ''}` };
 }
 
 function shopTab() {
   const avail = UPGRADES.filter(u => G.upgradeAvailable(s, u));
-  const front = avail.filter(u => u.cash === 'clean');
-  const back = avail.filter(u => u.cash === 'dirty');
+  const cards = avail.map(u => {
+    const dirty = u.cash === 'dirty';
+    return pcard(`<b>${u.name}</b><small>${u.desc}</small>
+      <div class="pbtns"><button class="small ${dirty ? 'violet' : ''}" data-act="upgrade" data-id="${u.id}" ${s[u.cash] >= u.cost ? '' : 'disabled'}>${dirty ? '💜' : '💷'} ${money(u.cost)}</button></div>`, dirty ? 'night' : '');
+  }).join('') || pcard('<b>All bought</b><small>Nothing left in the shop.</small>');
   const owned = UPGRADES.filter(u => G.has(s, u.id));
-  return `<div class="card"><h3>Bakery <small>(clean cash)</small></h3><div class="list">${front.map(upgradeRow).join('') || '<p class="mute">All bought.</p>'}</div></div>
-    ${s.labUnlocked ? `<div class="card night"><h3>Back room <small>(dirty cash)</small></h3><div class="list">${back.map(upgradeRow).join('') || '<p class="mute">All bought.</p>'}</div></div>` : ''}
-    ${owned.length ? `<div class="card"><small>Owned: ${owned.map(u => u.name).join(' · ')}</small></div>` : ''}`;
+  return { cards, hint: owned.length ? `Owned: ${owned.map(u => u.name).join(' · ')}` : 'Equipment and recipes. 💷 clean cash for the bakery, 💜 dirty cash for the back room.' };
 }
 
 function crewTab() {
-  const baker = `<div class="item"><span class="em">👩‍🍳</span><div class="grow"><b>Priya, baker</b><br>
-      <small>Moves finished batches along for you, so nothing burns. ${money(CFG.bakerWage)} a day, clean.</small></div>
-      <div class="btns">${s.crew.baker ? '<button class="small danger" data-act="fire" data-id="baker">Let go</button>' : '<button class="small" data-act="hire" data-id="baker">Hire</button>'}</div></div>`;
-  const dealer = s.labUnlocked ? `<div class="item"><span class="em">🧢</span><div class="grow"><b>Jay, street dealer</b><br>
-      <small>Takes bags you have left after a night and sells them on the street for ${money(CFG.bagStreet)} each. Keeps ${CFG.dealerCut * 100}%.
-      Can get picked up; the more heat, the likelier.</small></div>
-      <div class="btns">${s.crew.dealer ? '<button class="small danger" data-act="fire" data-id="dealer">Let go</button>' : '<button class="small" data-act="hire" data-id="dealer">Hire</button>'}</div></div>` : '';
-  return `<div class="card"><h3>Crew</h3><div class="list">${baker}${dealer}</div></div>`;
+  const hireBtn = role => s.crew[role]
+    ? `<button class="small danger" data-act="fire" data-id="${role}">Let go</button>`
+    : `<button class="small" data-act="hire" data-id="${role}">Hire</button>`;
+  let cards = pcard(`<div class="ptop"><span class="em">👩‍🍳</span><div><b>Priya</b><small>baker · ${money(CFG.bakerWage)} a day</small></div></div>
+    <small>Moves finished batches along for you, so nothing burns.</small><div class="pbtns">${hireBtn('baker')}</div>`, 'wide');
+  if (s.labUnlocked) cards += pcard(`<div class="ptop"><span class="em">🧢</span><div><b>Jay</b><small>street dealer · keeps ${CFG.dealerCut * 100}%</small></div></div>
+    <small>Sells your leftover bags on the street for ${money(CFG.bagStreet)} each. More heat, more chance he's picked up.</small><div class="pbtns">${hireBtn('dealer')}</div>`, 'wide night');
+  return { cards, hint: 'Your crew.' };
 }
 
 function dezTab() {
   const cop = Math.round(G.copChance(s) * 100);
-  return `<div class="card night"><h3>Dez</h3>
-    <p class="mute">"Kits are ${money(CFG.kitCost)}. One kit, one batch: ${G.velvetYield(s)} bags. Cash only, and I'd rather it was the dirty kind."</p>
-    <div class="list"><div class="item"><span class="em">📦</span><div class="grow"><b>Kits</b> <small>× ${s.kits}</small> &nbsp; <b>Bags</b> <small>× ${s.bags}</small></div>
-      <div class="btns">
-        <button class="small violet" data-act="kit" data-id="dirty" ${s.dirty < CFG.kitCost ? 'disabled' : ''}>💜 Buy</button>
-        <button class="small" data-act="kit" data-id="clean" ${s.clean < CFG.kitCost ? 'disabled' : ''}>💷 Buy</button>
-      </div></div></div></div>
-    <div class="card night"><h3>Heat</h3>
-      ${line('Police heat', `${Math.round(s.heat)} / 100`, s.heat >= 60 ? 'bad' : '')}
-      ${line('Buyers who are undercover', `about ${cop}%`)}
-      ${line('Raids start at', `${CFG.raidAt} heat`)}
-      <p class="mute">Heat falls ${CFG.heatDecay} a night, or ${CFG.heatDecay + CFG.lieLowBonus} if you keep the back room shut.</p>
-      <div class="item"><div class="grow"><b>A friendly sergeant</b><br><small>Heat -${CFG.bribeHeat}. Once a day. Not every officer is for sale.</small></div>
-      <div class="btns"><button class="small violet" data-act="bribe" ${s.dirty < CFG.bribeCost || s.today.bribe ? 'disabled' : ''}>💜 ${money(CFG.bribeCost)}</button></div></div>
-    </div>`;
+  const cards = pcard(`<div class="ptop"><span class="em">📦</span><div><b>Kits</b><small>× ${s.kits} · bags × ${s.bags}</small></div></div>
+      <small>${money(CFG.kitCost)} a kit. One kit, one batch: ${G.velvetYield(s)} bags.</small>
+      <div class="pbtns"><button class="small violet" data-act="kit" data-id="dirty" ${s.dirty < CFG.kitCost ? 'disabled' : ''}>💜 Buy</button>
+      <button class="small" data-act="kit" data-id="clean" ${s.clean < CFG.kitCost ? 'disabled' : ''}>💷 Buy</button></div>`, 'night')
+    + pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>raids from ${CFG.raidAt}</small></div></div>
+      <small>About ${cop}% of buyers are undercover. Heat falls ${CFG.heatDecay} a night, ${CFG.heatDecay + CFG.lieLowBonus} if you keep the back room shut.</small>`, 'wide night')
+    + pcard(`<div class="ptop"><span class="em">👮</span><div><b>A friendly sergeant</b><small>heat -${CFG.bribeHeat}, once a day</small></div></div>
+      <small>Not every officer is for sale.</small>
+      <div class="pbtns"><button class="small violet" data-act="bribe" ${s.dirty < CFG.bribeCost || s.today.bribe ? 'disabled' : ''}>💜 ${money(CFG.bribeCost)}</button></div>`, 'night');
+  return { cards, hint: `"Cash only, and I'd rather it was the dirty kind."` };
 }
 
 function bankTab() {
-  if (s.won) return `<div class="card win"><h3>The bank</h3><p>Aunt Rosa's debt is paid. The stall is yours.</p></div>`;
-  return `<div class="card"><h3>The bank</h3>
-    ${line('Still owed', money(s.balance))}
-    ${line('Next payment', `${money(G.nextDue(s))} in ${G.daysToPayment(s)} day${G.daysToPayment(s) === 1 ? '' : 's'}`)}
-    ${line('Missed payments', `${s.strikes} of ${CFG.maxStrikes}`, s.strikes ? 'bad' : '')}
-    <p class="mute">Payments come out of clean cash automatically. You can pay extra any morning to clear the debt early.</p>
-    <div class="row2">
-      <button data-act="pay" data-id="500" ${s.clean < 500 ? 'disabled' : ''}>Pay £500</button>
-      <button data-act="pay" data-id="1000" ${s.clean < 1000 ? 'disabled' : ''}>Pay £1,000</button>
-      <button class="primary" data-act="pay" data-id="all" ${s.clean < s.balance ? 'disabled' : ''}>Pay it all</button>
-    </div></div>`;
+  let cards;
+  if (s.won) cards = pcard(`<b>🎉 Debt cleared</b><small>Aunt Rosa's stall is yours.</small>`, 'wide');
+  else cards = pcard(`<div class="ptop"><span class="em">🏦</span><div><b>${money(s.balance)}</b><small>still owed</small></div></div>
+      <small>Next: ${money(G.nextDue(s))} in ${G.daysToPayment(s)} day${G.daysToPayment(s) === 1 ? '' : 's'}</small>
+      <small class="${s.strikes ? 'bad' : ''}">Missed payments: ${s.strikes} of ${CFG.maxStrikes}</small>`, 'wide')
+    + pcard(`<b>Pay early</b><small>From clean cash, to clear the debt sooner.</small>
+      <div class="pbtns col"><button class="small" data-act="pay" data-id="500" ${s.clean < 500 ? 'disabled' : ''}>Pay £500</button>
+      <button class="small" data-act="pay" data-id="1000" ${s.clean < 1000 ? 'disabled' : ''}>Pay £1,000</button>
+      <button class="small primary" data-act="pay" data-id="all" ${s.clean < s.balance ? 'disabled' : ''}>Pay it all</button></div>`);
+  cards += pcard(`<b>Start over</b><small>Begin a new game from day 1. This run is lost.</small>
+    <div class="pbtns"><button class="small danger" data-act="restart">New game</button></div>`);
+  return { cards, hint: 'Payments come out of clean cash automatically on payment day.' };
+}
+
+function planScreen() {
+  const tabs = [['supplies', '🧺 Supplies'], ['menu', '📋 Menu'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
+  if (s.labUnlocked) tabs.push(['dez', '💜 Dez']);
+  tabs.push(['design', '🎨 Design'], ['bank', '🏦 Bank']);
+  if (!tabs.some(t => t[0] === s.tab) || s.tab === 'design') s.tab = 'supplies';
+  const { cards, hint } = { supplies: suppliesTab, menu: menuTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
+  // Floating above the dock: the day-one story, or today's event
+  const float = s.day === 1 && !s.introSeen
+    ? `<div class="floatcard">
+        <h2>Aunt Rosa's stall</h2>
+        <p>Aunt Rosa ran this bakery stall at the night market for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank.</p>
+        <p>The bank wants <b>${money(CFG.weekly)}</b> every week, starting in two weeks. Miss ${CFG.maxStrikes} payments and they take the stall.</p>
+        <p class="mute">Buy ingredients, open up, and tap each station to move batches along: mixer → proofing → oven. Don't leave anything in the oven too long.</p>
+        <button class="small" data-act="intro-ok">Got it</button></div>`
+    : s.event ? `<div class="floatbanner">${s.event.text}</div>` : '';
+  return float + `<div class="designbar plandock">
+    <div class="drow"><div class="dcats">${tabs.map(([id, label]) => `<button class="small ${s.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}">${label}</button>`).join('')}</div></div>
+    <div class="dinfo"><span>${hint}</span></div>
+    <div class="catalog cards" data-key="plan-${s.tab}">${cards}</div>
+    <button class="primary big" data-act="open">☀️ Open the bakery</button>
+  </div>`;
 }
 
 // ---------- Shifts: the 3D scene does the work, this is the status bar and dock ----------
@@ -272,7 +259,7 @@ function nightEndScreen() {
 
 function reportScreen() {
   const r = s.report;
-  if (!r) { s.phase = 'plan'; return planScreen(); }
+  if (!r) { s.phase = 'plan'; queueMicrotask(render); return ''; }
   const t = r.ledger;
   if (s.over) {
     return hud() + `<div class="card alert"><h2>${s.over.reason === 'arrested' ? '🚔 Arrested' : '🏦 The bank takes the stall'}</h2>
@@ -413,7 +400,7 @@ function designScreen() {
       <button class="primary small" data-act="d-done">Done</button></div>
     <div class="dinfo"><span>${hint}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
     ${sel}
-    <div class="catalog ${dv.cat === 'expand' ? 'exp' : ''}">${items}</div>
+    <div class="catalog ${dv.cat === 'expand' ? 'exp' : ''}" data-key="design-${dv.cat}">${items}</div>
     ${extra ? `<div class="dextra">${extra}</div>` : ''}
   </div>`;
 }
@@ -446,18 +433,22 @@ function designTap(info) {
 function render() {
   let body, sheet = true;
   switch (s.phase) {
-    case 'plan': if (ui.design) { body = designScreen(); sheet = false; } else body = planScreen(); break;
-    case 'day': case 'night': if (s.shift) { body = shiftScreen(); sheet = false; } else body = planScreen(); break;
+    case 'plan': body = ui.design ? designScreen() : planScreen(); sheet = false; break;
+    case 'day': case 'night': body = s.shift ? shiftScreen() : planScreen(); sheet = false; break;
     case 'evening': body = eveningScreen(); break;
     case 'nightEnd': body = nightEndScreen(); break;
     case 'report': body = reportScreen(); break;
-    default: body = planScreen();
+    default: body = planScreen(); sheet = false;
   }
+  const oldCat = app.querySelector('.catalog');
+  const catKey = oldCat?.dataset.key, catLeft = oldCat?.scrollLeft || 0;
   const oldSheet = app.querySelector('.sheet');
   const keep = oldSheet && oldSheet.dataset.phase === s.phase + s.tab ? oldSheet.scrollTop : 0;
   app.innerHTML = hudHTML() + (sheet ? `<div class="sheet" data-phase="${s.phase + s.tab}">${body}</div>` : body) + modalHTML();
   const newSheet = app.querySelector('.sheet');
   if (newSheet) newSheet.scrollTop = keep;
+  const newCat = app.querySelector('.catalog');
+  if (newCat && newCat.dataset.key === catKey) newCat.scrollLeft = catLeft;
   syncSliders();
   layoutScene();
 }
@@ -581,6 +572,10 @@ app.addEventListener('click', e => {
   act(el);
 });
 app.addEventListener('input', syncSliders);
+app.addEventListener('wheel', e => {
+  const row = e.target.closest('.catalog, .dcats');
+  if (row && Math.abs(e.deltaY) > Math.abs(e.deltaX) && row.scrollWidth > row.clientWidth) { row.scrollLeft += e.deltaY; e.preventDefault(); }
+}, { passive: false });
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && s.shift) { ui.paused = true; ui.modal = { type: 'pause' }; save(); render(); }
