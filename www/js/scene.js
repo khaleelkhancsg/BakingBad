@@ -1,6 +1,7 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
-import * as THREE from '../vendor/three.module.js';
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import { CFG, ITEMS, STAGES } from './data.js';
 import * as G from './game.js';
 
@@ -33,9 +34,17 @@ function mesh(g, m, x = 0, y = 0, z = 0, cast = true) {
   me.receiveShadow = true;
   return me;
 }
-// Box positioned by its bottom centre.
+// Box positioned by its bottom centre. Anything chunkier than a wall gets softly rounded edges.
 function box(w, h, d, m, x = 0, y = 0, z = 0, cast = true) {
-  return mesh(geo(`b${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d)), typeof m === 'string' ? mat(m) : m, x, y + h / 2, z, cast);
+  const mn = Math.min(w, h, d);
+  const g = mn >= 0.22
+    ? geo(`rb${w}|${h}|${d}`, () => new RoundedBoxGeometry(w, h, d, 2, Math.min(0.07, mn * 0.18)))
+    : geo(`b${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d));
+  return mesh(g, typeof m === 'string' ? mat(m) : m, x, y + h / 2, z, cast);
+}
+// A rounded box with a chosen radius (for small things that should still look soft).
+function rbox(w, h, d, m, x = 0, y = 0, z = 0, r = 0.03) {
+  return mesh(geo(`rr${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, 2, Math.min(r, w / 2, h / 2, d / 2))), typeof m === 'string' ? mat(m) : m, x, y + h / 2, z);
 }
 function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, seg = 16, cast = true) {
   return mesh(geo(`c${rt}|${rb}|${h}|${seg}`, () => new THREE.CylinderGeometry(rt, rb, h, seg)), typeof m === 'string' ? mat(m) : m, x, y + h / 2, z, cast);
@@ -256,51 +265,75 @@ const PLACES = {
 };
 
 // ---------- People ----------
+// Chunky, friendly figures. kind: 'customer', 'hood' (night buyers) or 'baker' (you).
 
-function buildPerson(look, hooded) {
+function buildPerson(look, kind) {
   const g = new THREE.Group();
+  const body = new THREE.Group(); g.add(body);
   const skin = mat(PAL.skin[look.skin % 5]);
-  const top = mat(hooded ? PAL.hoodie[look.shirt % 5] : PAL.shirt[look.shirt % 10]);
-  const pants = mat(PAL.pants[look.pants % 5]);
-  const limb = (w, h, d, m, x, y) => {
-    const pivot = new THREE.Group(); pivot.position.set(x, y, 0);
-    const me = mesh(geo(`b${w}|${h}|${d}`, () => new THREE.BoxGeometry(w, h, d)), m, 0, -h / 2, 0);
-    pivot.add(me); g.add(pivot); return pivot;
-  };
-  const legL = limb(0.14, 0.46, 0.16, pants, -0.09, 0.46);
-  const legR = limb(0.14, 0.46, 0.16, pants, 0.09, 0.46);
-  const body = mesh(geo('torso', () => new THREE.CapsuleGeometry(0.19, 0.3, 4, 12)), top, 0, 0.82, 0);
-  body.scale.z = 0.8; g.add(body);
-  const armL = limb(0.09, 0.4, 0.11, top, -0.26, 1.02);
-  const armR = limb(0.09, 0.4, 0.11, top, 0.26, 1.02);
-  g.add(sphere(0.19, skin, 0, 1.3, 0));
-  const eye = mat('#1a1420');
-  g.add(sphere(0.025, eye, -0.07, 1.33, 0.17, false)); g.add(sphere(0.025, eye, 0.07, 1.33, 0.17, false));
-  if (hooded) {
-    const hood = mesh(geo('hood', () => new THREE.SphereGeometry(0.23, 14, 10, 0, PI * 2, 0, PI * 0.62)), top, 0, 1.31, -0.03);
-    hood.rotation.x = -0.35; g.add(hood);
-  } else {
-    const hair = mesh(geo('hair', () => new THREE.SphereGeometry(0.2, 14, 10, 0, PI * 2, 0, PI * 0.5)), mat(PAL.hair[look.hair % 6]), 0, 1.32, -0.02);
-    hair.rotation.x = -0.25; g.add(hair);
-    if (look.hat) { g.add(cyl(0.22, 0.22, 0.02, '#2d2f3a', 0, 1.45, 0, 16)); g.add(cyl(0.15, 0.16, 0.12, '#2d2f3a', 0, 1.46, 0, 16)); }
+  const topC = kind === 'hood' ? PAL.hoodie[look.shirt % 5] : kind === 'baker' ? '#fbf7f2' : PAL.shirt[look.shirt % 10];
+  const top = mat(topC);
+  const pants = mat(kind === 'baker' ? '#3a3550' : PAL.pants[look.pants % 5]);
+  const shoe = mat('#2a2230');
+  const legGeo = geo('leg', () => new THREE.CapsuleGeometry(0.068, 0.26, 3, 8));
+  const armGeo = geo('arm', () => new THREE.CapsuleGeometry(0.056, 0.22, 3, 8));
+  const pivot = (parent, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); parent.add(p); return p; };
+  const legL = pivot(body, -0.09, 0.42), legR = pivot(body, 0.09, 0.42);
+  for (const leg of [legL, legR]) {
+    leg.add(mesh(legGeo, pants, 0, -0.19, 0));
+    leg.add(rbox(0.13, 0.08, 0.21, shoe, 0, -0.44, 0.03, 0.035));
   }
-  const bag = box(0.17, 0.2, 0.1, '#c8a36a', 0, -0.48, 0.03);
+  const torso = mesh(geo('torso2', () => new THREE.CapsuleGeometry(0.2, 0.2, 4, 14)), top, 0, 0.71, 0);
+  torso.scale.set(1, 1, 0.85); body.add(torso);
+  if (kind === 'baker') body.add(rbox(0.3, 0.38, 0.04, '#ff9fb2', 0, 0.48, 0.165, 0.02));
+  const armL = pivot(body, -0.255, 0.88), armR = pivot(body, 0.255, 0.88);
+  for (const arm of [armL, armR]) {
+    arm.add(mesh(armGeo, top, 0, -0.15, 0));
+    arm.add(sphere(0.062, skin, 0, -0.32, 0));
+  }
+  const head = new THREE.Group(); head.position.set(0, 1.17, 0); body.add(head);
+  const skull = sphere(0.24, skin); skull.scale.set(1, 0.95, 0.95); head.add(skull);
+  const eyeM = mat('#1a1420');
+  const eyes = [-0.085, 0.085].map(x => { const e = sphere(0.032, eyeM, x, 0.03, 0.212, false); head.add(e); return e; });
+  const blush = mat('#ff9a9a');
+  for (const x of [-0.145, 0.145]) head.add(sphere(0.038, blush, x, -0.06, 0.175, false));
+  const hairM = mat(PAL.hair[look.hair % 6]);
+  const cap = geo('hcap', () => new THREE.SphereGeometry(0.25, 16, 10, 0, PI * 2, 0, PI * 0.5));
+  if (kind === 'hood') {
+    const hood = mesh(geo('hood2', () => new THREE.SphereGeometry(0.3, 16, 12, 0, PI * 2, 0, PI * 0.66)), top, 0, 0.02, -0.04);
+    hood.rotation.x = -0.45; head.add(hood);
+  } else if (kind === 'baker') {
+    const h = mesh(cap, hairM, 0, 0.03, -0.01); h.rotation.x = -0.2; head.add(h);
+    head.add(cyl(0.17, 0.17, 0.16, '#ffffff', 0, 0.16, 0, 16));
+    const puff = sphere(0.21, '#ffffff', 0, 0.38, 0); puff.scale.y = 0.7; head.add(puff);
+  } else {
+    const style = (look.shirt + look.pants) % 4;
+    const h = mesh(cap, hairM, 0, 0.03, -0.015); h.rotation.x = -0.22; head.add(h);
+    if (style === 1) head.add(sphere(0.11, hairM, 0, 0.27, -0.1));
+    if (style === 2) { const back = sphere(0.22, hairM, 0, -0.08, -0.1); back.scale.set(1.05, 1.2, 0.7); head.add(back); }
+    if (style === 3) for (const [x, z] of [[-0.12, 0.05], [0.12, 0.05], [0, -0.12]]) head.add(sphere(0.09, hairM, x, 0.2, z));
+    if (look.hat) { head.add(cyl(0.27, 0.27, 0.025, '#2d2f3a', 0, 0.12, 0, 18)); head.add(cyl(0.18, 0.2, 0.16, '#2d2f3a', 0, 0.13, 0, 18)); }
+  }
+  const bagM = new THREE.MeshStandardMaterial({ color: '#c8a36a', roughness: 0.85 });
+  const bag = rbox(0.17, 0.2, 0.11, bagM, 0, -0.5, 0.03, 0.02);
   bag.visible = false; armR.add(bag);
   g.scale.setScalar(look.h || 1);
-  return { group: g, legL, legR, armL, armR, bag };
+  return { group: g, body, legL, legR, armL, armR, head, eyes, bag, bagM };
 }
 
 class Agent {
-  constructor(scene, look, hooded, pos) {
-    this.p = buildPerson(look, hooded);
+  constructor(scene, look, kind, pos) {
+    this.p = buildPerson(look, kind);
     this.group = this.p.group;
     this.group.position.copy(pos);
     this.target = pos.clone();
-    this.speed = hooded ? 1.6 : 2.0;
+    this.speed = kind === 'hood' ? 1.6 : kind === 'baker' ? 3.0 : 2.2;
     this.phase = Math.random() * 10;
     this.face = null;
     this.leaving = false;
-    this.height = 1.6 * (look.h || 1);
+    this.work = 0;
+    this.blinkIn = 1 + Math.random() * 3;
+    this.height = 1.75 * (look.h || 1);
     scene.add(this.group);
   }
   update(dt) {
@@ -310,20 +343,35 @@ class Agent {
     let moving = false;
     if (dist > 0.03) {
       moving = true;
-      const step = Math.min(dist, this.speed * dt);
-      pos.addScaledVector(d.normalize(), step);
+      pos.addScaledVector(d.normalize(), Math.min(dist, this.speed * dt));
       this.turnTo(Math.atan2(d.x, d.z), dt);
     } else if (this.face !== null) this.turnTo(this.face, dt);
-    this.phase += dt * (moving ? 9 : 2);
-    const sw = moving ? Math.sin(this.phase) * 0.6 : 0;
-    this.p.legL.rotation.x = sw; this.p.legR.rotation.x = -sw;
-    this.p.armL.rotation.x = -sw * 0.8; this.p.armR.rotation.x = this.p.bag.visible ? 0.1 : sw * 0.8;
-    pos.y = moving ? Math.abs(Math.sin(this.phase)) * 0.04 : 0;
+    this.phase += dt * (moving ? 10 : 2);
+    const p = this.p;
+    const sw = moving ? Math.sin(this.phase) * 0.65 : 0;
+    p.legL.rotation.x = sw; p.legR.rotation.x = -sw;
+    if (this.work > 0) {
+      this.work -= dt;
+      const w = Math.sin(this.phase * 9);
+      p.armL.rotation.x = -1.1 + w * 0.35; p.armR.rotation.x = -1.1 - w * 0.35;
+    } else {
+      p.armL.rotation.x = -sw * 0.8;
+      p.armR.rotation.x = p.bag.visible ? 0.15 : sw * 0.8;
+    }
+    p.armL.rotation.z = 0.08; p.armR.rotation.z = -0.08;
+    p.body.position.y = moving ? Math.abs(Math.sin(this.phase)) * 0.05 : Math.sin(this.phase) * 0.008;
+    p.body.rotation.z = moving ? Math.sin(this.phase) * 0.04 : 0;
+    p.head.rotation.y = moving ? 0 : Math.sin(this.phase * 0.35) * 0.35;
+    // Blink now and then
+    this.blinkIn -= dt;
+    const closed = this.blinkIn < 0.12;
+    for (const e of p.eyes) e.scale.y = closed ? 0.15 : 1;
+    if (this.blinkIn < 0) this.blinkIn = 2 + Math.random() * 3.5;
     return dist <= 0.03;
   }
   turnTo(a, dt) {
-    let r = this.group.rotation.y;
-    let diff = ((a - r + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI;
+    const r = this.group.rotation.y;
+    const diff = ((a - r + PI) % (2 * PI) + 2 * PI) % (2 * PI) - PI;
     this.group.rotation.y = r + diff * Math.min(1, dt * 10);
   }
 }
@@ -332,7 +380,8 @@ class Agent {
 
 export function createScene(canvas, overlayEl, { onPick }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 600;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, smallScreen ? 1.75 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
@@ -343,8 +392,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const RIGHT = V3(1, 0, -1).normalize();
   const UPS = V3(0, 1, 0).addScaledVector(DIR, -DIR.y).normalize();
   const ZONES = {
-    shop: { center: V3(0.1, 0.5, 0.3), needW: 12.6, needH: 10.2 },
-    back: { center: V3(-8.5, 0.5, 0.5), needW: 10.4, needH: 9.4 },
+    shop: { center: V3(0.45, 0.5, 0.75), needW: 11.6, needH: 9.8 },
+    back: { center: V3(-8.9, 0.5, 0.5), needW: 11.9, needH: 9.4 },
   };
   const view = { zone: 'shop', light: 'day', top: 70, bottom: 90 };
   const cam = { target: ZONES.shop.center.clone(), zoom: 1, panR: 0, panU: 0 };
@@ -355,8 +404,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#ffe2b8', 2.4);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 12, bottom: -12, near: 1, far: 60 });
+  sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
+  Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 13, bottom: -13, near: 1, far: 70 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   sun.target.position.set(-3.5, 0, 0);
@@ -365,15 +414,18 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const shopLamp = new THREE.PointLight('#ffd59a', 0, 10, 2); shopLamp.position.set(0, 2.7, 1.2); scene.add(shopLamp);
   const bulb = new THREE.PointLight('#ffcc88', 0, 9, 2); bulb.position.set(-9.4, 2.6, -1.6); scene.add(bulb);
   const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(-7.0, 2.3, -3.6); scene.add(neon);
+  const street = new THREE.PointLight('#ffd27a', 0, 9, 2); street.position.set(5.5, 2.5, -3.4); scene.add(street);
+  const alley = new THREE.PointLight('#ffb05a', 0, 8, 2); alley.position.set(-12.6, 2.3, 3.3); scene.add(alley);
   const LIGHTS = {
-    day:     { hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#2b2140', lamp: 0, bulb: 3, neon: 4, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
-    evening: { hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#2a1830', lamp: 10, bulb: 5, neon: 6, win: '#ff9e6b', winI: 0.9, glow: 1 },
-    night:   { hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#0b0912', lamp: 3, bulb: 26, neon: 34, win: '#1a2240', winI: 0.6, glow: 1.8 },
+    day:     { hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#2b2140', lamp: 0, bulb: 3, neon: 4, street: 0, alley: 0, lampI: 0.3, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
+    evening: { hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#2a1830', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
+    night:   { hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#0b0912', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
   };
   const cur = { ...LIGHTS.day, bgC: new THREE.Color(LIGHTS.day.bg), winC: new THREE.Color(LIGHTS.day.win), hemiCC: new THREE.Color(LIGHTS.day.hemiC), sunCC: new THREE.Color(LIGHTS.day.sunC) };
 
   const pickables = [];
   const glowMats = [];
+  const lampGlows = [];
   const windows = [];
 
   // ---------- Static room ----------
@@ -543,6 +595,60 @@ export function createScene(canvas, overlayEl, { onPick }) {
   for (let k = 0; k < 3; k++) catering.add(box(0.5, 0.18, 0.4, '#f4f0e8', 0, k * 0.19, 0));
   catering.position.set(3.95, 0, -2.6); catering.visible = false; scene.add(catering);
 
+  // ---------- Outside: pavement, low front walls, street lamp, back alley ----------
+  const paveImg = canvasTex(64, 64, (c, w, h) => {
+    c.fillStyle = '#a19eaa'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#85828f'; c.lineWidth = 3; c.strokeRect(1.5, 1.5, w - 3, h - 3);
+    for (let i = 0; i < 60; i++) { c.fillStyle = `rgba(0,0,0,${Math.random() * 0.06})`; c.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+  });
+  function pave(x0, x1, z0, z1, tint) {
+    const w = x1 - x0, d = z1 - z0;
+    const t = paveImg.clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(w / 1.1, d / 1.1); t.needsUpdate = true;
+    const top = mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: t, color: tint, roughness: 0.95 }), (x0 + x1) / 2, -0.04, (z0 + z1) / 2, false);
+    top.rotation.x = -PI / 2; scene.add(top);
+    scene.add(box(w, 0.4, d, '#2c2635', (x0 + x1) / 2, -0.44, (z0 + z1) / 2, false));
+  }
+  pave(-4.75, 6.7, 4.75, 6.5, '#ffffff');
+  pave(4.75, 6.7, -4.75, 4.75, '#ffffff');
+  scene.add(box(11.45, 0.12, 0.16, '#77737f', 0.97, -0.04, 6.45, false));
+  scene.add(box(0.16, 0.12, 11.25, '#77737f', 6.65, -0.04, 0.88, false));
+  // Knee-high front walls so the shop reads as a room, with a doorway on the street side
+  scene.add(box(9.4, 0.5, 0.2, shopWain, 0, 0, 4.6)); scene.add(box(9.44, 0.06, 0.26, trim, 0, 0.5, 4.6));
+  scene.add(box(0.2, 0.5, 7.5, shopWain, 4.6, 0, -0.95)); scene.add(box(0.26, 0.06, 7.54, trim, 4.6, 0.5, -0.95));
+  for (const z of [2.85, 4.55]) { scene.add(box(0.24, 1.05, 0.24, '#7a4a2e', 4.62, 0, z)); scene.add(sphere(0.13, '#7a4a2e', 4.62, 1.12, z)); }
+  const openTex = canvasTex(128, 64, (c, w, h) => {
+    c.fillStyle = '#fff4e0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#b8485e'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
+    c.fillStyle = '#b8485e'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText('OPEN', w / 2, 44);
+  });
+  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), new THREE.MeshStandardMaterial({ map: openTex, side: THREE.DoubleSide }), 4.76, 1.55, 2.85, false); sign.rotation.y = PI / 2; sign.position.y = 0.78; sign.position.z = 2.85; scene.add(sign); }
+  // Street lamp, bench and a planter
+  scene.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 6.1, 0, -3.6, 10));
+  scene.add(box(0.5, 0.06, 0.06, '#2b2d36', 5.88, 2.85, -3.6));
+  const lampM = new THREE.MeshStandardMaterial({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0.4 });
+  lampGlows.push(lampM);
+  scene.add(sphere(0.13, lampM, 5.66, 2.74, -3.6, false));
+  scene.add(box(1.5, 0.08, 0.42, '#a8703f', 1.5, 0.42, 5.75)); scene.add(box(1.5, 0.36, 0.06, '#a8703f', 1.5, 0.5, 5.95));
+  for (const x of [0.88, 2.12]) scene.add(box(0.07, 0.42, 0.38, '#2b2d36', x, 0, 5.75));
+  scene.add(box(0.7, 0.45, 0.7, '#8a8790', -2.8, 0, 5.6));
+  scene.add(cyl(0.05, 0.07, 0.6, '#6b4a2e', -2.8, 0.45, 5.6, 8));
+  for (const [dx, dy, dz, r] of [[0, 1.25, 0, 0.36], [0.2, 1.05, 0.12, 0.26], [-0.18, 1.1, -0.1, 0.27]]) scene.add(sphere(r, '#5aa36a', -2.8 + dx, dy, 5.6 + dz));
+  // String lights along the top of the shop's back wall
+  for (let k = 0; k < 13; k++) {
+    const x = -4.2 + k * 0.7;
+    const y = 2.82 - Math.sin((k % 4) / 4 * PI) * 0.12;
+    const bm = new THREE.MeshStandardMaterial({ color: '#fff3d6', emissive: ['#ffcf7a', '#ff9fb2', '#9fe1ff'][k % 3], emissiveIntensity: 0.6 });
+    glowMats.push(bm); scene.add(sphere(0.045, bm, x, y, -4.43, false));
+  }
+  // Back alley behind the back door
+  pave(-14.0, -11.85, -4.75, 4.75, '#8f8a9a');
+  scene.add(box(1.0, 0.85, 1.45, '#3f6b4f', -13.2, 0, -2.5));
+  scene.add(box(1.06, 0.08, 1.5, '#2f5240', -13.2, 0.85, -2.5));
+  for (const [x, z, r] of [[-12.5, -1.4, 0.24], [-12.75, -1.15, 0.2], [-13.3, 0.4, 0.22]]) { const b = sphere(r, '#1c1c22', x, r * 0.8, z); b.scale.y = 0.85; scene.add(b); }
+  scene.add(box(0.12, 0.24, 0.2, '#2b2d36', -11.85, 2.45, 3.5));
+  const alleyM = new THREE.MeshStandardMaterial({ color: '#ffe2b0', emissive: '#ffb05a', emissiveIntensity: 0.4 });
+  lampGlows.push(alleyM);
+  scene.add(sphere(0.08, alleyM, -11.98, 2.45, 3.5, false));
+
   // ---------- Stations from state ----------
   let stationSig = '';
   let stations = { };
@@ -591,48 +697,144 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const emitAcc = new Map();
 
   // ---------- People from state ----------
-  const SHOP_ENTRY = V3(4.7, 0, 3.9), SHOP_EXIT = V3(4.9, 0, 4.3);
+  const OUTSIDE = V3(6.4, 0, 3.7), GAP = V3(4.2, 0, 3.7);
   const DOOR_OUT = V3(-13.0, 0, 2.2), DOOR_IN = V3(-11.0, 0, 2.2);
   const BUYER_SPOTS = [V3(-10.1, 0, 2.9), V3(-10.1, 0, 1.5), V3(-9.0, 0, 3.4), V3(-9.0, 0, 2.1), V3(-7.9, 0, 3.0), V3(-7.9, 0, 1.7)];
-  const customers = new Map(); // id -> { agent, res, shownRes }
+  const TILL = V3(3.1, 1.3, 0.85);
+  const customers = new Map(); // id -> { agent, shown, inside, leaving }
   const buyers = new Map();
-  const reactions = []; // { pos(agent), text, kind, until }
+  const reactions = []; // { agent, text, kind, until, id }
+
+  // You: the baker. Walks to whatever you tap.
+  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(-8.4, 0, -1.2) };
+  const baker = new Agent(scene, { skin: 1, shirt: 0, hair: 1, pants: 0, h: 1.02 }, 'baker', BAKER_HOME.shop.clone());
+  baker.face = PI / 4;
+  let bakerZone = 'shop', bakerJob = null, bakerIdle = 0;
+
+  // Things flying through the air: fresh goods to the case, bags to the pile, coins from the till.
+  const flyers = [];
+  function launch(obj, from, to, { delay = 0, dur = 0.65, arc = 1.1, pop = false } = {}) {
+    obj.position.copy(from); obj.visible = false; scene.add(obj);
+    flyers.push({ obj, from: from.clone(), to: to.clone(), t: -delay, dur, arc, pop });
+  }
+  function updateFlyers(dt) {
+    for (let k = flyers.length - 1; k >= 0; k--) {
+      const f = flyers[k];
+      f.t += dt;
+      if (f.t < 0) continue;
+      f.obj.visible = true;
+      const q = Math.min(1, f.t / f.dur);
+      f.obj.position.lerpVectors(f.from, f.to, q);
+      f.obj.position.y += Math.sin(PI * q) * f.arc;
+      f.obj.rotation.y += dt * 8;
+      if (f.pop) f.obj.scale.setScalar(q < 0.7 ? 1 : 1 - (q - 0.7) / 0.3);
+      if (q >= 1) { scene.remove(f.obj); flyers.splice(k, 1); }
+    }
+  }
+  const coinGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.025, 18);
+  const coinM = mat('#ffcf3f', { metalness: 0.7, roughness: 0.3 });
+  const billM = mat('#6fbf73');
+  function coin(at) {
+    const c = new THREE.Mesh(coinGeo, coinM); c.rotation.x = PI / 2;
+    const g = new THREE.Group(); g.add(c);
+    launch(g, at, at.clone().add(V3(0, 0.9, 0)), { dur: 0.8, arc: 0, pop: true });
+  }
+
+  function poke(s, stage, i, before) {
+    const st = stations[stage]?.[i];
+    if (!st) return;
+    st.bounce = 1;
+    const ry = st.group.rotation.y;
+    const front = st.group.position.clone().add(V3(Math.sin(ry), 0, Math.cos(ry)).multiplyScalar(0.8));
+    baker.target.copy(front); baker.face = ry + PI;
+    bakerJob = true; bakerIdle = 0;
+    if (before?.item && before.done) {
+      const r = G.recipeOf(before.item);
+      if (r.stages.at(-1) !== stage) return;
+      const from = st.anchorW.clone().add(V3(0, -0.5, 0));
+      if (before.item === 'velvet') {
+        for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
+      } else {
+        const idx = Math.min(5, Math.max(0, s.recipes.indexOf(before.item)));
+        for (let k = 0; k < 3; k++) launch(itemModel(before.item), from, V3(trays[idx].x, 1.08, 0.95), { delay: k * 0.09 });
+      }
+    }
+  }
+  function sold(id) {
+    const e = buyers.get(id);
+    if (!e) return;
+    e.agent.p.bag.visible = true;
+    e.agent.p.bagM.color.set('#c79bff');
+    const at = e.agent.group.position.clone().setY(1.2);
+    for (let k = 0; k < 3; k++) launch(rbox(0.22, 0.02, 0.12, billM, 0, 0, 0, 0.005), at, at.clone().add(V3(0, 0.8, 0)), { delay: k * 0.1, dur: 0.7, arc: 0, pop: true });
+  }
 
   function syncPeople(s, dt, now) {
     const sh = s.shift;
+    // The baker follows the camera between rooms, works at each tapped station, then wanders home.
+    if (view.zone !== bakerZone) {
+      bakerZone = view.zone;
+      baker.group.position.copy(BAKER_HOME[bakerZone]); baker.target.copy(BAKER_HOME[bakerZone]); bakerJob = null;
+    }
+    const bakerThere = baker.update(dt);
+    if (bakerJob && bakerThere) { baker.work = 0.6; bakerJob = null; bakerIdle = 0; }
+    else if (!bakerJob && bakerThere) {
+      bakerIdle += dt;
+      if (bakerIdle > 6 && baker.target.distanceTo(BAKER_HOME[bakerZone]) > 0.05) { baker.target.copy(BAKER_HOME[bakerZone]); baker.face = PI / 4; }
+    }
+
+    // Day customers: in through the doorway, queue at the tray they want, out again.
     const live = new Set();
     if (sh?.kind === 'day') {
+      const lines = new Map();
+      for (const c of [...sh.customers].sort((a, b) => a.t0 - b.t0)) {
+        if (c.res && sh.t - c.t0 > CFG.walkIn + CFG.browse) continue;
+        const idx = Math.min(5, Math.max(0, s.recipes.indexOf(c.want)));
+        if (!lines.has(idx)) lines.set(idx, []);
+        lines.get(idx).push(c.id);
+      }
       for (const c of sh.customers) {
         live.add(c.id);
         let e = customers.get(c.id);
-        if (!e) { e = { agent: new Agent(scene, c.look, false, SHOP_ENTRY.clone()), shown: false }; customers.set(c.id, e); }
-        const age = sh.t - c.t0;
-        const idx = Math.max(0, s.recipes.indexOf(c.want));
-        const tray = trays[Math.min(idx, 5)];
-        const spot = V3(tray.x + ((c.id % 3) - 1) * 0.22, 0, 2.0 + (c.id % 2) * 0.5);
-        if (c.res && age > CFG.walkIn + CFG.browse) { e.agent.target.copy(SHOP_EXIT); e.agent.face = null; }
-        else { e.agent.target.copy(spot); e.agent.face = PI; }
+        if (!e) { e = { agent: new Agent(scene, c.look, 'customer', OUTSIDE.clone()), shown: false, inside: false, leaving: false }; customers.set(c.id, e); }
+        if (c.res && sh.t - c.t0 > CFG.walkIn + CFG.browse) e.leaving = true;
+        if (!e.leaving) {
+          if (!e.inside) { e.agent.target.copy(GAP); e.agent.face = null; if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = true; }
+          else {
+            const idx = Math.min(5, Math.max(0, s.recipes.indexOf(c.want)));
+            const k = lines.get(idx)?.indexOf(c.id) ?? 0;
+            e.agent.target.set(trays[idx].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
+            e.agent.face = PI;
+          }
+        }
         if (c.res && !e.shown) {
           e.shown = true;
           e.agent.p.bag.visible = c.res.kind === 'good';
+          if (c.res.kind === 'good') coin(TILL);
           const face = c.res.kind === 'good' ? '😊' : c.res.kind === 'bad' ? '😞' : '😒';
           reactions.push({ agent: e.agent, text: `${face} ${c.res.text}`, kind: c.res.kind, until: now + 2.2, id: 'r' + c.id });
         }
       }
     }
     for (const [id, e] of customers) {
-      if (!live.has(id)) { e.agent.target.copy(SHOP_EXIT); e.agent.face = null; e.agent.leaving = true; }
+      if (!live.has(id)) e.leaving = true;
+      if (e.leaving) {
+        e.agent.face = null;
+        if (e.inside) { e.agent.target.copy(GAP); if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = false; }
+        else e.agent.target.copy(OUTSIDE);
+      }
       const arrived = e.agent.update(dt);
-      if (e.agent.leaving && arrived) { scene.remove(e.agent.group); customers.delete(id); }
+      if (e.leaving && !e.inside && arrived) { scene.remove(e.agent.group); customers.delete(id); }
     }
 
+    // Night buyers: in through the back door, wait, leave the same way.
     const liveB = new Set();
     if (sh?.kind === 'night') {
       sh.buyers.forEach((b, k) => {
         liveB.add(b.id);
         let e = buyers.get(b.id);
         if (!e) {
-          e = { agent: new Agent(scene, b.look || { skin: b.id % 5, shirt: b.id % 5, hair: 0, pants: b.id % 5, h: 1 }, true, DOOR_OUT.clone()), via: true };
+          e = { agent: new Agent(scene, b.look || { skin: b.id % 5, shirt: b.id % 5, hair: 0, pants: b.id % 5, h: 1 }, 'hood', DOOR_OUT.clone()), via: true };
           e.agent.group.userData = { act: 'buyer', id: b.id };
           pickables.push(e.agent.group);
           buyers.set(b.id, e);
@@ -655,11 +857,11 @@ export function createScene(canvas, overlayEl, { onPick }) {
       const arrived = e.agent.update(dt);
       if (e.agent.leaving && e.stage === 1 && arrived) { scene.remove(e.agent.group); buyers.delete(id); }
     }
-    // The back door swings open while someone is near it
     let near = false;
     for (const e of buyers.values()) if (e.agent.group.position.distanceTo(DOOR_IN) < 1.6) near = true;
     const want = near ? -1.5 : 0;
     backDoorPivot.rotation.y += (want - backDoorPivot.rotation.y) * Math.min(1, dt * 6);
+    updateFlyers(dt);
   }
 
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
@@ -689,6 +891,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
         if (!slot) continue;
         const b = slotBubble(st, slot);
         if (b) want.set(`s-${st.stage}-${st.i}`, { ...b, pos: st.anchorW });
+      }
+      if (sh.kind === 'day') {
+        for (const c of sh.customers) {
+          const e = customers.get(c.id);
+          if (!e || c.res || !e.inside) continue;
+          want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
+        }
       }
       if (sh.kind === 'night') {
         for (const b of sh.buyers) {
@@ -735,6 +944,11 @@ export function createScene(canvas, overlayEl, { onPick }) {
     for (const list of Object.values(stations)) for (const st of list) {
       const slot = (sh && sh.kind === st.kind && sh.slots[st.stage]?.[st.i]) || { item: null };
       const fx = st.update(slot, dt, now);
+      if (st.bounce > 0) {
+        st.bounce = Math.max(0, st.bounce - dt * 3.5);
+        const b = Math.sin(st.bounce * PI * 2) * st.bounce;
+        st.group.scale.set(1 - b * 0.05, 1 + b * 0.09, 1 - b * 0.05);
+      }
       if (fx && st.smokeW) {
         const key = st.stage + st.i;
         const acc = (emitAcc.get(key) || 0) + dt;
@@ -774,17 +988,27 @@ export function createScene(canvas, overlayEl, { onPick }) {
   }
 
   // ---------- Camera, lighting, render ----------
-  function applyLights(dt) {
+  const SUN_MORNING = new THREE.Color('#ffd9a8'), SUN_NOON = new THREE.Color('#fff4e4'), SUN_LATE = new THREE.Color('#ffb46b');
+  function applyLights(dt, now, frac) {
     const L = LIGHTS[view.light] || LIGHTS.day;
     const k = 1 - Math.exp(-dt * 3);
-    for (const key of ['hemi', 'sun', 'lamp', 'bulb', 'neon', 'winI', 'glow']) cur[key] += (L[key] - cur[key]) * k;
+    for (const key of ['hemi', 'sun', 'lamp', 'bulb', 'neon', 'street', 'alley', 'lampI', 'winI', 'glow']) cur[key] += (L[key] - cur[key]) * k;
     cur.bgC.lerp(new THREE.Color(L.bg), k);
     cur.winC.lerp(new THREE.Color(L.win), k);
     cur.hemiCC.lerp(new THREE.Color(L.hemiC), k);
     cur.sunCC.lerp(new THREE.Color(L.sunC), k);
     hemi.intensity = cur.hemi; hemi.color.copy(cur.hemiCC);
     sun.intensity = cur.sun; sun.color.copy(cur.sunCC);
-    shopLamp.intensity = cur.lamp; bulb.intensity = cur.bulb; neon.intensity = cur.neon;
+    if (view.light === 'day') {
+      const c = frac < 0.5 ? SUN_MORNING.clone().lerp(SUN_NOON, frac * 2) : SUN_NOON.clone().lerp(SUN_LATE, (frac - 0.5) * 2);
+      sun.color.lerp(c, 0.85);
+    }
+    const a = -0.9 + 1.8 * frac;
+    const wantPos = V3(-3.5 + Math.sin(a) * 11, 16 - Math.abs(a) * 4, 9 - Math.abs(a) * 2);
+    sun.position.lerp(wantPos, 1 - Math.exp(-dt * 2));
+    shopLamp.intensity = cur.lamp; neon.intensity = cur.neon; street.intensity = cur.street; alley.intensity = cur.alley;
+    bulb.intensity = cur.bulb * (view.light === 'night' && Math.sin(now * 23) > 0.97 ? 0.6 : 1); // the odd flicker
+    for (const m of lampGlows) m.emissiveIntensity = cur.lampI;
     scene.background.copy(cur.bgC);
     for (const m of windows) { m.emissive.copy(cur.winC); m.emissiveIntensity = cur.winI; }
     for (const m of glowMats) m.emissiveIntensity = cur.glow;
@@ -886,11 +1110,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
         p.mesh.scale.setScalar(0.6 + f * 1.6);
         p.mesh.material.opacity = 0.55 * (1 - f);
       }
-      applyLights(dt);
+      const frac = s.shift?.kind === 'day' ? s.shift.t / s.shift.len : s.phase === 'evening' ? 1 : s.phase === 'plan' || s.phase === 'report' ? 0.08 : 0.5;
+      applyLights(dt, now, frac);
       updateCamera(dt);
       renderer.render(scene, camera);
       updateOverlay(s, now);
     },
+    poke, sold,
     debug: { scene, camera, cam, view },
   };
 }

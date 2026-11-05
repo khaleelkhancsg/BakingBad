@@ -3,8 +3,9 @@ import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES } from './data.js';
 import { createScene } from './scene.js';
 
-const KEY = 'bakingbad.save';
 const params = new URLSearchParams(location.search);
+// ?save=name keeps a separate save slot (handy for testing without touching the real game)
+const KEY = 'bakingbad.save' + (params.get('save') ? '.' + params.get('save') : '');
 const SPEED = Number(params.get('speed')) || 1;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
@@ -411,14 +412,24 @@ function act(el) {
     case 'pay': G.payBank(s, id === 'all' ? s.balance : Number(id)); break;
     case 'open': s.introSeen = true; G.startShift(s, 'day'); break;
     case 'slot': {
-      const r = G.tapSlot(s, el.dataset.stage, Number(el.dataset.i));
-      if (r?.pick) ui.modal = { type: 'recipes', i: Number(el.dataset.i) };
+      const stage = el.dataset.stage, i = Number(el.dataset.i);
+      const slot = s.shift?.slots[stage]?.[i];
+      const before = slot ? { ...slot } : null;
+      const r = G.tapSlot(s, stage, i);
+      if (s.shift) world.poke(s, stage, i, before);
+      if (r?.pick) ui.modal = { type: 'recipes', i };
       break;
     }
-    case 'recipe': if (ui.modal?.type === 'recipes') G.startRecipe(s, id, ui.modal.i); ui.modal = null; break;
+    case 'recipe':
+      if (ui.modal?.type === 'recipes') { G.startRecipe(s, id, ui.modal.i); world.poke(s, 'mix', ui.modal.i, null); }
+      ui.modal = null;
+      break;
     case 'close': ui.modal = null; break;
     case 'buyer': ui.modal = { type: 'buyer', id: Number(id) }; break;
-    case 'sell': G.sellToBuyer(s, Number(id)); ui.modal = null; break;
+    case 'sell':
+      if (s.bags > 0) world.sold(Number(id));
+      G.sellToBuyer(s, Number(id)); ui.modal = null;
+      break;
     case 'turn': G.turnAway(s, Number(id)); ui.modal = null; break;
     case 'pause': ui.paused = true; ui.modal = { type: 'pause' }; break;
     case 'resume': ui.paused = false; ui.modal = null; break;
