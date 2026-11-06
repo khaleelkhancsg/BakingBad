@@ -1448,7 +1448,7 @@ export function newGame(t = Date.now(), prestige = null) {
     stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0, busts: 0, visits: 0, xp: 0, served: 0, missed: 0, nightCash: 0 },
   };
   bindShops(s);
-  s.machines = [{ type: 'oven', spot: 0, job: null, last: null }, { type: 'oven', spot: 1, job: null, last: null }, { type: 'mixer', spot: 5, job: null, last: null }];
+  s.machines = [{ type: 'oven', spot: 0, job: null, last: null }, { type: 'oven', spot: 2, job: null, last: null }, { type: 'mixer', spot: 5, job: null, last: null }];
   s.onMenu = [...START_RECIPES];
   for (const id in ITEMS) s.priceLevel[id] = 'normal';
   s.display.sourdough = 20; s.display.croissant = 16; // Aunt Rosa's last bake

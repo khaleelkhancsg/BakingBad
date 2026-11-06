@@ -790,12 +790,15 @@ export function nextCap(table, level) { for (const [l, v] of table) if (l > leve
 // Kitchen spots (bakery) and lab spots (back room). need: an expansion that opens the spot.
 // cell: the design square a terrace machine stands on (kept clear of decorations).
 export const SPOTS = [
-  { x: -2.75, z: -4.0, ry: 0, wall: 'back' }, { x: -1.6, z: -4.0, ry: 0, wall: 'back' }, { x: -0.45, z: -4.0, ry: 0, wall: 'back' },
-  { x: 0.7, z: -4.0, ry: 0, wall: 'back' }, { x: 1.85, z: -4.0, ry: 0, wall: 'back' },
-  { x: -3.95, z: -3.0, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: -1.9, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: -0.8, ry: Math.PI / 2, wall: 'left' },
-  { x: -3.95, z: 0.3, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: 1.4, ry: Math.PI / 2, wall: 'left' },
-  { x: -2.1, z: -2.15, ry: 0, wall: 'island', need: 'island' }, { x: -0.9, z: -2.15, ry: 0, wall: 'island', need: 'island' },
-  { x: -2.1, z: -1.1, ry: Math.PI, wall: 'island', need: 'island2' }, { x: -0.9, z: -1.1, ry: Math.PI, wall: 'island', need: 'island2' },
+  // The back wall (spots 1 and 3 come with the kitchen refit, so the first few machines have elbow room)
+  { x: -2.75, z: -4.0, ry: 0, wall: 'back' }, { x: -1.6, z: -4.0, ry: 0, wall: 'back', need: 'refit' }, { x: -0.45, z: -4.0, ry: 0, wall: 'back' },
+  { x: 0.7, z: -4.0, ry: 0, wall: 'back', need: 'refit' }, { x: 1.85, z: -4.0, ry: 0, wall: 'back' },
+  // The left wall (6 and 8 with the refit)
+  { x: -3.95, z: -3.0, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: -1.9, ry: Math.PI / 2, wall: 'left', need: 'refit' }, { x: -3.95, z: -0.8, ry: Math.PI / 2, wall: 'left' },
+  { x: -3.95, z: 0.3, ry: Math.PI / 2, wall: 'left', need: 'refit' }, { x: -3.95, z: 1.4, ry: Math.PI / 2, wall: 'left' },
+  // The island: two rows back to back, each with a clear aisle in front (to the counter, and to the back wall)
+  { x: -2.1, z: -1.15, ry: 0, wall: 'island', need: 'island' }, { x: -0.9, z: -1.15, ry: 0, wall: 'island', need: 'island' },
+  { x: -2.1, z: -2.0, ry: Math.PI, wall: 'island', need: 'island2' }, { x: -0.9, z: -2.0, ry: Math.PI, wall: 'island', need: 'island2' },
   { x: -3.6, z: 6.05, ry: Math.PI, wall: 'cart', need: 'carts', cell: [0, 10] }, { x: -1.8, z: 6.05, ry: Math.PI, wall: 'cart', need: 'carts', cell: [2, 10] },
   { x: 0, z: 6.05, ry: Math.PI, wall: 'cart', need: 'carts', cell: [4, 10] }, { x: 1.8, z: 6.05, ry: Math.PI, wall: 'cart', need: 'carts', cell: [6, 10] },
   { x: 3.6, z: 6.05, ry: Math.PI, wall: 'cart', need: 'carts', cell: [8, 10] },
@@ -806,13 +809,20 @@ export const SPOTS = [
 export const MACHINE_WALL = { oven: 'back', fryer: 'back', grill: 'back', pizza: 'back', bbq: 'back', rotisserie: 'back', grand: 'back',
   mixer: 'left', drinks: 'left', icecream: 'left', griddle: 'island', steamer: 'island', noodles: 'island', choc: 'left',
   patisserie: 'left', bar: 'cart', sushi: 'island', candy: 'cart' };
+// The back room is 7 x 9 until you knock into the storeroom behind it (3 m deeper). Its back-wall machines then move
+// to the new back wall (ext), and the benches go in the new space: rows back to back, an aisle in front of every machine.
+export const BACK_DEPTH = 3;
 export const LAB_SPOTS = [
-  { x: -10.25, z: -3.95, ry: 0 }, { x: -8.95, z: -3.95, ry: 0 }, { x: -7.7, z: -3.95, ry: 0 }, { x: -6.45, z: -3.95, ry: 0 },
-  { x: -9.6, z: -1.2, ry: 0, need: 'bench' }, { x: -8.3, z: -1.2, ry: 0, need: 'bench' }, { x: -7.0, z: -1.2, ry: 0, need: 'bench2' },
-  { x: -9.6, z: 0.1, ry: Math.PI, need: 'bench3' }, { x: -8.3, z: 0.1, ry: Math.PI, need: 'bench3' },
-  { x: -5.3, z: -3.0, ry: -Math.PI / 2, need: 'annex' }, { x: -5.3, z: 0.6, ry: -Math.PI / 2, need: 'annex' },
-  { x: -6.6, z: 4.0, ry: Math.PI, need: 'annex' }, { x: -8.0, z: 4.0, ry: Math.PI, need: 'annex' },
+  { x: -10.25, z: -3.95, ry: 0, ext: { x: -10.85, z: -6.95 } }, { x: -8.95, z: -3.95, ry: 0, ext: { x: -9.6, z: -6.95 } },
+  { x: -7.7, z: -3.95, ry: 0, ext: { x: -8.35, z: -6.95 } }, { x: -6.45, z: -3.95, ry: 0, ext: { x: -7.1, z: -6.95 } },
+  { x: -9.9, z: -4.9, ry: Math.PI, need: 'bench' }, { x: -8.65, z: -4.9, ry: Math.PI, need: 'bench' }, { x: -7.4, z: -4.9, ry: Math.PI, need: 'bench2' },
+  { x: -9.9, z: -3.85, ry: 0, need: 'bench3' }, { x: -8.65, z: -3.85, ry: 0, need: 'bench3' },
+  { x: -5.35, z: -3.6, ry: -Math.PI / 2, need: 'annex' }, { x: -5.35, z: -2.45, ry: -Math.PI / 2, need: 'annex' },
+  { x: -11.0, z: -0.25, ry: Math.PI / 2, need: 'annex' }, { x: -11.0, z: 0.9, ry: Math.PI / 2, need: 'annex' },
+  { x: -5.85, z: -6.95, ry: 0, need: 'storeroom' },
 ];
+// Where a back-room spot is, with or without the storeroom knocked through
+export const labSpotAt = (spot, ext) => (ext && spot.ext ? { ...spot, ...spot.ext } : spot);
 
 export const EVENTS = [
   { id: 'rain',      p: 0.15, text: '🌧️ Rain today. Fewer people out.',                  cust: 0.7 },

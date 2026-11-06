@@ -1,7 +1,7 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
 import * as THREE from 'three';
-import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS } from './data.js';
+import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, labSpotAt, BACK_DEPTH } from './data.js';
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 import { buildWorld } from './world.js';
@@ -734,11 +734,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
   const backWall = mat('#41464f'), backWain = mat('#30343b');
-  function wallX(x0, x1, z, upper, lower, tiles) { // runs along x
-    const w = x1 - x0, cx = (x0 + x1) / 2;
-    statics.add(box(w, 1.0, 0.2, lower, cx, 0, z));
-    statics.add(box(w, 2.0, 0.2, upper, cx, 1.0, z));
-    statics.add(box(w, 0.06, 0.24, trim, cx, 1.0, z));
+  function wallX(x0, x1, z, upper, lower, tiles, group) { // runs along x
+    const w = x1 - x0, cx = (x0 + x1) / 2, to = group || statics;
+    to.add(box(w, 1.0, 0.2, lower, cx, 0, z));
+    to.add(box(w, 2.0, 0.2, upper, cx, 1.0, z));
+    to.add(box(w, 0.06, 0.24, trim, cx, 1.0, z));
     if (tiles) { const t = mesh(new THREE.PlaneGeometry(w, 1.0), smat({ map: tiles, roughness: 0.4 }), cx, 1.55, z + 0.105, false); statics.add(t); }
   }
   function wallZ(z0, z1, x, upper, lower, group) { // runs along z
@@ -759,10 +759,26 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   partition.add(box(0.34, 0.12, 9.3, capM, -4.6, 3.0, -0.05));
   scene.add(partition);
   statics.add(box(9.4, 0.12, 0.34, capM, 0.05, 3.0, -4.6));
-  statics.add(box(7.2, 0.12, 0.34, capM, -8.15, 3.0, -4.6));
+  const oldBackWall = new THREE.Group(); scene.add(oldBackWall);
+  oldBackWall.add(box(7.2, 0.12, 0.34, capM, -8.15, 3.0, -4.6));
   statics.add(box(0.34, 0.12, 9.3, capM, -11.7, 3.0, -0.05));
   // Back room walls
-  wallX(-11.6, -4.7, -4.6, backWall, backWain, null);
+  wallX(-11.6, -4.7, -4.6, backWall, backWain, null, oldBackWall);
+  const storeroom = new THREE.Group(); storeroom.visible = false; scene.add(storeroom);
+  {
+    const Z = -4.6 - BACK_DEPTH; // the new back wall
+    const ef = mesh(new THREE.PlaneGeometry(6.9, BACK_DEPTH + 0.1), backFloor.material, -8.15, 0.001, (Z - 4.6) / 2 + 0.05, false);
+    ef.rotation.x = -PI / 2; ef.receiveShadow = true; storeroom.add(ef); storeroom.userData.floor = ef;
+    storeroom.add(box(7.15, 0.45, BACK_DEPTH, '#a79f95', -8.15, -0.45, (Z - 4.6) / 2, false));
+    wallX(-11.6, -4.7, Z, backWall, backWain, null, storeroom);
+    wallZ(Z, -4.7, -11.7, backWall, backWain, storeroom);
+    // The side facing you is a knee wall, like the shop's, so you can see in
+    storeroom.add(box(0.2, 0.5, BACK_DEPTH, backWain, -4.7, 0, (Z - 4.6) / 2), box(0.26, 0.06, BACK_DEPTH + 0.04, trim, -4.7, 0.5, (Z - 4.6) / 2));
+    storeroom.add(box(7.2, 0.12, 0.34, capM, -8.15, 3.0, Z), box(0.34, 0.12, BACK_DEPTH, capM, -11.7, 3.0, (Z - 4.6) / 2));
+    // A steel beam where the old wall was
+    storeroom.add(box(7.0, 0.25, 0.25, mat('#6b7079', { metalness: 0.4, roughness: 0.5 }), -8.15, 2.75, -4.6));
+    for (const x of [-11.45, -4.85]) storeroom.add(box(0.2, 2.75, 0.2, mat('#6b7079', { metalness: 0.4, roughness: 0.5 }), x, 0, -4.6));
+  }
   wallZ(-4.7, 1.6, -11.7, backWall, backWain);
   wallZ(2.8, 4.6, -11.7, backWall, backWain);
   statics.add(box(0.2, 0.95, 1.2, backWall, -11.7, 2.05, 2.2));
@@ -850,7 +866,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   statics.add(box(0.8, 0.5, 0.8, '#6b5540', -10.9, 0, 3.9));
   const ledM = smat({ color: '#2a1840', emissive: '#a46bff', emissiveIntensity: 1.2 });
   glowMats.push(ledM);
-  statics.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48, false));
+  oldBackWall.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48, false));
+  storeroom.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48 - BACK_DEPTH, false));
   statics.add(cyl(0.01, 0.01, 0.5, '#222', -9.4, 2.5, -1.6, 6, false));
   const bulbM = smat({ color: '#fff3d6', emissive: '#ffcc88', emissiveIntensity: 1 }); glowMats.push(bulbM);
   statics.add(sphere(0.09, bulbM, -9.4, 2.45, -1.6, false));
@@ -1203,8 +1220,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const f = D.BACK_FLOORS[b.floor] || D.BACK_FLOORS.concrete;
     if (b.floor === 'concrete') backFloor.material = backFloorOrig;
     else backFloor.material = backFloorMats[b.floor] ||= (b.floor === 'neon' ? smat({ color: f.color, emissive: '#7b3fd6', emissiveIntensity: 0.35, roughness: 0.4 }) : smat({ color: f.color, roughness: b.floor === 'epoxy' || b.floor === 'tiles' ? 0.35 : 0.85 }));
+    storeroom.userData.floor.material = backFloor.material;
     const w = D.BACK_WALLS[b.wall] || D.BACK_WALLS.block;
     backWall.color.set(w.color); backWain.color.set(w.lower);
+    navGrid = null; // decor is in the way of walking
     backDecorGroup.clear();
     b.decor.forEach((it, idx) => {
       const m = decorModel(it.type), { x, z } = D.backCellCenter(it.bx, it.bz);
@@ -1530,8 +1549,16 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     sb(3.3, 0.3, 0.3, steelM, -8.9, 2.3, 4.85);
     sb(0.9, 2.0, 0.06, darkM, -6.0, 0, 4.8); sb(0.5, 0.18, 0.02, sm('#e8c02b'), -6.0, 1.6, 4.84); // STAFF ONLY plate
     sb(0.3, 0.2, 0.25, darkM, -6.9, 2.5, 4.85); // a camera over the door
-    sb(7.2, 0.22, 9.6, backM, -8.2, 3.05, 0);
-    for (const [w, d, x, z] of [[7.3, 0.15, -8.2, 4.78], [7.3, 0.15, -8.2, -4.78], [0.15, 9.7, -11.78, 0]]) sb(w, 0.3, d, sm('#4a4550'), x, 3.27, z);
+    const deep = ex.storeroom ? 3 : 0, bz0 = -4.8 - deep;
+    sb(7.2, 0.22, 9.6 + deep, backM, -8.2, 3.05, -deep / 2);
+    for (const [w, d, x, z] of [[7.3, 0.15, -8.2, 4.78], [7.3, 0.15, -8.2, bz0 + 0.02], [0.15, 9.7 + deep, -11.78, -deep / 2]]) sb(w, 0.3, d, sm('#4a4550'), x, 3.27, z);
+    if (deep) {
+      // The side of the new part, facing the street corner, with a high window and an extractor
+      sb(0.22, 3.05, deep, sm('#ffffff', { map: backTex }), -4.72, 0, -4.8 - deep / 2);
+      sb(0.15, 0.3, deep, sm('#4a4550'), -4.72, 3.27, -4.8 - deep / 2);
+      sb(0.05, 0.4, 1.6, glassM, -4.6, 2.2, -4.8 - deep / 2);
+      sb(0.5, 0.5, 0.5, steelM, -9.6, 3.27, -6.4);
+    }
     for (const [x, z] of [[-10.2, -2.5], [-9.0, 3.0]]) { sb(0.35, 0.45, 0.35, darkM, x, 3.27, z); sb(0.5, 0.06, 0.5, darkM, x, 3.72, z); }
     // Benches: extractor fans; more benches: a run of ducting; the cellar: a grille in the pavement; the annex: a raised roof
     if (ex.bench) for (const z of [-3.2, -1.6]) { sb(0.8, 0.35, 0.8, steelM, -10.4, 3.27, z); const fan = cyl(0.3, 0.3, 0.06, darkM, -10.4, 3.62, z, 16); shellGroup.add(fan); }
@@ -1567,6 +1594,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     shellGroup.traverse(o => { if (o.isMesh) shellGeos.push(o.geometry); });
   }
   const FOOTPRINT = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85), new THREE.Vector3(4.85, 3.2, 4.85)), cullBox = new THREE.Box3();
+  // The shop part stops at -4.85; the back room reaches further back once the storeroom is in. Cull each part on its own.
+  const FOOT_BACK = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85 - BACK_DEPTH), new THREE.Vector3(-4.6, 3.2, 4.85));
   let culled = [], cullT = 0;
   function cullInside(on, dt) {
     if (!on) { if (culled.length) { for (const o of culled) o.layers.set(0); culled = []; } cullT = 0; return; }
@@ -1580,7 +1609,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if ((o.isMesh || o.isSprite) && !o.isInstancedMesh && o.geometry) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         cullBox.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
-        if (FOOTPRINT.containsBox(cullBox)) { o.layers.set(1); culled.push(o); }
+        if (FOOTPRINT.containsBox(cullBox) || (navState?.design?.expansions?.storeroom && FOOT_BACK.containsBox(cullBox))) { o.layers.set(1); culled.push(o); }
       }
       for (const c of o.children) walk(c);
     };
@@ -1618,8 +1647,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     disposeMaps(expGroup); expGroup.clear();
     const add = m => { m.traverse?.(x => { if (x.isMesh) x.receiveShadow = true; }); expGroup.add(m); return m; };
     const plank = mat('#b88452'), steel = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
-    if (ex.island) { add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -2.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.65)); }
-    if (ex.island2) add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -1.1));
+    if (ex.island) { add(box(2.6, 0.05, 1.0, plank, -1.5, 0, -1.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.6)); }
+    if (ex.island2) add(box(2.6, 0.05, 1.0, plank, -1.5, 0, -2.0));
     // Carts and stalls: low and neat (no tall frames to hide the machines), skirted in the shop's canopy stripes
     // or its paint; their parasols and the stalls' lean-to roof are part of the zoomed-out building
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy];
@@ -1642,25 +1671,32 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     };
     if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) cart(x, 6.05);
     if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) stall(6.05, z);
-    if (ex.bench) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, -1.2));
-    if (ex.bench3) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, 0.1));
-    if (ex.bench2) { add(box(0.8, 0.03, 0.8, '#2b2d36', -6.4, 0.005, -2.55)); for (const dx of [-0.25, 0.25]) add(box(0.04, 0.9, 0.04, '#8d939c', -6.4 + dx, 0, -2.25)); }
-    if (ex.annex) { for (const [x, z] of [[-5.3, -3.0], [-5.3, 0.6], [-6.6, 4.0], [-8.0, 4.0]]) add(box(1.3, 0.02, 1.3, '#6b6f78', x, 0.004, z)); }
+    storeroom.visible = !!ex.storeroom; oldBackWall.visible = !ex.storeroom;
+    ZONES.back.center.z = ex.storeroom ? -1.0 : 0.5; ZONES.back.needH = ex.storeroom ? 12.2 : 9.4;
+    navGrid = null;
+    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, -9.275, 0, -4.9));
+    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, -9.275, 0, -3.85));
+    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, -7.4, 0, -4.9)); add(box(0.8, 0.03, 0.8, '#2b2d36', -6.4, 0.005, -5.6)); }
+    if (ex.annex) { for (const [x, z] of [[-5.35, -3.0], [-11.0, 0.33]]) add(box(1.0, 0.02, 2.4, '#6b6f78', x, 0.004, z)); }
   }
 
   // Design overlay for the back room: green where decor can go
-  const ovBack = canvasOf(7 * TS, 9 * TS);
-  const ovBackMesh = mesh(new THREE.PlaneGeometry(7, 9), ovMatB(ovBack), D.BACK_GRID.x0 + 3, 0.02, D.BACK_GRID.z0 + 4, false);
+  const BROWS = 9 + D.BACK_GRID.extRows;
+  const ovBack = canvasOf(7 * TS, BROWS * TS);
+  const ovBackMesh = mesh(new THREE.PlaneGeometry(7, BROWS), ovMatB(ovBack), D.BACK_GRID.x0 + 3, 0.02, D.BACK_GRID.z0 + 4 - D.BACK_GRID.extRows / 2, false);
   ovBackMesh.rotation.x = -PI / 2; ovBackMesh.visible = false; scene.add(ovBackMesh);
   function ovMatB(t) { return new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }); }
   let ovBackSig = '';
   function paintBackOverlay(s) {
     const c = ovBack.ctx, b = s.design.back || { decor: [] };
-    c.clearRect(0, 0, 7 * TS, 9 * TS);
-    for (let bz = 0; bz < 9; bz++) for (let bx = 0; bx < 7; bx++) {
-      const blocked = D.backCellBlocked(bx, bz), used = b.decor.some(d => d.bx === bx && d.bz === bz);
-      c.fillStyle = blocked ? 'rgba(229,122,131,.18)' : used ? 'rgba(233,178,119,.25)' : 'rgba(121,201,154,.28)';
-      c.fillRect(bx * TS + 2, bz * TS + 2, TS - 4, TS - 4);
+    c.clearRect(0, 0, 7 * TS, BROWS * TS);
+    const ext = D.backExt(s), off = D.BACK_GRID.extRows;
+    for (let bz = D.backRowMin(s); bz < 9; bz++) for (let bx = 0; bx < 7; bx++) {
+      const blocked = D.backCellBlocked(bx, bz, ext), used = b.decor.some(d => d.bx === bx && d.bz === bz);
+      // Free squares where decor would cut someone off show amber too
+      const walls = !blocked && !used && !D.backPathsOk(s, [...b.decor, { bx, bz }]);
+      c.fillStyle = blocked ? 'rgba(229,122,131,.18)' : used ? 'rgba(233,178,119,.25)' : walls ? 'rgba(229,122,131,.12)' : 'rgba(121,201,154,.28)';
+      c.fillRect(bx * TS + 2, (bz + off) * TS + 2, TS - 4, TS - 4);
     }
     ovBack.tex.needsUpdate = true;
   }
@@ -1737,7 +1773,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const bdv = view.design?.back ? view.design : null;
     ovBackMesh.visible = !!bdv && bdv.cat === 'bdecor';
     if (bdv) {
-      const sig = JSON.stringify([d.back?.decor, bdv.cat]);
+      const sig = JSON.stringify([d.back?.decor, bdv.cat, d.expansions]);
       if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s); }
       const sel = bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
       selRing.visible = !!sel;
@@ -1776,7 +1812,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         if (o?.userData?.kind === 'bdecor') { onPick({ ...o.userData }); return; }
         if (h.object === backFloor) {
           const bx = Math.round((h.point.x - D.BACK_GRID.x0) / D.BACK_GRID.size), bz = Math.round((h.point.z - D.BACK_GRID.z0) / D.BACK_GRID.size);
-          if (bx >= 0 && bx < 7 && bz >= 0 && bz < 9) onPick({ act: 'design', kind: 'bcell', bx, bz });
+          if (bx >= 0 && bx < 7 && bz >= D.backRowMin(navState || {}) && bz < 9) onPick({ act: 'design', kind: 'bcell', bx, bz });
           return;
         }
       }
@@ -1835,7 +1871,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     stations = [];
     const add = (m, idx, kind) => {
       const M = kind === 'day' ? MACHINES[m.type] : LAB_MACHINES[m.type];
-      const pl = (kind === 'day' ? SPOTS : LAB_SPOTS)[m.spot];
+      const pl = kind === 'day' ? SPOTS[m.spot] : LAB_SPOTS[m.spot] && labSpotAt(LAB_SPOTS[m.spot], !!s.design.expansions?.storeroom);
       if (!M || !pl) return;
       const st = (BUILDERS[M.model] || buildOven)(M.tint);
       const tier = m.tier || 0;
@@ -1916,17 +1952,24 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   baker.face = PI / 4;
   let bakerZone = 'shop', bakerJob = null, bakerIdle = 0;
   // ---------- Walking around things: a grid over the floor, A* and a smoothed path ----------
-  const NAV = { x0: -11.6, x1: 6.9, z0: -4.45, z1: 6.9, c: 0.2 };
+  const NAV = { x0: -11.6, x1: 6.9, z0: -4.45 - BACK_DEPTH, z1: 6.9, c: 0.2 };
   const NW = Math.ceil((NAV.x1 - NAV.x0) / NAV.c), NH = Math.ceil((NAV.z1 - NAV.z0) / NAV.c);
   // Floor you can stand on: the shop, the back room, the door between them, the shop door and the terraces
   const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-11.45, -4.85, -4.4, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
     [4.85, 6.9, -4.4, 6.9], [-4.4, 6.9, 4.85, 6.9]];
   const FIXED = [[-2.6, 3.5, 0.45, 1.45], [-11.45, -10.55, -1.95, -1.25], [-11.3, -10.5, 3.5, 4.3], [-7.5, -6.3, 0.62, 1.38], [-6.45, -5.55, -1.5, -0.9], [-11.4, -10.5, -3.2, -2.8]];
-  let navGrid = null;
+  let navGrid = null, navState = null;
   const cellOf = (x, z) => [Math.floor((x - NAV.x0) / NAV.c), Math.floor((z - NAV.z0) / NAV.c)];
   const centre = (i, j) => V3(NAV.x0 + (i + 0.5) * NAV.c, 0, NAV.z0 + (j + 0.5) * NAV.c);
   function buildNav() {
     const pad = 0.16, rects = FIXED.map(r => [r[0] - pad, r[1] + pad, r[2] - pad, r[3] + pad]);
+    const st0 = navState, ext = !!st0?.design?.expansions?.storeroom;
+    const areas = AREAS.map((a, k) => (k === 1 && ext ? [a[0], a[1], -4.4 - BACK_DEPTH, a[3]] : a));
+    // Decor (not rugs) stands in the way, in the shop and the back room
+    if (st0?.design) {
+      for (const it of st0.design.decor || []) { if (/rug|mat/.test(it.type)) continue; const { x, z } = D.cellCenter(it.cx, it.cz); rects.push([x - 0.32, x + 0.32, z - 0.32, z + 0.32]); }
+      for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([x - 0.36, x + 0.36, z - 0.36, z + 0.36]); }
+    }
     for (const st of stations) {
       const p = st.group.position, side = Math.abs(Math.sin(st.group.rotation.y)) > 0.5;
       const hx = (side ? 0.42 : 0.55) + pad, hz = (side ? 0.55 : 0.42) + pad;
@@ -1935,7 +1978,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     navGrid = new Uint8Array(NW * NH);
     for (let j = 0; j < NH; j++) for (let i = 0; i < NW; i++) {
       const c = centre(i, j);
-      const ok = AREAS.some(a => c.x >= a[0] && c.x <= a[1] && c.z >= a[2] && c.z <= a[3]) && !rects.some(r => c.x > r[0] && c.x < r[1] && c.z > r[2] && c.z < r[3]);
+      const ok = areas.some(a => c.x >= a[0] && c.x <= a[1] && c.z >= a[2] && c.z <= a[3]) && !rects.some(r => c.x > r[0] && c.x < r[1] && c.z > r[2] && c.z < r[3]);
       navGrid[j * NW + i] = ok ? 1 : 0;
     }
   }
@@ -1973,9 +2016,16 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         if (ng < g[nk]) { g[nk] = ng; came[nk] = cur; open.push([ng + h(nk), nk]); }
       }
     }
-    if (start !== goal && came[goal] < 0) return null;
+    // No way through: head for the closest square we could reach, never straight through things
+    let end = goal;
+    if (start !== goal && came[goal] < 0) {
+      let best = -1, bh = Infinity;
+      for (let k = 0; k < NW * NH; k++) if (done[k] && h(k) < bh) { bh = h(k); best = k; }
+      if (best < 0 || best === start) return [];
+      end = best;
+    }
     const cells = [];
-    for (let k = goal; k !== -1 && k !== start; k = came[k]) cells.push(centre(k % NW, Math.floor(k / NW)));
+    for (let k = end; k !== -1 && k !== start; k = came[k]) cells.push(centre(k % NW, Math.floor(k / NW)));
     cells.reverse();
     // Smooth it: skip waypoints you can see past
     const pts = [], at = from.clone().setY(0);
@@ -1985,13 +2035,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       while (j > i && !clearLine(pts.length ? pts.at(-1) : at, cells[j])) j--;
       pts.push(cells[j]); i = j + 1;
     }
-    pts.push(to.clone().setY(0));
+    if (end === goal) pts.push(to.clone().setY(0)); // the exact spot only when we really got there
     return pts;
   }
   // Walk somewhere, around machines and through doorways
   function walkTo(agent, dest) {
     const path = findPath(agent.group.position, dest);
     if (!path) { agent.path = null; agent.target.copy(dest); return; }
+    if (!path.length) { agent.path = null; agent.target.copy(agent.group.position); return; } // boxed in: stay put
     agent.target.copy(path.shift()); agent.path = path;
   }
 
@@ -2246,8 +2297,9 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // ---------- Per-frame state sync ----------
   let traySig = '', bagTint = null;
   function syncState(s, dt, now) {
+    navState = s;
     syncDesign(s, now);
-    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot, m.tier || 0]), s.lab.map(m => [m.type, m.spot, m.tier || 0])]);
+    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot, m.tier || 0]), s.lab.map(m => [m.type, m.spot, m.tier || 0]), !!s.design.expansions?.storeroom]);
     if (sig !== stationSig) { stationSig = sig; rebuildStations(s); }
     for (const st of stations) {
       const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];

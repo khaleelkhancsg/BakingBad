@@ -162,8 +162,13 @@ export function buildWorld(scene) {
     }
     return b;
   }
-  building(-14.6, -9.8, -11.5, -5.3, 6.6, '#b0604c', 11, { roof: '#5e5864' });
-  building(-9.6, -5.0, -11.5, -5.3, 5.1, '#e9d8b4', 23);
+  // The two behind the back room stop short of a yard: room for the back room to knock through into the storeroom
+  building(-14.6, -9.8, -11.5, -8.1, 6.6, '#b0604c', 11, { roof: '#5e5864' });
+  building(-9.6, -5.0, -11.5, -8.1, 5.1, '#e9d8b4', 23);
+  { const yard = mesh(new THREE.PlaneGeometry(9.8, 3.3), mat('#9a948a'), -9.7, 0.012, -6.45, false); yard.rotation.x = -PI / 2; root.add(yard);
+    root.add(box(9.8, 0.9, 0.25, '#8a5a46', -9.7, 0, -8.0));
+    for (const [x, c] of [[-13.6, '#3f6b4a'], [-12.9, '#2b2d36']]) { root.add(box(0.6, 1.0, 0.6, c, x, 0, -7.4)); root.add(box(0.64, 0.06, 0.64, '#22252c', x, 1.0, -7.4)); }
+  }
   building(-4.8, 0.6, -11.5, -5.3, 3.6, '#7f9fc4', 37, { roof: '#62707e' });
   building(0.8, 6.6, -11.5, -5.3, 5.1, '#72b09a', 41);
   building(12.4, 17.6, -11.5, -3.2, 3.6, '#e08a72', 53, { roof: '#6d5d61' });

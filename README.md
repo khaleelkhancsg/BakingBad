@@ -57,7 +57,11 @@ bigger batches and cover the hours you're out or asleep. Later recipes sell for 
 The stall only takes the first four; the rest are fitted in Rosa's branches (see Shops). You can run at most three of any machine in a shop.
 
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
-the kitchen island, food carts, side stalls and back-room benches (Design → Expand) add more spots. At the limit the buy
+expansions (Design → Expand) add more spots, so a room never fills up before it has grown. The bakery starts with 6
+spots along its walls; the kitchen refit (level 7) adds 4 between them, the island 2 and the bigger island 2 more (back to
+back, with an aisle in front of each row), then food carts and side stalls outside. The back room starts with 4; knocking
+into the storeroom (level 14) makes it 3 m deeper with a new back wall (+1), and the benches, more benches, cellar and
+annex go in that space and along the side walls. At the limit the buy
 button says "Reach level N to unlock additional ovens". The same goes for how many things you can sell at once, how
 many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
@@ -187,7 +191,11 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
   - 😌 **Comfort** (sofas, a big telly, a pool table, a fish tank, a jukebox): the night crew gain loyalty faster.
   - 🫥 **Cover** (bread crates, flour shelving, a wall safe, a false wall): raids find product less often (up to 40% less).
   - 🛡️ **Security** (CCTV monitors, a reinforced door, a panic room): heat cools faster (up to 50%).
-- **Layout**: the back room's benches, cellar and annex for more machine spots.
+- **Layout**: knock into the storeroom first (the room gets 3 m deeper), then the benches, cellar and annex for more
+  machine spots. Decor can't go where it would cut anyone off from a machine, a door or the buyers (those squares show
+  faint red); decor already in the way when the room changes comes down with a full refund.
+- **Walking**: people walk around machines, counters and decor. If there's no way through they stop as close as they
+  can get rather than walking through things.
 
 ## Prestige
 
