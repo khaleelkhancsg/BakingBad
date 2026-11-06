@@ -786,10 +786,17 @@ export function createScene(canvas, overlayEl, { onPick }) {
   });
   const menu = mesh(new THREE.PlaneGeometry(1.2, 0.9), smat({ map: menuTex, roughness: 0.9 }), 2.3, 2.45, -4.475, false);
   menu.position.x = 1.85; menu.position.y = 2.35; statics.add(menu);
-  const woodSignTex = canvasTex(256, 64, (c, w, h) => {
+  const drawSign = (c, w, h, text) => {
     c.fillStyle = '#8a5a36'; c.fillRect(0, 0, w, h);
-    c.fillStyle = '#ffe7c2'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText("Rosa's Bakery", w / 2, 44);
-  });
+    c.fillStyle = '#ffe7c2'; c.font = `bold ${text.length > 13 ? 28 : 34}px Georgia, serif`; c.textAlign = 'center'; c.fillText(text, w / 2, 44);
+  };
+  const woodSignTex = canvasTex(256, 64, (c, w, h) => drawSign(c, w, h, "Rosa's Bakery"));
+  let signText = "Rosa's Bakery";
+  const setSign = text => {
+    if (text === signText) return;
+    signText = text;
+    const cv = woodSignTex.image; drawSign(cv.getContext('2d'), cv.width, cv.height, text); woodSignTex.needsUpdate = true;
+  };
   const woodSign = mesh(new THREE.PlaneGeometry(1.9, 0.48), smat({ map: woodSignTex, roughness: 0.8 }), 3.3, 2.65, -4.475, false);
   scene.add(woodSign);
   const neonTex = canvasTex(512, 128, (c, w, h) => {
@@ -1615,6 +1622,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     if (top !== bagTint) { bagTint = top; const c = new THREE.Color().setHSL(((top || 'x').split('').reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 360) / 360, 0.6, 0.7); for (const b of bagPile) b.material.color.copy(c); }
     kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, kitsN); });
     camGroup.visible = G.has(s, 'camera');
+    setSign(G.shopDef(s).sign);
     camLed.color.set(Math.sin(now * 4) > 0 ? '#ff3a3a' : '#551111');
     catering.visible = G.has(s, 'catering');
     neonSign.visible = G.has(s, 'sign');

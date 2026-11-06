@@ -2,7 +2,7 @@
 // node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs] [days]
 import * as G from '../www/js/game.js';
 import * as D from '../www/js/design.js';
-import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, BRANCHES, TIERS } from '../www/js/data.js';
+import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, SHOPS, TIERS } from '../www/js/data.js';
 G.onToast(() => {});
 
 const RUNS = Number(process.argv[2]) || 6;
@@ -59,7 +59,8 @@ function checkIn(s, st, t, next) {
   s.levelUps.length = 0;
   const reserve = G.daysToPayment(s) <= 2 ? G.nextDue(s) + 200 : 300;
   const spare = () => s.clean - reserve;
-  // Collect everything that's done
+  // Every shop: collect, repair, set the menu, grow the kitchen
+  G.eachShop(s, () => {
   s.machines.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) G.collectJob(s, i, t, { quiet: true }); });
   // Repairs
   s.machines.forEach((m, i) => { if (m.broken && spare() > G.repairCost(m.type)) G.repairMachine(s, i); });
@@ -73,8 +74,9 @@ function checkIn(s, st, t, next) {
   s.onMenu = picked.slice(0, G.menuSlots(s));
   // Growth: machines, recipes, expansions, upgrades, property, crew, marketing, decor
   for (const type of Object.keys(MACHINES)) if (!G.machineBlock(s, type) && G.machinePrice(s, type) < spare() * 0.35) G.buyMachine(s, type);
-  for (const [id, e] of Object.entries(D.EXPANSIONS)) if (!s.design.expansions[id] && D.levelOk(s, e) && (!e.needs || s.design.expansions[e.needs]) && e.price < spare() * 0.3 && (e.cells || e.spots || (e.labSpots && st.crook))) D.buyExpansion(s, id);
+  for (const [id, e] of Object.entries(D.EXPANSIONS)) if (!s.design.expansions[id] && D.levelOk(s, e) && (!e.needs || s.design.expansions[e.needs]) && e.price < spare() * 0.3 && (e.cells || e.spots || (e.labSpots && st.crook && !s.cur))) D.buyExpansion(s, id);
   for (const id of Object.keys(ITEMS)) { const r = ITEMS[id]; if (!s.recipes.includes(id) && G.unlocked(s, r.level) && G.machineCount(s, r.machine) && r.cost < spare() * 0.25) G.buyRecipe(s, id); }
+  });
   for (const u of UPGRADES) if (G.upgradeAvailable(s, u) && G.unlocked(s, u.level) && (u.cash === 'clean' ? u.cost < spare() * 0.3 : st.crook && u.cost < s.dirty * 0.5)) G.buyUpgrade(s, u.id);
   for (const [id, p] of Object.entries(PROPERTY)) if (!s.property[id] && G.unlocked(s, p.level) && p.price < spare() * 0.4) G.buyProperty(s, id);
   const hireIf = (r, ok) => { if (!s.crew[r] && G.unlocked(s, CREW[r].level) && ok) G.hire(s, r); };
@@ -85,17 +87,19 @@ function checkIn(s, st, t, next) {
   hireIf('chef', spare() > 4000);
   hireIf('manager', spare() > 6000);
   for (const [id, c] of Object.entries(CAMPAIGNS)) if (!G.campaignBlock(s, id, t) && c.price < spare() * 0.05) G.startCampaign(s, id, t);
-  placeSomeDecor(s);
-  // Machine tiers and branches once there's money to spare
-  s.machines.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0) < spare() * 0.15) G.upgradeMachine(s, i); });
-  for (const id of Object.keys(BRANCHES)) if (G.unlocked(s, BRANCHES[id].level) && G.branchCost(id, G.branchLevel(s, id)) < spare() * 0.3) G.growBranch(s, id);
+  G.eachShop(s, () => {
+    placeSomeDecor(s);
+    s.machines.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0) < spare() * 0.15) G.upgradeMachine(s, i); });
+  });
+  // The next branch, once it's affordable
+  for (const id of G.nextShops(s)) if (G.unlocked(s, SHOPS[id].level) && SHOPS[id].price < spare() * 0.5) G.buyShop(s, id);
   hireIf('souschef', spare() > 8000);
   hireIf('director', spare() > 20000);
   // Pay down the debt with anything well beyond what we need
   if (!s.won && spare() > 6000) G.payBank(s, spare() - 4000);
   if (G.restructureReady(s)) G.restructure(s);
   // Cook
-  s.machines.forEach((m, i) => { if (!m.job && !m.broken) { const id = chooseRecipe(s, m, t, next); if (id) G.startJob(s, i, id, t, { quiet: true }); } });
+  G.eachShop(s, () => s.machines.forEach((m, i) => { if (!m.job && !m.broken) { const id = chooseRecipe(s, m, t, next); if (id) G.startJob(s, i, id, t, { quiet: true }); } }));
 
   if (!st.crook || !s.labUnlocked) return;
   // The back room
@@ -157,7 +161,7 @@ function run(st, seed) {
     if ([7, 30, 60, 90, 120, 180, 365].includes(d + 1)) marks[d + 1] = s.level;
   }
   return { level: s.level, clearedDay, busts: s.stats.busts, visits: s.stats.visits, clean: s.clean, dirty: s.dirty, rep: s.rep,
-    bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.machines.length, lab: s.lab.length, recipes: s.recipes.length, marks,
+    bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.shops.reduce((a, x) => a + x.machines.length, 0), shops: s.shops.length, laundered: s.stats.totalLaundered, lab: s.lab.length, recipes: s.recipes.length, marks,
     served: s.stats.served, missed: s.stats.missed, strikes: s.strikes };
 }
 
@@ -173,6 +177,6 @@ for (const [name, st] of Object.entries(STRATS)) {
   console.log(`  level ${avg(res.map(r => r.level)).toFixed(1)} (${Math.min(...res.map(r => r.level))}–${Math.max(...res.map(r => r.level))})   ${marks}`);
   console.log(`  debt cleared ${cleared.length}/${RUNS}${cleared.length ? `, median day ${med(cleared)}` : ''} · missed payments ${avg(res.map(r => r.strikes)).toFixed(1)} · heavies ${avg(res.map(r => r.visits)).toFixed(1)} · busts ${avg(res.map(r => r.busts)).toFixed(1)}`);
   console.log(`  clean £${Math.round(avg(res.map(r => r.clean))).toLocaleString('en-GB')} · dirty £${Math.round(avg(res.map(r => r.dirty))).toLocaleString('en-GB')} · popularity ${avg(res.map(r => r.rep)).toFixed(0)} · takings £${Math.round(avg(res.map(r => r.sales))).toLocaleString('en-GB')} · bags ${Math.round(avg(res.map(r => r.bags)))}`);
-  console.log(`  served ${Math.round(avg(res.map(r => r.served)))} / missed ${Math.round(avg(res.map(r => r.missed)))} · machines ${avg(res.map(r => r.machines)).toFixed(1)} + lab ${avg(res.map(r => r.lab)).toFixed(1)} · recipes ${avg(res.map(r => r.recipes)).toFixed(0)}`);
+  console.log(`  served ${Math.round(avg(res.map(r => r.served)))} / missed ${Math.round(avg(res.map(r => r.missed)))} · shops ${avg(res.map(r => r.shops)).toFixed(1)} · laundered £${Math.round(avg(res.map(r => r.laundered))).toLocaleString('en-GB')} · machines ${avg(res.map(r => r.machines)).toFixed(1)} + lab ${avg(res.map(r => r.lab)).toFixed(1)} · recipes ${avg(res.map(r => r.recipes)).toFixed(0)}`);
 }
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)} s)`);

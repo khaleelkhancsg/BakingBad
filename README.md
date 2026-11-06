@@ -42,6 +42,8 @@ bigger batches and cover the hours you're out or asleep. Later recipes sell for 
 | 🍣 Sushi counter, 🍗 Rotisserie, 🍭 Sweet machine | 68, 76, 84 |
 | 👑 Grand patisserie | 92 |
 
+The stall only has room for the first six; the rest are fitted in Rosa's branches (see Shops).
+
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
 the kitchen island, food carts, side stalls and back-room benches (Design → Expand) add more spots. At the limit the buy
 button says "Reach level N to unlock additional ovens". The same goes for how many things you can sell at once, how
@@ -80,14 +82,37 @@ buyers at the back door after dark. The products are parodies of real ones; the 
   flagged), Ash spots officers, Sam bags finished cooks, Doc starts the next one, Kai keeps the corners stocked, DS Hale
   tips you off about raids, Big Ron sees off rivals.
 
-Put dirty cash through the till (up to 80% of today's real takings looks normal), or let Viv the accountant do it every morning.
+
+## Clean and dirty money
+
+- **Clean cash** pays for everything above board: ingredients, machines, recipes, decor, crew, campaigns, shops and the bank.
+- **Dirty cash** comes easier (the back room pays well) but buys less: the back room's machines, tiers and upgrades, the
+  night crew, bribes and Dez's kits. Dez charges half as much again if you pay him in clean money.
+- **Holding dirty cash is a risk**: raids, rival crews and busts all take a share of it.
+- **Laundering is slow and costs a cut.** Each day only about a third of the day's takings across your shops (plus what
+  your branches can front) passes as normal; more than that adds heat. The wash takes 25%; Viv the accountant, creative
+  accounting and a shell company take less.
+
+## Shops
+
+Rosa's stall is where it starts. Branches open as you level up, and each costs far more than the one before:
+
+| Shop | Level | Opens for | Machines | Prices | Launders |
+|---|---|---|---|---|---|
+| 🥖 Rosa's Bakery (the stall) | 1 | | oven, mixer, fryer, drinks, ice cream, grill | ×1 | takings only |
+| ☕ Rosa's Café, Kingsmere | 16 | £30,000 | pizza oven, griddle, steamer, noodle bar, drinks | ×1.15 | +£2,500 a day |
+| 🧀 Rosa's Deli, Ashford | 39 | £400,000 | chocolate station, smoker, patisserie bench, drinks | ×1.3 | +£12,000 |
+| 🍷 Rosa's Bistro, Harbourside | 61 | £3M | drinks bar, sushi counter, rotisserie, ice cream | ×1.5 | +£45,000 |
+| 👑 Maison Rosa, The Capital | 84 | £15M | sweet machine, grand patisserie, patisserie bench, drinks bar | ×1.75 | +£150,000 |
+
+Each shop has its own machines, case, menu and design, pays its own rent, and they all trade at once (your crew work
+every one). Each shop you own brings 5% more customers to all of them. Switch shops from the button in the top bar or
+the 🏪 Shops tab, which also has property. The back room is only at the stall.
 
 ## More to spend on
 
-- **Machine tiers**: every machine, in the kitchen and the back room, upgrades five times. Kitchen tiers cook faster
+- **Machine tiers**: every machine, in the kitchens and the back room, upgrades five times. Kitchen tiers cook faster
   and make more servings; back-room tiers cook faster and purer.
-- **🏙️ Empire**: open Rosa's branches in eight other towns and grow each to level 10 for daily income, and buy property,
-  from the stall's pitch to the whole market.
 - More crew: Chen the sous chef (+10% servings) and Imogen the marketing director (campaigns run 50% longer).
 
 ## No game over

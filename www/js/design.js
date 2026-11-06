@@ -151,9 +151,9 @@ export const PANELS = [...Array(9)].map((_, i) => 'b' + i).concat([...Array(9)].
 // Art can't go over the window, menu board and sign (b6..b8) or over the door (l7, l8).
 export const artAllowed = key => !['b6', 'b7', 'b8', 'l7', 'l8'].includes(key);
 
-export function defaultDesign() {
+export function defaultDesign(base = {}) {
   return {
-    floor: {}, wall: {}, art: {},
+    floor: {}, wall: {}, art: {}, base,
     decor: [
       { type: 'plant', cx: 8, cz: 0, rot: 0 },
       { type: 'sacks', cx: 7, cz: 0, rot: 0 },
@@ -164,6 +164,11 @@ export function defaultDesign() {
 }
 // Older saves don't have a design yet.
 export function ensureDesign(s) {
+  // Every shop has its own design
+  if (s.shops) { const keep = s.cur; s.shops.forEach((_, i) => { s.cur = i; ensureOne(s); }); s.cur = keep; return s; }
+  return ensureOne(s);
+}
+function ensureOne(s) {
   if (!s.design) s.design = defaultDesign();
   s.design.expansions ||= {};
   s.design.art ||= {};
@@ -178,10 +183,11 @@ export function ensureDesign(s) {
 }
 
 export function floorAt(s, cx, cz) {
-  return s.design.floor[cellKey(cx, cz)] || (cellZone(cx, cz) === 'inside' ? 'checker' : 'stone');
+  return s.design.floor[cellKey(cx, cz)] || (cellZone(cx, cz) === 'inside' ? (s.design.base?.floor || 'checker') : 'stone');
 }
 export function wallAt(s, key) {
   if (s.design.wall[key]) return s.design.wall[key];
+  if (s.design.base?.wall) return s.design.base.wall;
   const i = Number(key.slice(1));
   return key[0] === 'b' && i >= 1 && i <= 5 ? 'tiles' : 'plaster'; // the splashback behind the ovens
 }

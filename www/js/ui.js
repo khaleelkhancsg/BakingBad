@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, BRANCHES, BRANCH_MAX, FAMILIES } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -71,12 +71,13 @@ function hudHTML() {
     : `<span class="badge ${d <= 2 ? 'warn' : ''}" data-act="tab" data-id="bank" title="Next bank payment">🏦 ${money(G.nextDue(s))} · ${d}d</span>`;
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   const showDirty = s.labUnlocked || s.dirty > 0;
-  const sub = `${period(t)}${doorOpen(t) ? ' · back door open' : ''}`;
+  const sub = `${s.shops.length > 1 ? G.shopDef(s).short + ' · ' : ''}${period(t)}${doorOpen(t) ? ' · back door open' : ''}`;
   const camp = G.activeCampaigns(s);
   return `<header class="hud">
     <div class="hud-row">
       <div class="badge daybadge" data-act="info" data-kind="clock" data-id="clock"><b>${hhmm(t)} · Day ${G.dayIndex(s, t) + 1}</b><small>${sub}</small></div>
       <div class="hud-right">${due}
+        ${s.shops.length > 1 ? `<button class="badge roombtn" data-act="shop-next" title="Go to your next shop">${G.shopDef(s).emoji} ${G.shopDef(s).short} ▸</button>` : ''}
         ${s.labUnlocked ? `<button class="badge roombtn ${ui.room === 'back' ? 'night' : ''}" data-act="room">${ui.room === 'back' ? '☀️ Bakery' : '🌙 Back room'}${s.door.length && ui.room !== 'back' ? ` <b class="dot">${s.door.length}</b>` : ''}</button>` : ''}
       </div>
     </div>
@@ -138,7 +139,8 @@ function kitchenTab() {
   let cards = pcard(`<div class="ptop"><span class="em">⚡</span><div><b>Quick jobs</b><small>${ready} ready · ${idle} idle</small></div></div>
     <div class="pbtns col"><button class="small primary" data-act="collectall" ${ready ? '' : 'disabled'}>Collect all (${ready})</button>
     <button class="small" data-act="restartall" ${idle ? '' : 'disabled'}>🔁 Cook again (${idle})</button></div>`, ibtn('quick', 'x'), 'wide');
-  cards += Object.entries(MACHINES).filter(([, M]) => M.level <= s.level + 8).map(([type, M]) => {
+  const here = G.shopDef(s).machines;
+  cards += Object.entries(MACHINES).filter(([type, M]) => here.includes(type) && M.level <= s.level + 8).map(([type, M]) => {
     const list = s.machines.map((m, i) => [m, i]).filter(([m]) => m.type === type);
     const n = list.length, block = G.machineBlock(s, type), open = G.unlocked(s, M.level);
     const known = s.recipes.filter(id => ITEMS[id].machine === type).length, total = G.recipesFor(type).length;
@@ -152,7 +154,7 @@ function kitchenTab() {
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
   }).join('');
   const spots = G.freeSpots(s).length, nx = nextCap(CAPS.menu, s.level);
-  return { cards, hint: `${s.machines.length} machines, room for ${spots} more. On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
+  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
 function shopTab() {
@@ -202,8 +204,8 @@ function backTab() {
   for (const [id, p] of [...prods, ...nextLocked]) {
     const open = G.unlocked(s, p.level), have = s.bags[id] || 0, cut = s.cut[id] || 'none';
     const kitBtns = !left ? `<div class="lockline">${kitNx ? `Dez sells ${kitNx.amount} kits a day from level ${kitNx.level}` : 'No more kits today'}</div>`
-      : `<button class="small violet" data-act="kit" data-id="dirty" data-type="${id}" ${s.dirty < p.kit ? 'disabled' : ''}>💜 Kit<small>${money(p.kit)}</small></button>
-         <button class="small" data-act="kit" data-id="clean" data-type="${id}" ${s.clean < p.kit ? 'disabled' : ''}>💷 Kit<small>${money(p.kit)}</small></button>`;
+      : `<button class="small violet" data-act="kit" data-id="dirty" data-type="${id}" ${s.dirty < G.kitPrice(id, 'dirty') ? 'disabled' : ''}>💜 Kit<small>${money(G.kitPrice(id, 'dirty'))}</small></button>
+         <button class="small" data-act="kit" data-id="clean" data-type="${id}" ${s.clean < G.kitPrice(id, 'clean') ? 'disabled' : ''}>💷 Kit<small>${money(G.kitPrice(id, 'clean'))}</small></button>`;
     cards += pcard(`<div class="ptop"><span class="em">${p.emoji}</span><div><b>${p.name}</b><small>${open || have ? `${have} bags${have ? ` · ${pct(s.purity[id] ?? 0.6)} pure` : ''} · ${s.kits[id] || 0} kits<br>${money(nowPrice(id))} a bag` : `${FAMILIES[p.family].name} · ${money(p.price)} a bag`}</small></div></div>
       ${!open ? lockTag(p.level) : `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${cut === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>
       <div class="pbtns">${kitBtns}<button class="small" data-act="dez" data-id="${id}" ${have ? '' : 'disabled'}>Dez<small>½ price</small></button></div>`}`, ibtn('product', id), `wide night ${open ? '' : 'locked'}`);
@@ -220,7 +222,7 @@ function backTab() {
   }
   // Cash and heat
   const safe = G.launderLeft(s);
-  cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>Launder</b><small>${money(safe)} looks normal today</small></div></div>
+  cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>Launder</b><small>${money(safe)} looks normal today · ${pct(G.launderFee(s))} fee</small></div></div>
     <div class="pbtns"><button class="small violet" data-act="launder-open" ${s.dirty >= 1 ? '' : 'disabled'}>Through the till</button></div>`, ibtn('launder', 'x'), 'night');
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   cards += pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>undercover ≈ ${Math.round(G.copChance(s) * 100)}%</small></div></div>
@@ -263,16 +265,22 @@ function turfTab() {
   return { cards, hint: `Corners sell while you're away: faster at night, and faster with a good street rep. ${out} bags out on the street.${s.crew.runner ? ' Kai keeps them stocked.' : ' Kai the runner (Crew) restocks them for you.'}` };
 }
 
-function empireTab() {
+function shopsTab() {
   let cards = '';
-  for (const [id, b] of Object.entries(BRANCHES)) {
-    if (b.level > s.level + 15 && !s.branches[id]) continue;
-    const lvl = G.branchLevel(s, id), open = G.unlocked(s, b.level), cost = G.branchCost(id, lvl);
-    cards += pcard(`<div class="ptop"><span class="em">${b.emoji}</span><div><b>${b.name}</b><small>${lvl ? `Level ${lvl}/${BRANCH_MAX} · ${money(b.income * lvl)} a day` : `${money(b.income)} a day per level`}</small></div></div>
-      ${!open ? lockTag(b.level) : lvl >= BRANCH_MAX ? '<span class="lock good">✓ Biggest it gets</span>'
-        : `<div class="pbtns"><button class="small primary" data-act="branch" data-id="${id}" ${s.clean < cost ? 'disabled' : ''}>${lvl ? 'Grow' : 'Open'} · ${money(cost)}</button></div>`}`,
-      ibtn('branch', id), `wide ${open ? '' : 'locked'} ${lvl ? 'hired' : ''}`);
-  }
+  Object.entries(SHOPS).forEach(([id, d]) => {
+    const i = s.shops.findIndex(x => x.id === id), open = G.unlocked(s, d.level);
+    const what = d.machines.map(t => MACHINES[t].emoji).join('');
+    if (i >= 0) {
+      const x = s.shops[i], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
+      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.short}</b><small>${what} · ${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}<br>prices ×${d.priceMult} · rent ${money(d.rent)}/day${d.launder ? ` · fronts ${money(d.launder)}` : ''}</small></div></div>
+        <div class="pbtns">${i === (s.cur || 0) ? '<span class="lock good">You\'re here</span>' : `<button class="small primary" data-act="shop-view" data-id="${i}">Go there</button>`}</div>`,
+        ibtn('shop', id), `wide hired`);
+    } else {
+      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.name}</b><small>${what} · prices ×${d.priceMult}<br>rent ${money(d.rent)}/day · launders ${money(d.launder)}/day</small></div></div>
+        ${!open ? lockTag(d.level) : `<div class="pbtns"><button class="small primary" data-act="shop-buy" data-id="${id}" ${s.clean < d.price ? 'disabled' : ''}>Open · ${money(d.price)}</button></div>`}`,
+        ibtn('shop', id), `wide ${open ? '' : 'locked'}`);
+    }
+  });
   for (const [id, p] of Object.entries(PROPERTY)) {
     if (p.level > s.level + 20 && !s.property[id]) continue;
     const open = G.unlocked(s, p.level), owned = s.property[id];
@@ -280,7 +288,7 @@ function empireTab() {
       ${owned ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(p.level) : `<div class="pbtns"><button class="small primary" data-act="property" data-id="${id}" ${s.clean < p.price ? 'disabled' : ''}>${money(p.price)}</button></div>`}`,
       ibtn('property', id), `wide ${open ? '' : 'locked'} ${owned ? 'hired' : ''}`);
   }
-  return { cards, hint: `Branches and property pay every morning at 6am. Now: ${money(G.branchIncome(s) + G.eff(s, 'income'))} a day.` };
+  return { cards, hint: `Every branch costs far more than the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Rent: ${money(G.shopRent(s))} a day.` };
 }
 
 function marketingTab() {
@@ -347,9 +355,9 @@ function unlocksAt(L) {
   for (const [, c] of Object.entries(CREW)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name}, ${c.role.toLowerCase()}`);
   for (const f of FEATURES) if (f.level === L) out.push(`✨ ${f.name}: ${f.desc}`);
   for (const [, c] of Object.entries(CAMPAIGNS)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name} (Marketing)`);
-  for (const [, p] of Object.entries(PROPERTY)) if (p.level === L) out.push(`${p.emoji} ${p.name} (Empire)`);
+  for (const [, p] of Object.entries(PROPERTY)) if (p.level === L) out.push(`${p.emoji} ${p.name} (Shops)`);
   for (const [, c] of Object.entries(CORNERS)) if (c.level === L) out.push(`${c.emoji} ${c.name} (Turf)`);
-  for (const [, b] of Object.entries(BRANCHES)) if (b.level === L) out.push(`${b.emoji} A branch in ${b.name} (Empire)`);
+  for (const [, d] of Object.entries(SHOPS)) if (d.level === L && L > 1) out.push(`${d.emoji} ${d.name} can open (Shops)`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
     for (const [, x] of Object.entries(tbl)) if (x.level === L && L > 1) out.push(`${x.emoji || icon} ${x.name} (Design)`);
   }
@@ -437,7 +445,7 @@ function infoFor(kind, id) {
     const p = PRODUCTS[id], bags = Math.round(p.bags * (1 + G.eff(s, 'bags')));
     const rows = Object.entries(CUTS).map(([k, c]) => { const pur = Math.min(0.99, G.labPurity(s, null) * c.purity), n = Math.round(bags * c.bags), each = Math.round(p.price * purityMult(pur));
       return `<tr class="${(s.cut[id] || 'none') === k ? 'on' : ''}"><td>${c.label}</td><td>${n}</td><td>${pct(pur)}</td><td>${money(each)}</td><td>${money(n * each - p.kit)}</td></tr>`; }).join('');
-    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Kit', money(p.kit)) + line('Cooks in', mins(p.minutes))
+    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Kit', `💜 ${money(G.kitPrice(id, 'dirty'))} · 💷 ${money(G.kitPrice(id, 'clean'))}`) + line('Cooks in', mins(p.minutes))
       + line('List price', `${money(p.price)} a bag at 60% purity`) + (s.bags[id] ? line('Yours', `${s.bags[id]} bags at ${pct(s.purity[id] ?? 0.6)}: ${money(nowPrice(id))} each`) : '')
       + `<table class="itable"><tr><th>Cut</th><th>Bags</th><th>Purity</th><th>Each</th><th>Profit</th></tr>${rows}</table>`
       + (p.ing ? line('Also uses', Object.entries(p.ing).map(([k, q]) => `${q} ${INGREDIENTS[k].name.toLowerCase()}`).join(', ')) : '')
@@ -457,11 +465,12 @@ function infoFor(kind, id) {
       + line('Unlocks at', `level ${c.level}`) + (k ? line('Stock', `${k.stock}${k.product ? ' ' + PRODUCTS[k.product].name : ''}`) : '')
       + '<p class="mute">A sweep seizes what\'s on the corner. Rival crews can run your people off it unless Big Ron is about. DS Hale halves the sweeps.</p>');
   }
-  if (kind === 'branch') {
-    const b = BRANCHES[id], lvl = G.branchLevel(s, id);
-    return T(`${b.emoji} Rosa's, ${b.name}`, line('Pays', `${money(b.income)} a day per level`) + line('Level', `${lvl} / ${BRANCH_MAX}`)
-      + (lvl < BRANCH_MAX ? line(lvl ? 'Next level costs' : 'Opening costs', money(G.branchCost(id, lvl))) : '') + line('Unlocks at', `level ${b.level}`)
-      + '<p class="mute">Branches run themselves and pay clean cash every morning at 6am.</p>');
+  if (kind === 'shop') {
+    const d = SHOPS[id], owned = s.shops.some(x => x.id === id);
+    return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the stall's`)
+      + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent)} a day`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
+      + (owned ? '' : line('Opening costs', money(d.price))) + line('Unlocks at', `level ${d.level}`)
+      + '<p class="mute">Each shop has its own machines, case, menu and design, and they all trade at once. Your crew work every shop. The back room is only at the stall.</p>');
   }
   if (kind === 'level') {
     const next = unlocksAt(s.level + 1);
@@ -489,9 +498,10 @@ function infoFor(kind, id) {
   if (kind === 'bribe') return T('👮 A friendly sergeant', line('Cost', `💜 ${money(CFG.bribeCost)}`) + line('Heat', `-${CFG.bribeHeat}`) + line('How often', 'once a day')
     + line('Chance it backfires', `${CFG.bribeBackfire * 100}% (heat +${CFG.bribeBackfireHeat})`));
   if (kind === 'launder') {
-    return T('🧾 Laundering', `<p>Pass dirty cash off as bakery takings. Up to ${Math.round(G.launderRatio(s) * 100)}% of today's real takings looks normal; more than that adds heat.</p>`
-      + line("Today's takings", money(s.today.sales)) + line('Laundered today', money(s.today.laundered)) + line('Still safe today', money(G.launderLeft(s)), 'good')
-      + '<p class="mute">The day resets at 6am. Viv the accountant launders the safe amount for you every morning.</p>');
+    return T('🧾 Laundering', `<p>Pass dirty cash off as takings. Up to ${pct(G.launderRatio(s))} of today's real takings across your shops looks normal, plus what each branch can front. More than that adds heat, and every wash costs a cut.</p>`
+      + line("Today's takings", money(s.today.sales)) + line('Branches front', money(s.shops.reduce((a, x) => a + SHOPS[x.id].launder, 0))) + line('Laundered today', money(s.today.laundered))
+      + line('Still safe today', money(G.launderLeft(s)), 'good') + line('The wash takes', pct(G.launderFee(s)), 'bad')
+      + '<p class="mute">Dirty cash is easier to make, but it buys less: only the back room, the night crew, bribes and Dez (who charges half as much again for clean money). Raids, rivals and busts take a share of whatever dirty cash you hold. The day resets at 6am. Viv the accountant launders the safe amount every morning and takes a smaller cut; creative accounting and a shell company help too.</p>');
   }
   if (kind === 'bank' && id === 'loan') {
     const amt = G.loanAmount(s) || capAt(CAPS.loan, 4), lnx = nextCap(CAPS.loan, s.level);
@@ -541,15 +551,13 @@ function tabsList() {
   const tabs = [['kitchen', '🍳 Kitchen'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['back', `💜 Back room${s.door.length ? ` (${s.door.length})` : ''}`]);
   if (s.labUnlocked && s.level >= 6) tabs.push(['turf', '🗺️ Turf']);
-  tabs.push(['marketing', '📣 Marketing'], ['design', '🎨 Design']);
-  if (s.level >= 15) tabs.push(['empire', '🏙️ Empire']);
-  tabs.push(['bank', '🏦 Bank']);
+  tabs.push(['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['shops', '🏪 Shops'], ['bank', '🏦 Bank']);
   return tabs;
 }
 function dockHTML() {
   const tabs = tabsList();
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'kitchen';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, empire: empireTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
@@ -607,7 +615,7 @@ function machineModal(m) {
     rows = G.productsFor(mc.type).filter(id => PRODUCTS[id].level <= s.level + 10).map(id => {
       const p = PRODUCTS[id], open = G.unlocked(s, p.level), kits = s.kits[id] || 0;
       const right = !open ? `<span class="lock">🔒 Lv ${p.level}</span>`
-        : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < p.kit && s.clean < p.kit))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${money(p.kit)})`}</button>`;
+        : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < G.kitPrice(id, 'dirty') && s.clean < G.kitPrice(id, 'clean')))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${s.dirty >= G.kitPrice(id, 'dirty') ? '💜 ' + money(G.kitPrice(id, 'dirty')) : '💷 ' + money(G.kitPrice(id, 'clean'))})`}</button>`;
       const cut = CUTS[s.cut[id] || 'none'], pur = Math.min(0.99, G.labPurity(s, mc) * cut.purity);
       return `<div class="mrow ${open ? '' : 'locked'}">${ibtn('product', id)}<span class="em">${p.emoji}</span>
         <div class="grow"><b>${p.name}</b><small>${Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags)} bags · ≈${pct(pur)} pure · ${money(Math.round(p.price * purityMult(pur)))} a bag · ${mins(p.minutes * (1 - TIERS.labSpeed * (mc.tier || 0)))}</small>
@@ -693,9 +701,9 @@ function modalHTML() {
     const max = Math.floor(s.dirty), v = Math.min(max, m.amount ?? Math.min(max, G.launderLeft(s)));
     const h = G.launderHeatFor(s, v);
     inner = `<h2>🧾 Put dirty cash through the till</h2>
-      <p class="mute">Today's real takings are ${money(s.today.sales)}. Another <b>${money(G.launderLeft(s))}</b> can go through today without it looking odd. More than that and people notice.</p>
+      <p class="mute">Today's takings across your shops are ${money(s.today.sales)}${s.shops.length > 1 ? `, and your branches can front ${money(s.shops.reduce((a, x) => a + SHOPS[x.id].launder, 0))} more` : ''}. Another <b>${money(G.launderLeft(s))}</b> can go through today without it looking odd. The wash takes ${pct(G.launderFee(s))}.</p>
       <input type="range" id="launder" min="0" max="${max}" step="1" value="${v}">
-      <div class="line"><span>Launder <b id="launder-val">${money(v)}</b></span><span id="launder-warn" class="${h ? 'bad' : 'good'}">${h ? `looks off: heat +${h}` : 'looks normal'}</span></div>
+      <div class="line"><span>Launder <b id="launder-val">${money(v)}</b> → <b id="launder-got">${money(v * (1 - G.launderFee(s)))}</b> clean</span><span id="launder-warn" class="${h ? 'bad' : 'good'}">${h ? `looks off: heat +${h}` : 'looks normal'}</span></div>
       <div class="row2" style="margin-top:10px"><button class="violet" data-act="launder" ${v ? '' : 'disabled'}>Launder it</button><button data-act="close">Cancel</button></div>`;
   } else if (m.type === 'levelup') {
     const L = m.level, list = unlocksAt(L);
@@ -863,10 +871,10 @@ function act(el) {
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
     case 'tab':
       if (id === 'design') openDesign();
-      else { ui.tab = id; ui.dockMin = false; if (id === 'back' || id === 'turf') ui.room = 'back'; }
+      else { ui.tab = id; ui.dockMin = false; if (id === 'back' || id === 'turf') { ui.room = 'back'; G.viewShop(s, 0); } }
       break;
     case 'dockmin': ui.dockMin = !ui.dockMin; break;
-    case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') ui.tab = 'back'; else if (ui.tab === 'back') ui.tab = 'kitchen'; break;
+    case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') { G.viewShop(s, 0); ui.tab = 'back'; } else if (ui.tab === 'back') ui.tab = 'kitchen'; break;
     case 'intro-ok': s.introSeen = true; break;
     // Kitchen
     case 'machine': {
@@ -930,7 +938,9 @@ function act(el) {
     case 'corner-buy': G.buyCorner(s, id); break;
     case 'corner-product': G.setCornerProduct(s, id, el.dataset.type); break;
     case 'corner-stock': G.stockCorner(s, id, Number(el.dataset.n)); break;
-    case 'branch': G.growBranch(s, id); break;
+    case 'shop-buy': { const n = s.shops.length; G.buyShop(s, id); if (s.shops.length > n) { G.viewShop(s, n); ui.room = 'shop'; ui.tab = 'kitchen'; } break; }
+    case 'shop-view': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.tab = 'kitchen'; break;
+    case 'shop-next': G.viewShop(s, ((s.cur || 0) + 1) % s.shops.length); ui.room = 'shop'; if (ui.tab === 'back' || ui.tab === 'turf') ui.tab = 'kitchen'; break;
     case 'launder-open': ui.modal = { type: 'launder' }; break;
     case 'launder': G.launder(s, ui.modal?.amount ?? Math.min(Math.floor(s.dirty), G.launderLeft(s))); ui.modal = null; break;
     case 'buyer': ui.modal = { type: 'buyer', id: Number(id) }; if (ui.room !== 'back') ui.room = 'back'; break;
@@ -1013,6 +1023,7 @@ app.addEventListener('input', e => {
   if (e.target.id === 'launder' && ui.modal?.type === 'launder') {
     const v = ui.modal.amount = Number(e.target.value), h = G.launderHeatFor(s, v);
     document.getElementById('launder-val').textContent = money(v);
+    document.getElementById('launder-got').textContent = money(v * (1 - G.launderFee(s)));
     const w = document.getElementById('launder-warn');
     w.textContent = h ? `looks off: heat +${h}` : 'looks normal'; w.className = h ? 'bad' : 'good';
     lastPointer = performance.now();

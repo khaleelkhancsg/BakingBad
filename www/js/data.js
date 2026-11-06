@@ -7,7 +7,7 @@ export const CFG = {
   // Money and the day (a "game day" turns over at 06:00 local time)
   startClean: 800, rent: 40, rolloverHour: 6,
   // XP and levels: XP to go from level n to n+1 is xpBase + xpScale * n^xpPow
-  maxLevel: 99, xpBase: 60, xpScale: 18, xpPow: 2.3, levelCash: 25,
+  maxLevel: 99, xpBase: 60, xpScale: 12, xpPow: 2.5, levelCash: 25,
   // Customers (per real hour, before time of day, popularity, marketing and charm)
   custBase: 20, custPerPop: 0.6, varietyBonus: 0.04, varietyCap: 0.4,
   popServed: 0.01, popUnserved: -0.004, popHome: 50, popDriftPerHour: 0.1,
@@ -15,7 +15,7 @@ export const CFG = {
   spoilMin: 30, trayBatches: 2,
   cashierBonus: 0.1, drinkAddOn: 0.35,
   // Laundering
-  launderRatio: 0.8, launderHeat: 20,
+  launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05,
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
   nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.2, buyersMax: 12, buyersMaxPerLevel: 0.35, buyerPatienceMin: 3,
   dealerCut: 0.2, streetMult: 1,
@@ -368,9 +368,10 @@ export const LAB_MACHINES = {
 };
 // Parody products (nothing here is a real recipe). share: how often buyers ask for it. heat: per cook.
 // cop: extra chance a buyer wanting it is undercover. ing: bakery stock it also uses (edibles).
-function P(machine, name, emoji, family, level, minutes, bags, price, extra = {}) {
+function P(machine, name, emoji, family, level, minutes, bags, list, extra = {}) {
+  const price = Math.round(list * 1.5); // dirty money comes easier than clean
   return { machine, name, emoji, family, level, minutes, bags, price,
-    kit: Math.round(0.4 * bags * price / 10) * 10,
+    kit: Math.round(0.3 * bags * price / 10) * 10,
     heat: Math.min(6, Math.round((0.4 + price / 120) * 10) / 10),
     cop: Math.min(0.12, Math.round(price / 9000 * 1000) / 1000),
     share: Math.round(Math.max(0.12, 1.3 - level / 70) * 100) / 100, ...extra };
@@ -442,18 +443,21 @@ export const CORNERS = {
   marina:    { name: 'The marina',     emoji: '🛥️', level: 75, price: 120000, rate: 8,  mult: 1.7,  risk: 0.05, cap: 120 },
   penthouse: { name: 'Penthouse parties', emoji: '🏙️', level: 88, price: 200000, rate: 10, mult: 2.0, risk: 0.05, cap: 150 },
 };
-// Rosa's branches in other towns: a big long-term sink. income: clean cash a day per branch level.
-export const BRANCHES = {
-  brook:     { name: 'Little Brook',  emoji: '🏘️', level: 20, price: 25000,   income: 150 },
-  kingsmere: { name: 'Kingsmere',     emoji: '🏰', level: 30, price: 50000,   income: 280 },
-  ashford:   { name: 'Ashford Market', emoji: '🧺', level: 40, price: 90000,  income: 450 },
-  harbour:   { name: 'Harbourside',   emoji: '⚓', level: 50, price: 150000,  income: 700 },
-  northgate: { name: 'Northgate',     emoji: '🚪', level: 60, price: 250000,  income: 1100 },
-  city:      { name: 'The City',      emoji: '🏙️', level: 70, price: 400000,  income: 1700 },
-  seaside:   { name: 'Seaside Pier',  emoji: '🎡', level: 80, price: 650000,  income: 2600 },
-  capital:   { name: 'The Capital',   emoji: '🏛️', level: 90, price: 1000000, income: 4000 },
+// Rosa's shops. The stall is where it all started; every branch costs far more than the one before, runs
+// its own machines (the pricier the branch, the more profitable its kitchen), pays its own rent and charges
+// more for the same food. Branches are also fronts: each lets you launder more every day.
+export const SHOPS = {
+  stall:   { name: "Rosa's Bakery",        short: 'The stall', emoji: '🥖', level: 1,  price: 0,       rent: 40,    priceMult: 1,   cust: 1,
+             launder: 0,     machines: ['oven', 'mixer', 'fryer', 'drinks', 'icecream', 'grill'], floor: 'checker', wall: 'plaster', sign: "Rosa's Bakery" },
+  cafe:    { name: "Rosa's Café, Kingsmere", short: 'The café', emoji: '☕', level: 16, price: 30000,   rent: 300,   priceMult: 1.15, cust: 0.6,
+             launder: 2500,  machines: ['pizza', 'griddle', 'steamer', 'noodles', 'drinks'], floor: 'wood', wall: 'brick', sign: "Rosa's Café" },
+  deli:    { name: "Rosa's Deli, Ashford",  short: 'The deli', emoji: '🧀', level: 39, price: 400000,  rent: 2500,  priceMult: 1.3, cust: 0.5,
+             launder: 12000, machines: ['choc', 'bbq', 'patisserie', 'drinks'], floor: 'terracotta', wall: 'teal', sign: "Rosa's Deli" },
+  bistro:  { name: "Rosa's Bistro, Harbourside", short: 'The bistro', emoji: '🍷', level: 61, price: 3000000, rent: 10000, priceMult: 1.5, cust: 0.4,
+             launder: 45000, machines: ['bar', 'sushi', 'rotisserie', 'icecream'], floor: 'navy', wall: 'damask', sign: "Rosa's Bistro" },
+  maison:  { name: 'Maison Rosa, The Capital', short: 'The maison', emoji: '👑', level: 84, price: 15000000, rent: 40000, priceMult: 1.75, cust: 0.35,
+             launder: 150000, machines: ['candy', 'grand', 'patisserie', 'bar'], floor: 'blackmarble', wall: 'golden', sign: 'Maison Rosa' },
 };
-export const BRANCH_MAX = 10, BRANCH_GROW = 1.35;
 
 export const PRICE_LEVELS = {
   low:    { label: 'Low',    mult: 0.8,  buy: 0.97 },
@@ -489,16 +493,16 @@ export const UPGRADES = [
   { id: 'filters',   name: 'Lab filters',          emoji: '🧫', level: 48, cost: 20000,  cash: 'dirty', lab: true, eff: { purity: 0.07 }, desc: 'Every cook comes out 7% purer.' },
   { id: 'tester',    name: 'Purity tester',        emoji: '🔬', level: 70, cost: 45000,  cash: 'dirty', lab: true, eff: { purity: 0.08 }, desc: 'Every cook comes out 8% purer.' },
   { id: 'phones',    name: 'Burner phones',        emoji: '📵', level: 85, cost: 50000,  cash: 'dirty', lab: true, eff: { tipoff: 0.2 }, desc: 'Nobody can listen in: raids are another 20% less likely.' },
-  { id: 'catering',  name: '"Catering" contracts', emoji: '📦', level: 2,  cost: 800,    cash: 'clean', lab: true, eff: { launder: 0.4 }, desc: 'Invoices for parties nobody threw. Launder 40% more of each day\'s takings safely.' },
+  { id: 'catering',  name: '"Catering" contracts', emoji: '📦', level: 2,  cost: 800,    cash: 'clean', lab: true, eff: { launder: 0.15 }, desc: 'Invoices for parties nobody threw. Launder another 15% of each day\'s takings safely.' },
   { id: 'camera',    name: 'Back-door camera',     emoji: '📷', level: 4,  cost: 800,    cash: 'dirty', lab: true, eff: { camera: 1 },    desc: 'Sometimes flags a buyer who feels off. Not always right.' },
   { id: 'glass',     name: 'Better glassware',     emoji: '🧪', level: 3,  cost: 1000,   cash: 'dirty', lab: true, eff: { bags: 0.2 },    desc: 'Every cook makes 20% more bags.' },
   { id: 'safe',      name: 'Floor safe',           emoji: '🔐', level: 6,  cost: 700,    cash: 'dirty', lab: true, eff: { safe: 1 },      desc: 'A raid only finds a fifth of your dirty cash instead of half.' },
   { id: 'van',       name: 'Delivery van',         emoji: '🚐', level: 10, cost: 1500,   cash: 'dirty', lab: true, eff: { van: 1 },       desc: 'Jay works from a van: half the chance he\'s picked up.' },
   { id: 'soundproof',name: 'Soundproofing',        emoji: '🔇', level: 22, cost: 5000,   cash: 'dirty', lab: true, eff: { quiet: 0.25 },  desc: 'Cooking draws 25% less heat.' },
-  { id: 'books',     name: 'Creative accounting',  emoji: '📒', level: 31, cost: 8000,   cash: 'clean', lab: true, eff: { launder: 0.4 }, desc: 'Launder another 40% of each day\'s takings safely.' },
+  { id: 'books',     name: 'Creative accounting',  emoji: '📒', level: 31, cost: 8000,   cash: 'clean', lab: true, eff: { launder: 0.15, washFee: 0.05 }, desc: 'Launder another 15% of each day\'s takings safely, and lose 5% less to the wash.' },
   { id: 'tunnel',    name: 'Escape tunnel',        emoji: '🕳️', level: 44, cost: 15000,  cash: 'dirty', lab: true, eff: { hide: 0.5 },    desc: 'Raids find product half as often.' },
   { id: 'insider',   name: 'Someone inside',       emoji: '🕵️', level: 58, cost: 25000,  cash: 'dirty', lab: true, eff: { tipoff: 0.3 },  desc: 'A tip-off before most raids: raids are 30% less likely.' },
-  { id: 'shell',     name: 'Shell company',        emoji: '🐚', level: 73, cost: 40000,  cash: 'clean', lab: true, eff: { launder: 0.6 }, desc: 'Launder another 60% of each day\'s takings safely.' },
+  { id: 'shell',     name: 'Shell company',        emoji: '🐚', level: 73, cost: 40000,  cash: 'clean', lab: true, eff: { launder: 0.25, washFee: 0.05 }, desc: 'Launder another 25% of each day\'s takings safely, and lose 5% less to the wash.' },
   { id: 'network',   name: 'The network',          emoji: '🕸️', level: 83, cost: 60000,  cash: 'dirty', lab: true, eff: { buyers: 0.3 },  desc: '30% more buyers at night.' },
 ];
 
@@ -517,7 +521,7 @@ export const CREW = {
   manager: { name: 'Grace',   role: 'Manager',       emoji: '📋', level: 32, wage: 90,  cash: 'clean', shift: 'day',
              desc: 'Keeps the ingredients for everything on sale topped up every morning.' },
   accountant: { name: 'Viv',  role: 'Accountant',    emoji: '🧮', level: 42, wage: 100, cash: 'clean', shift: 'day',
-             desc: 'Puts the safe amount of dirty cash through the till every morning, and tax inspectors fine you less.' },
+             desc: 'Puts the safe amount of dirty cash through the tills every morning, takes a smaller cut for the wash, and tax inspectors fine you less.' },
   dealer:  { name: 'Jay',     role: 'Street dealer', emoji: '🧢', level: 1,  wage: 0,   cash: 'dirty', shift: 'night', lab: true,
              desc: 'Serves buyers at the back door when you\'re not there. Keeps a fifth of what he takes.' },
   lookout: { name: 'Ash',     role: 'Lookout',       emoji: '👀', level: 6,  wage: 60,  cash: 'dirty', shift: 'night', lab: true,
