@@ -2,7 +2,7 @@
 // node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs] [days]
 import * as G from '../www/js/game.js';
 import * as D from '../www/js/design.js';
-import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, SHOPS, TIERS } from '../www/js/data.js';
+import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, SHOPS, TIERS, FRONTS } from '../www/js/data.js';
 G.onToast(() => {});
 
 const RUNS = Number(process.argv[2]) || 6;
@@ -140,6 +140,13 @@ function checkIn(s, st, t, next) {
     const options = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)).sort((a, b) => PRODUCTS[b].level - PRODUCTS[a].level);
     for (const id of options) if (G.startLab(s, i, id, t, { quiet: true })) break;
   });
+  // Spread the rest: fronts, smurfs, a money man, the casino; careful players stash some offshore
+  for (const id of Object.keys(FRONTS)) if (!s.wash.fronts[id] && G.unlocked(s, FRONTS[id].level) && FRONTS[id].price < spare() * 0.25) G.buyFront(s, id);
+  if (G.washOpen(s, 'smurf')) G.setSmurfing(s, G.washCap(s, 'smurf'));
+  hireIf('moneyman', s.dirty > 20000);
+  if (G.washOpen(s, 'casino') && s.dirty > 5000) G.washVia(s, 'casino', Math.min(s.dirty - 3000, G.washLeft(s, 'casino')), t, true);
+  if (st.declare !== 'half' && G.washOpen(s, 'offshore') && s.dirty > 30000) G.stashOffshore(s, s.dirty - 20000);
+  if (G.washOpen(s, 'offshore') && s.wash.offshore > 0) G.bringBack(s, Infinity, true);
   const amount = Math.min(Math.floor(s.dirty - 1500), Math.round(G.launderLeft(s) * st.launder));
   if (amount > 0) G.launder(s, amount, true);
 }

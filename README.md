@@ -93,6 +93,26 @@ buyers at the back door after dark. The products are parodies of real ones; the 
   your branches can front) passes as normal; more than that adds heat. The wash takes 25%; Viv the accountant, creative
   accounting and a shell company take less.
 
+## Washing money
+
+The 🧼 Wash tab lists every route. Each has its own daily limit, cut, speed, tax treatment and risk, so spreading
+money across them keeps heat and HMRC's questions down:
+
+| Route | From | Cut | Taxed? | The catch |
+|---|---|---|---|---|
+| 🧾 Through the tills | 1 | 25% (less with Viv and upgrades) | yes | capped by your real takings; HMRC notice it most |
+| 🏧 Smurfing | 8 | 10% | no | slow (trickles in all day, up to a daily limit); banks sometimes flag deposits |
+| 🎰 The casino | 25 | 15% | no (gambling winnings aren't taxed) | casinos report big spenders |
+| 🏝️ Offshore account | 35 | 5% in, 15% out clean | yes, as consultancy fees | dirty cash parked there is safe from raids, busts and rivals |
+| 🪙 Crypto | 45 | 5–40%, changes by the hour | no | an exchange may freeze the account and keep half |
+| 🖼️ The art dealer | 60 | 20% | yes | takes three days |
+| 🧺 Fronts | 12+ | 8–15% | yes | bought with clean cash; each washes a set amount every night |
+
+Fronts run from a launderette (£1,500 a night) to a nightclub (£200,000). A pile of unwashed dirty cash (over £5,000) counts as extra heat when police decide whether to raid, so washing or stashing it lowers the odds of a bust. HMRC notice front money half as much as
+till money; an investigation or a bust can close a front for a few days. Felix the money man spreads your dirty cash
+across the casino, cheap crypto and the art dealer every morning. A neat paper trail makes investigations less likely;
+a friendly bank manager doubles smurfing limits.
+
 ## Shops
 
 Rosa's stall is where it starts. Branches open as you level up, and each costs far more than the one before:

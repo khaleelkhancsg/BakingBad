@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 4;
@@ -643,6 +643,127 @@ export function launder(s, amount, quiet = false) {
   if (!quiet) say(`£${amount.toLocaleString('en-GB')} through the tills: £${got.toLocaleString('en-GB')} comes out clean${h ? ` (that looked off: heat +${h})` : ''}.`, h ? 'bad' : 'good');
 }
 
+// A pile of unwashed cash in the back room draws attention: it counts as extra heat when police decide whether to raid
+export const cashPileHeat = s => Math.min(CFG.cashPileMax, Math.max(0, s.dirty - CFG.cashPileFree) / CFG.cashPilePer);
+
+// ---------- Other ways to wash money ----------
+const freshWash = () => ({ smurfDaily: 0, smurfToday: 0, casinoToday: 0, cryptoToday: 0, consultToday: 0, artToday: 0,
+  cryptoFee: 0.2, offshore: 0, art: [], fronts: {}, frozen: 0 });
+export const washOpen = (s, m) => s.labUnlocked && unlocked(s, WASH[m].level);
+export function washCap(s, m) {
+  const w = WASH[m], L = s.level;
+  if (m === 'till') return launderCap(s);
+  if (m === 'smurf') return Math.round((w.capBase + w.capPerLevel * L) * (eff(s, 'smurf') ? 2 : 1));
+  if (m === 'art') return w.capPerLevel * Math.max(1, L - 50);
+  return w.capBase + w.capPerLevel * L;
+}
+const usedKey = { smurf: 'smurfToday', casino: 'casinoToday', crypto: 'cryptoToday', offshore: 'consultToday', art: 'artToday' };
+export const washLeft = (s, m) => (m === 'till' ? launderLeft(s) : Math.max(0, washCap(s, m) - (s.wash[usedKey[m]] || 0)));
+export const washFee = (s, m) => (m === 'till' ? launderFee(s) : m === 'crypto' ? s.wash.cryptoFee : m === 'offshore' ? WASH.offshore.outFee : WASH[m].fee);
+// Money that came through a route, for tax and for HMRC's questions
+function booked(s, m, amount) {
+  const w = s.taxWeek;
+  if (WASH[m].taxed) w.washTaxed = (w.washTaxed || 0) + amount;
+  w.washSuspect = (w.washSuspect || 0) + amount * WASH[m].suspect;
+  s.today.washed = (s.today.washed || 0) + amount;
+  s.stats.totalLaundered += amount;
+}
+// The instant routes: the casino and crypto
+export function washVia(s, m, amount, t = s.clock, quiet = false) {
+  if (!washOpen(s, m)) return say(`${WASH[m].name} opens at level ${WASH[m].level}.`, 'bad');
+  amount = Math.min(Math.round(amount), Math.floor(s.dirty), washLeft(s, m));
+  if (amount < 1) { if (!quiet) say(washLeft(s, m) < 1 ? `That's as much as ${WASH[m].name.toLowerCase()} will take today.` : 'Not enough dirty cash.', 'bad'); return 0; }
+  s.dirty -= amount; s.wash[usedKey[m]] += amount;
+  if (m === 'crypto' && rand() < WASH.crypto.freeze) {
+    const kept = Math.round(amount / 2); s.clean = round2(s.clean + kept * (1 - s.wash.cryptoFee));
+    note(s, `🪙 The exchange froze your account and kept half: £${(amount - kept).toLocaleString('en-GB')} gone.`, 'bad', t);
+    booked(s, m, kept); return kept;
+  }
+  const got = Math.round(amount * (1 - washFee(s, m)));
+  s.clean = round2(s.clean + got);
+  booked(s, m, amount);
+  if (!quiet) say(`${WASH[m].emoji} £${amount.toLocaleString('en-GB')} in, £${got.toLocaleString('en-GB')} out clean.`, 'good');
+  return amount;
+}
+export function setSmurfing(s, perDay) { if (washOpen(s, 'smurf')) s.wash.smurfDaily = clamp(Math.round(perDay), 0, washCap(s, 'smurf')); }
+export function buyArt(s, amount, t = s.clock, quiet = false) {
+  if (!washOpen(s, 'art')) return say(`The art dealer deals with you from level ${WASH.art.level}.`, 'bad');
+  amount = Math.min(Math.round(amount), Math.floor(s.dirty), washLeft(s, 'art'));
+  if (amount < 1000) { if (!quiet) say('The dealer doesn\'t bother with less than £1,000.', 'bad'); return 0; }
+  s.dirty -= amount; s.wash.artToday += amount;
+  s.wash.art.push({ amount, ready: t + WASH.art.days * DAY });
+  if (!quiet) say(`🖼️ You bought a "masterpiece" for £${amount.toLocaleString('en-GB')}. It sells in ${WASH.art.days} days.`, 'good');
+  return amount;
+}
+export function stashOffshore(s, amount) {
+  if (!washOpen(s, 'offshore')) return say(`Offshore banking opens at level ${WASH.offshore.level}.`, 'bad');
+  amount = Math.min(Math.round(amount), Math.floor(s.dirty));
+  if (amount < 1) return say('Not enough dirty cash.', 'bad');
+  s.dirty -= amount; s.wash.offshore += Math.round(amount * (1 - WASH.offshore.fee));
+  say(`🏝️ £${amount.toLocaleString('en-GB')} couriered offshore (the courier took ${Math.round(WASH.offshore.fee * 100)}%).`, 'good');
+}
+export function bringBack(s, amount, clean) {
+  amount = Math.min(Math.round(amount), Math.floor(s.wash.offshore), clean ? washLeft(s, 'offshore') : Infinity);
+  if (amount < 1) return say(clean ? 'That\'s all the consultancy fees that would look normal today.' : 'Nothing offshore.', 'bad');
+  s.wash.offshore -= amount;
+  if (clean) { const got = Math.round(amount * (1 - WASH.offshore.outFee)); s.clean = round2(s.clean + got); s.wash.consultToday += amount; booked(s, 'offshore', amount); say(`🏝️ £${got.toLocaleString('en-GB')} arrives as consultancy fees.`, 'good'); }
+  else { s.dirty += amount; say(`🏝️ £${amount.toLocaleString('en-GB')} back in dirty cash.`, 'good'); }
+}
+export function buyFront(s, id) {
+  const f = FRONTS[id];
+  if (!f || s.wash.fronts[id]) return;
+  if (!s.labUnlocked) return;
+  if (!unlocked(s, f.level)) return say(`A ${f.name.toLowerCase()} comes up for sale at level ${f.level}.`, 'bad');
+  if (s.clean < f.price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - f.price); s.today.capex += f.price;
+  s.wash.fronts[id] = { on: true, closedUntil: 0 };
+  say(`${f.emoji} The ${f.name.toLowerCase()} is yours. It'll wash up to £${f.cap.toLocaleString('en-GB')} a night.`, 'good');
+}
+export function toggleFront(s, id) { const k = s.wash.fronts[id]; if (k) k.on = !k.on; }
+export const frontCap = s => Object.entries(s.wash.fronts).reduce((a, [id, k]) => a + (k.on ? FRONTS[id].cap : 0), 0);
+// Every minute: smurfs trickle money in, and art that's sold pays out
+function runWash(s, t, mins) {
+  const w = s.wash;
+  if (w.smurfDaily > 0 && s.dirty > 0) {
+    const n = Math.min(s.dirty, w.smurfDaily * mins / 1440, washLeft(s, 'smurf'));
+    if (n > 0) { s.dirty -= n; w.smurfToday += n; s.clean = round2(s.clean + n * (1 - WASH.smurf.fee)); booked(s, 'smurf', n); }
+  }
+  if (w.art.length && w.art[0].ready <= t) for (const a of w.art.filter(x => x.ready <= t)) {
+    const got = Math.round(a.amount * (1 - WASH.art.fee)); s.clean = round2(s.clean + got); booked(s, 'art', a.amount);
+    note(s, `🖼️ A collector paid £${got.toLocaleString('en-GB')} for your painting.`, 'good', t);
+  }
+  w.art = w.art.filter(x => x.ready > t);
+  // The crypto cut wanders with the market
+  w.cryptoFee = clamp(w.cryptoFee + (rand() - 0.5) * 0.02 * Math.sqrt(mins), WASH.crypto.feeMin, WASH.crypto.feeMax);
+}
+// Every morning: fronts wash their share, banks may flag the smurfs, Felix spreads the rest, limits reset
+function washMorning(s, t) {
+  const w = s.wash;
+  for (const [id, k] of Object.entries(w.fronts)) {
+    if (!k.on || k.closedUntil > t || s.dirty < 1) continue;
+    const f = FRONTS[id], n = Math.min(Math.floor(s.dirty), f.cap);
+    s.dirty -= n; s.clean = round2(s.clean + n * (1 - f.fee));
+    s.taxWeek.washTaxed = (s.taxWeek.washTaxed || 0) + n; s.taxWeek.washSuspect = (s.taxWeek.washSuspect || 0) + n * 0.5;
+    s.today.washed = (s.today.washed || 0) + n; s.stats.totalLaundered += n;
+  }
+  if (w.smurfToday > 0 && rand() < WASH.smurf.flag * (eff(s, 'smurf') ? 0.5 : 1) * (0.5 + w.smurfToday / Math.max(1, washCap(s, 'smurf')))) {
+    const lost = Math.round(w.smurfToday * WASH.smurf.flagLose);
+    s.clean = round2(Math.max(0, s.clean - lost)); s.heat = clamp(s.heat + WASH.smurf.flagHeat, 0, 100);
+    note(s, `🏧 A bank flagged one of your runners' deposits: £${lost.toLocaleString('en-GB')} frozen. Heat +${WASH.smurf.flagHeat}.`, 'bad', t);
+  }
+  if (w.casinoToday > 0 && rand() < WASH.casino.report * (1 + 2 * w.casinoToday / Math.max(1, washCap(s, 'casino')))) {
+    s.heat = clamp(s.heat + WASH.casino.reportHeat, 0, 100);
+    note(s, `🎰 The casino filed a report on a big spender. Heat +${WASH.casino.reportHeat}.`, 'bad', t);
+  }
+  w.smurfToday = w.casinoToday = w.cryptoToday = w.consultToday = w.artToday = 0;
+  if (s.crew.moneyman && s.dirty > 3000) {
+    const float = 3000;
+    if (washOpen(s, 'casino')) washVia(s, 'casino', Math.min(s.dirty - float, washLeft(s, 'casino')), t, true);
+    if (washOpen(s, 'crypto') && w.cryptoFee < 0.15 && s.dirty > float) washVia(s, 'crypto', s.dirty - float, t, true);
+    if (washOpen(s, 'art') && s.dirty - float >= 1000) buyArt(s, s.dirty - float, t, true);
+  }
+}
+
 // ---------- Tax (UK-style, settled weekly) ----------
 // What you've told HMRC about this tax week so far, and the bill it adds up to
 export const declareShare = s => DECLARE[s.declare || 'full'].share;
@@ -658,7 +779,7 @@ export function taxEstimate(s, extraDay = true) {
   const w = { ...s.taxWeek };
   if (extraDay) addDayToTaxWeek(w, s.today, s);
   const share = declareShare(s);
-  const declared = w.sales + w.laundered, vatable = (w.vatSales + w.laundered) * share;
+  const declared = w.sales + w.laundered + (w.washTaxed || 0), vatable = (w.vatSales + w.laundered) * share;
   const vat = s.vatRegistered || s.stats.declared + declared * share >= TAX.vatThreshold ? vatable * TAX.vatRate / (1 + TAX.vatRate) : 0;
   const profit = Math.max(0, declared * share - vat + w.income - w.costs);
   const corp = corpTax(profit);
@@ -671,10 +792,11 @@ function addDayToTaxWeek(w, td) {
   w.sales += td.sales; w.vatSales += td.vatSales; w.laundered += td.laundered; w.income += td.income;
   w.costs += td.ingSpent + td.upgradesSpent + td.capex + td.rent + td.wages; w.wages += td.wages;
 }
-const freshTaxWeek = () => ({ sales: 0, vatSales: 0, laundered: 0, income: 0, costs: 0, wages: 0 });
+const freshTaxWeek = () => ({ sales: 0, vatSales: 0, laundered: 0, income: 0, costs: 0, wages: 0, washTaxed: 0, washSuspect: 0 });
 export function setDeclare(s, k) { if (DECLARE[k]) s.declare = k; }
 export const investigateChance = s => Math.min(0.9, (TAX.investigateBase + TAX.investigateUnder * (1 - declareShare(s))
-  + TAX.investigateLaunder * Math.min(1, s.taxWeek.laundered / Math.max(1, s.taxWeek.sales + s.taxWeek.laundered)) + s.heat / 500) * (s.crew.accountant ? 0.5 : 1));
+  + TAX.investigateLaunder * Math.min(1, (s.taxWeek.laundered + (s.taxWeek.washSuspect || 0)) / Math.max(1, s.taxWeek.sales + s.taxWeek.laundered + (s.taxWeek.washSuspect || 0))) + s.heat / 500)
+  * (s.crew.accountant ? 0.5 : 1) * (1 - eff(s, 'audit')));
 function settleTax(s, t) {
   const est = taxEstimate(s, false), w = s.taxWeek;
   s.stats.declared = (s.stats.declared || 0) + est.declared;
@@ -697,7 +819,13 @@ function settleTax(s, t) {
       s.scandalUntil = Math.max(s.scandalUntil, t + 48 * HOUR);
       s.heat = clamp(s.heat + 10, 0, 100);
       note(s, `🕵️ HMRC investigated your books and found £${est.hidden.toLocaleString('en-GB')} you didn't declare: £${bill.toLocaleString('en-GB')} in back tax and penalties. It made the papers.`, 'bad', t);
-    } else if (w.laundered > w.sales * 0.5) {
+    }
+    // They may shut a front while they look into it
+    const open = Object.keys(s.wash.fronts).filter(id => s.wash.fronts[id].closedUntil <= t);
+    if (open.length && rand() < FRONT_AUDIT) { const id = pick(open); s.wash.fronts[id].closedUntil = t + 3 * DAY; note(s, `🕵️ HMRC closed your ${FRONTS[id].name.toLowerCase()} for three days while they go through its books.`, 'bad', t); }
+    if (est.hidden > 0) {
+      // (reported above)
+    } else if (w.laundered + (w.washSuspect || 0) > w.sales * 0.5) {
       s.heat = clamp(s.heat + 8, 0, 100);
       note(s, '🕵️ HMRC went through the books. Everything was declared, but they asked a lot of questions about where the money came from. Heat +8.', 'bad', t);
     } else note(s, '🕵️ HMRC went through the books and found everything in order.', 'good', t);
@@ -900,7 +1028,7 @@ export function newGame(t = Date.now()) {
     level: 1, xp: 0, levelUps: [],
     recipes: [...START_RECIPES], priceLevel: {}, shops: [makeShop('stall')], cur: 0,
     lab: [], kits: {}, bags: {}, purity: {}, cut: {}, door: [], street: CFG.streetStart, corners: {},
-    taxWeek: freshTaxWeek(), declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
+    taxWeek: freshTaxWeek(), wash: freshWash(), declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
@@ -932,7 +1060,7 @@ export function migrate(s, t = Date.now()) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
-    s.taxWeek ??= freshTaxWeek(); s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
+    s.taxWeek ??= freshTaxWeek(); s.wash ??= freshWash(); s.taxWeek.washTaxed ??= 0; s.taxWeek.washSuspect ??= 0; s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
     if (s.today) { s.today.vatSales ??= 0; s.today.capex ??= 0; s.today.ordersDone ??= 0; s.today.ordersMissed ??= 0; }
     for (const x of s.shops) { for (const id in ITEMS) x.display[id] ??= 0; x.custAcc ||= 0; x.design.base ??= { floor: SHOPS[x.id].floor, wall: SHOPS[x.id].wall }; }
     for (const m of s.lab) m.tier ??= 0;
@@ -1034,6 +1162,7 @@ function shared(s, t0, t1, mins) {
   } else s.buyAcc = 0;
   for (const b of [...s.door]) if (t1 >= b.arrive + b.patience) unattended(s, b, t1);
   if (s.labUnlocked && !sealed(s, t0)) runCorners(s, t0, t1, mins);
+  if (s.labUnlocked) runWash(s, t1, mins);
   // Street reputation drifts back to the middle
   s.street += (s.street > CFG.streetHome ? -1 : 1) * Math.min(Math.abs(s.street - CFG.streetHome), CFG.streetDrift * mins / 60);
   // Heat cools; popularity drifts back to the middle; marketing and PR add a little
@@ -1083,6 +1212,8 @@ function bust(s, t, why) {
   for (const id in s.kits) { kits += s.kits[id]; s.kits[id] = 0; }
   for (const m of s.lab) m.job = null;
   s.door = [];
+  for (const k of Object.values(s.wash.fronts)) k.closedUntil = Math.max(k.closedUntil, t + 3 * DAY);
+  s.wash.smurfDaily = 0;
   const sealHours = CFG.bustSealHours - (lawyer ? 24 : 0);
   s.sealedUntil = t + sealHours * HOUR;
   s.heat = CFG.bustHeat;
@@ -1140,8 +1271,9 @@ function heaviesVisit(s, t) {
 // Every morning at 06:00: bills, payments, police, crew chores, a new day's market.
 function rollover(s, t) {
   const td = s.today;
-  // The accountant puts the safe amount through before the books close
+  // The accountant puts the safe amount through before the books close; then the fronts and Felix do their bit
   if (s.crew.accountant && s.dirty > 0) launder(s, Math.min(s.dirty, launderLeft(s)), true);
+  if (s.labUnlocked) washMorning(s, t);
   // Bills
   const rent = shopRent(s) + businessRates(s), dayWages = crewWages(s, 'day'), income = eff(s, 'income');
   td.rent = rent; td.wages = dayWages; td.income = income;
@@ -1168,9 +1300,10 @@ function rollover(s, t) {
   }
   if (td.bagsSold || td.labBatches) s.nightsActive++;
   // Police: raids and tax inspections, judged on how hot it got yesterday
-  const raid = td.peakHeat >= CFG.raidAt && rand() < (td.peakHeat - 50) / 100 * (1 - eff(s, 'tipoff')) * (s.crew.copper ? 0.6 : 1);
+  const hot = td.peakHeat + cashPileHeat(s);
+  const raid = hot >= CFG.raidAt && rand() < (hot - 50) / 100 * (1 - eff(s, 'tipoff')) * (s.crew.copper ? 0.6 : 1);
   const product = Object.values(s.bags).reduce((a, b) => a + b, 0) + Object.values(s.kits).reduce((a, b) => a + b, 0);
-  if (raid && product > 0 && rand() < (td.peakHeat - 60) / 60 * (1 - eff(s, 'hide'))) bust(s, t, 'A dawn raid found product in the back room.');
+  if (raid && product > 0 && rand() < (hot - 60) / 60 * (1 - eff(s, 'hide'))) bust(s, t, 'A dawn raid found product in the back room.');
   else if (raid) {
     const lost = Math.round(s.dirty * (has(s, 'safe') ? CFG.safeRaidShare : 0.5));
     for (const id in s.bags) s.bags[id] = 0;

@@ -15,7 +15,7 @@ export const CFG = {
   spoilMin: 30, trayBatches: 2,
   cashierBonus: 0.1, drinkAddOn: 0.35,
   // Laundering
-  launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05,
+  launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, cashPileFree: 5000, cashPilePer: 5000, cashPileMax: 25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05,
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
   nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.2, buyersMax: 12, buyersMaxPerLevel: 0.35, buyerPatienceMin: 3,
   dealerCut: 0.2, streetMult: 1,
@@ -55,6 +55,33 @@ export const TAX = {
 };
 // How much of the profit you tell HMRC about
 export const DECLARE = { full: { label: 'All of it', share: 1 }, most: { label: '90%', share: 0.9 }, some: { label: '75%', share: 0.75 }, half: { label: 'Half', share: 0.5 } };
+
+// Ways to wash dirty money. Each has its own daily limit, cut, speed, tax treatment and risk, so spreading money
+// across them keeps the heat (and HMRC's questions) down. suspect: how much HMRC notice it next to your real takings.
+export const WASH = {
+  till:     { name: 'Through the tills', emoji: '🧾', level: 1,  suspect: 1,   taxed: true,
+              desc: 'Pass it off as shop takings. Instant, but capped by what your shops really took today.' },
+  smurf:    { name: 'Smurfing',          emoji: '🏧', level: 8,  fee: 0.1,  suspect: 0, taxed: false, capBase: 300, capPerLevel: 60, flag: 0.03, flagHeat: 6, flagLose: 0.25,
+              desc: 'Runners pay small amounts into dozens of bank accounts, all day long. Cheap and quiet, but slow, and now and then a bank flags a deposit.' },
+  casino:   { name: 'The casino',        emoji: '🎰', level: 25, fee: 0.15, suspect: 0.5, taxed: false, capBase: 2000, capPerLevel: 400, report: 0.04, reportHeat: 5,
+              desc: 'Buy chips with dirty cash, play a little, cash out a cheque. Gambling winnings aren\'t taxed, but casinos have to report big spenders.' },
+  offshore: { name: 'Offshore account',  emoji: '🏝️', level: 35, fee: 0.05, outFee: 0.15, suspect: 1, taxed: true, capBase: 5000, capPerLevel: 1000,
+              desc: 'Courier dirty cash to an island bank: out of reach of raids, busts and rivals. It comes back clean as "consultancy fees" (taxed), or dirty whenever you like.' },
+  crypto:   { name: 'Crypto',            emoji: '🪙', level: 45, feeMin: 0.05, feeMax: 0.4, suspect: 0, taxed: false, capBase: 50000, capPerLevel: 2000, freeze: 0.04,
+              desc: 'Huge limits and no questions, but the cut swings with the market every hour, and exchanges sometimes freeze an account and keep half.' },
+  art:      { name: 'The art dealer',    emoji: '🖼️', level: 60, fee: 0.2, suspect: 0.3, taxed: true, capPerLevel: 20000, days: 3,
+              desc: 'Buy a painting with dirty cash; three days later a buyer pays clean for it. Slow, safe and very discreet.' },
+};
+// Cash businesses: bought with clean money, each quietly washes up to its limit every night (as its own takings).
+export const FRONTS = {
+  launderette: { name: 'Launderette',   emoji: '🧺', level: 12, price: 15000,   cap: 1500,   fee: 0.15 },
+  carwash:     { name: 'Hand car wash',  emoji: '🚗', level: 22, price: 40000,   cap: 4000,   fee: 0.13 },
+  nailbar:     { name: 'Nail bar',       emoji: '💅', level: 33, price: 90000,   cap: 9000,   fee: 0.12 },
+  tanning:     { name: 'Tanning salon',  emoji: '🌞', level: 48, price: 200000,  cap: 20000,  fee: 0.11 },
+  dealership:  { name: 'Car dealership', emoji: '🚙', level: 65, price: 600000,  cap: 60000,  fee: 0.1 },
+  nightclub:   { name: 'Nightclub',      emoji: '🪩', level: 80, price: 2000000, cap: 200000, fee: 0.08 },
+};
+export const FRONT_AUDIT = 0.25; // chance an HMRC investigation also closes one of your fronts for a few days
 
 // Special orders: a client wants a batch of something by a deadline and pays well for it
 export const CLIENTS = ['The Kingsmere Cricket Club', 'A wedding at St Mary\'s', 'An office leaving do', 'The primary school fete', 'A film crew on location',
@@ -551,6 +578,8 @@ export const UPGRADES = [
   { id: 'fumehood',  name: 'Extractor hood',       emoji: '🌀', level: 25, cost: 7000,   cash: 'dirty', lab: true, eff: { purity: 0.05, quiet: 0.1 }, desc: '5% purer, and the smell draws 10% less heat.' },
   { id: 'filters',   name: 'Lab filters',          emoji: '🧫', level: 48, cost: 20000,  cash: 'dirty', lab: true, eff: { purity: 0.07 }, desc: 'Every cook comes out 7% purer.' },
   { id: 'tester',    name: 'Purity tester',        emoji: '🔬', level: 70, cost: 45000,  cash: 'dirty', lab: true, eff: { purity: 0.08 }, desc: 'Every cook comes out 8% purer.' },
+  { id: 'papertrail', name: 'A neat paper trail',  emoji: '🗂️', level: 20, cost: 6000,   cash: 'clean', lab: true, eff: { audit: 0.3 }, desc: 'Receipts for everything (some of them real): HMRC investigations are 30% less likely.' },
+  { id: 'bankman',   name: 'A friendly bank manager', emoji: '🏦', level: 40, cost: 30000, cash: 'dirty', lab: true, eff: { smurf: 1 }, desc: 'Smurfing limits double, and flagged deposits happen half as often.' },
   { id: 'phones',    name: 'Burner phones',        emoji: '📵', level: 85, cost: 50000,  cash: 'dirty', lab: true, eff: { tipoff: 0.2 }, desc: 'Nobody can listen in: raids are another 20% less likely.' },
   { id: 'catering',  name: '"Catering" contracts', emoji: '📦', level: 2,  cost: 800,    cash: 'clean', lab: true, eff: { launder: 0.15 }, desc: 'Invoices for parties nobody threw. Launder another 15% of each day\'s takings safely.' },
   { id: 'camera',    name: 'Back-door camera',     emoji: '📷', level: 4,  cost: 800,    cash: 'dirty', lab: true, eff: { camera: 1 },    desc: 'Sometimes flags a buyer who feels off. Not always right.' },
@@ -605,6 +634,8 @@ export const CREW = {
              desc: 'Careful hands: every cook comes out 5% purer.' },
   copper:  { name: 'DS Hale', role: 'Bent copper',   emoji: '🕴️', level: 35, wage: 250, cash: 'dirty', shift: 'night', lab: true,
              desc: 'Tips you off: raids are 40% less likely and police sweeps on your corners happen half as often.' },
+  moneyman: { name: 'Felix',  role: 'Money man',     emoji: '💼', level: 28, wage: 200, cash: 'dirty', shift: 'night', lab: true,
+             desc: 'Every morning he spreads your dirty cash across the casino, crypto (when the cut is low) and the art dealer, keeping a float for kits.' },
   souschef: { name: 'Chen',   role: 'Sous chef',     emoji: '🧑‍🍳', level: 45, wage: 150, cash: 'clean', shift: 'day',
              desc: 'Every batch makes 10% more servings.' },
   director: { name: 'Imogen', role: 'Marketing director', emoji: '💼', level: 60, wage: 200, cash: 'clean', shift: 'day',

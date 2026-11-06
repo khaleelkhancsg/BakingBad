@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -225,8 +225,8 @@ function backTab() {
   }
   // Cash and heat
   const safe = G.launderLeft(s);
-  cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>Launder</b><small>${money(safe)} looks normal today · ${pct(G.launderFee(s))} fee</small></div></div>
-    <div class="pbtns"><button class="small violet" data-act="launder-open" ${s.dirty >= 1 ? '' : 'disabled'}>Through the till</button></div>`, ibtn('launder', 'x'), 'night');
+  cards += pcard(`<div class="ptop"><span class="em">🧼</span><div><b>Launder</b><small>${money(safe)} through the tills today · ${pct(G.launderFee(s))} cut</small></div></div>
+    <div class="pbtns"><button class="small violet" data-act="launder-open" ${s.dirty >= 1 ? '' : 'disabled'}>Tills</button><button class="small" data-act="tab" data-id="wash">All routes</button></div>`, ibtn('launder', 'x'), 'night');
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   cards += pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>undercover ≈ ${Math.round(G.copChance(s) * 100)}%</small></div></div>
     <span class="heat ${heatCls}"><span class="meter wide"><i style="width:${s.heat}%"></i></span></span>`, ibtn('heat', 'heat'), 'night');
@@ -266,6 +266,52 @@ function turfTab() {
   }
   const out = Object.values(s.corners).reduce((a, k) => a + k.stock, 0);
   return { cards, hint: `Corners sell while you're away: faster at night, and faster with a good street rep. ${out} bags out on the street.${s.crew.runner ? ' Kai keeps them stocked.' : ' Kai the runner (Crew) restocks them for you.'}` };
+}
+
+function washTab() {
+  const w = s.wash, t = s.clock;
+  const amounts = (m, act) => [1000, 10000, 100000].filter(n => n <= Math.max(1000, G.washLeft(s, m)))
+    .map(n => `<button class="small violet" data-act="${act}" data-id="${m}" data-n="${n}" ${s.dirty >= Math.min(n, 1000) && G.washLeft(s, m) >= 1 ? '' : 'disabled'}>${money(n)}</button>`).join('')
+    + `<button class="small violet" data-act="${act}" data-id="${m}" data-n="max" ${s.dirty >= 1 && G.washLeft(s, m) >= 1 ? '' : 'disabled'}>Max</button>`;
+  const head = (m, extra) => `<div class="ptop"><span class="em">${WASH[m].emoji}</span><div><b>${WASH[m].name}</b><small>${extra}</small></div></div>`;
+  const locked = m => pcard(`${head(m, `${pct(WASH[m].fee ?? WASH[m].feeMin)} cut`)}${lockTag(WASH[m].level)}`, ibtn('wash', m), 'wide night locked');
+  let cards = pcard(`<div class="ptop"><span class="em">💜</span><div><b>${money(s.dirty)} dirty</b><small>${w.offshore ? `${money(w.offshore)} offshore · ` : ''}${w.art.length ? `${w.art.length} painting${w.art.length > 1 ? 's' : ''} for sale · ` : ''}washed today ${money((s.today.washed || 0) + s.today.laundered)}</small></div></div>
+    <small>HMRC investigation chance this week: ${pct(G.investigateChance(s))}${G.cashPileHeat(s) ? `<br><span class="bad">Cash pile: +${Math.round(G.cashPileHeat(s))} raid heat</span>` : ''}</small>`, ibtn('launder', 'x'), 'wide night');
+  // The tills
+  cards += pcard(`${head('till', `${money(G.launderLeft(s))} left today · ${pct(G.launderFee(s))} cut · taxed`)}
+    <div class="pbtns"><button class="small violet" data-act="launder-open" ${s.dirty >= 1 ? '' : 'disabled'}>Choose an amount</button></div>`, ibtn('wash', 'till'), 'wide night');
+  // Smurfing
+  if (!G.washOpen(s, 'smurf')) cards += locked('smurf');
+  else {
+    const cap = G.washCap(s, 'smurf');
+    cards += pcard(`${head('smurf', `${money(w.smurfDaily)} a day of ${money(cap)} · ${pct(WASH.smurf.fee)} cut · untaxed<br>today ${money(w.smurfToday)}`)}
+      <div class="seg">${[0, 0.25, 0.5, 1].map(f => `<button class="${Math.round(w.smurfDaily) === Math.round(cap * f) ? 'on' : ''}" data-act="smurf" data-n="${Math.round(cap * f)}">${f ? pct(f) : 'Off'}</button>`).join('')}</div>`, ibtn('wash', 'smurf'), 'wide night');
+  }
+  // The casino and crypto
+  for (const m of ['casino', 'crypto']) {
+    if (!G.washOpen(s, m)) { cards += locked(m); continue; }
+    cards += pcard(`${head(m, `${money(G.washLeft(s, m))} left today · ${pct(G.washFee(s, m))} cut${m === 'crypto' ? (w.cryptoFee < 0.12 ? ' · <span class="good">cheap right now</span>' : w.cryptoFee > 0.3 ? ' · <span class="bad">dear right now</span>' : '') : ''} · untaxed`)}
+      <div class="pbtns">${amounts(m, 'wash')}</div>`, ibtn('wash', m), 'wide night');
+  }
+  // Offshore
+  if (!G.washOpen(s, 'offshore')) cards += locked('offshore');
+  else cards += pcard(`${head('offshore', `${money(w.offshore)} stashed (safe from raids) · in ${pct(WASH.offshore.fee)}, out clean ${pct(WASH.offshore.outFee)} (taxed)<br>${money(G.washLeft(s, 'offshore'))} of fees left today`)}
+    <div class="pbtns"><button class="small violet" data-act="offshore-in" data-n="10000" ${s.dirty >= 1 ? '' : 'disabled'}>Stash £10k</button><button class="small violet" data-act="offshore-in" data-n="max" ${s.dirty >= 1 ? '' : 'disabled'}>All</button>
+      <button class="small" data-act="offshore-clean" ${w.offshore >= 1 && G.washLeft(s, 'offshore') >= 1 ? '' : 'disabled'}>Clean</button><button class="small" data-act="offshore-dirty" ${w.offshore >= 1 ? '' : 'disabled'}>Dirty</button></div>`, ibtn('wash', 'offshore'), 'wide night');
+  // Art
+  if (!G.washOpen(s, 'art')) cards += locked('art');
+  else cards += pcard(`${head('art', `${money(G.washLeft(s, 'art'))} left today · ${pct(WASH.art.fee)} cut · sells in ${WASH.art.days} days${w.art.length ? `<br>next sale ${mins((w.art[0].ready - t) / MIN)}` : ''}`)}
+    <div class="pbtns">${amounts('art', 'art')}</div>`, ibtn('wash', 'art'), 'wide night');
+  // Fronts
+  for (const [id, f] of Object.entries(FRONTS)) {
+    if (f.level > s.level + 12 && !w.fronts[id]) continue;
+    const k = w.fronts[id], open = G.unlocked(s, f.level);
+    cards += pcard(`<div class="ptop"><span class="em">${f.emoji}</span><div><b>${f.name}</b><small>washes ${money(f.cap)} a night · ${pct(f.fee)} cut · taxed${k && k.closedUntil > t ? `<br><span class="bad">closed for ${mins((k.closedUntil - t) / MIN)}</span>` : ''}</small></div></div>
+      ${k ? `<div class="pbtns"><button class="small ${k.on ? 'violet' : ''}" data-act="front-toggle" data-id="${id}">${k.on ? '✓ Washing' : 'Paused'}</button></div>`
+        : !open ? lockTag(f.level) : `<div class="pbtns"><button class="small primary" data-act="front-buy" data-id="${id}" ${s.clean < f.price ? 'disabled' : ''}>💷 ${money(f.price)}</button></div>`}`,
+      ibtn('front', id), `wide night ${open ? '' : 'locked'} ${k ? 'hired' : ''}`);
+  }
+  return { cards, hint: `Spread the money around: every route has its own daily limit, cut and risk. Taxed routes count as declared income; the more you wash next to your real takings, the more HMRC ask questions.${s.crew.moneyman ? ' Felix spreads the rest every morning.' : ''}` };
 }
 
 function ordersTab() {
@@ -380,6 +426,8 @@ function unlocksAt(L) {
   for (const [, c] of Object.entries(CAMPAIGNS)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name} (Marketing)`);
   for (const [, p] of Object.entries(PROPERTY)) if (p.level === L) out.push(`${p.emoji} ${p.name} (Shops)`);
   for (const [, c] of Object.entries(CORNERS)) if (c.level === L) out.push(`${c.emoji} ${c.name} (Turf)`);
+  for (const [, w] of Object.entries(WASH)) if (w.level === L && L > 1) out.push(`${w.emoji} ${w.name} (Wash)`);
+  for (const [, f] of Object.entries(FRONTS)) if (f.level === L) out.push(`${f.emoji} A ${f.name.toLowerCase()} to buy as a front (Wash)`);
   for (const [, d] of Object.entries(SHOPS)) if (d.level === L && L > 1) out.push(`${d.emoji} ${d.name} can open (Shops)`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
     for (const [, x] of Object.entries(tbl)) if (x.level === L && L > 1) out.push(`${x.emoji || icon} ${x.name} (Design)`);
@@ -477,6 +525,22 @@ function infoFor(kind, id) {
       + line('You have', `${s.bags[id] || 0} bags, ${s.kits[id] || 0} kits`)
       + '<p class="mute">Purity comes from the machine\'s tier, back-room upgrades, Doc and Pip. Cutting makes more bags but each is worth less, and buyers notice: weak product hurts your street rep. Pricier products have fewer buyers and draw more attention.</p>');
   }
+  if (kind === 'wash') {
+    const w = WASH[id], open = G.washOpen(s, id);
+    return T(`${w.emoji} ${w.name}`, `<p>${w.desc}</p>` + (open ? line('Left today', money(G.washLeft(s, id))) : line('Opens at', `level ${w.level}`))
+      + line('Cut', id === 'crypto' ? `${pct(w.feeMin)}–${pct(w.feeMax)} (now ${pct(s.wash.cryptoFee)})` : pct(G.washFee(s, id)))
+      + line('Tax', w.taxed ? 'counts as declared income' : 'not taxed') + line('HMRC notice it', w.suspect >= 1 ? 'fully' : w.suspect > 0 ? 'a little' : 'not at all')
+      + (id === 'smurf' ? line('Risk', 'a bank may flag a deposit: some of the day\'s money frozen and heat +6') : '')
+      + (id === 'casino' ? line('Risk', 'big spenders get reported (heat +5)') : '')
+      + (id === 'crypto' ? line('Risk', `${pct(w.freeze)} chance an exchange freezes the account and keeps half`) : '')
+      + (id === 'offshore' ? line('Safe from', 'raids, busts and rival crews') : ''));
+  }
+  if (kind === 'front') {
+    const f = FRONTS[id];
+    return T(`${f.emoji} ${f.name}`, '<p>A cash business. Every morning it puts up to its limit of your dirty cash through its own books, so it doesn\'t use up your shops\' takings.</p>'
+      + line('Washes', `${money(f.cap)} a night`) + line('Cut', pct(f.fee)) + line('Price', money(f.price)) + line('Unlocks at', `level ${f.level}`)
+      + '<p class="mute">It\'s taxed like any business, and HMRC notice it half as much as money through your tills. An investigation (or a bust) can close it for a few days.</p>');
+  }
   if (kind === 'tax') {
     const e = G.taxEstimate(s), w = s.taxWeek;
     return T('🧾 Tax this week', `<p>Settled every week at 6am. Declaring less pays less, until HMRC looks.</p>`
@@ -530,7 +594,7 @@ function infoFor(kind, id) {
   }
   if (kind === 'heat') {
     return T('🚨 Heat', line('Now', `${Math.round(s.heat)} / 100`) + line('Undercover buyers', `≈ ${Math.round(G.copChance(s) * 100)}%`)
-      + line('Raids from', `${CFG.raidAt} heat`) + line('Tax inspections from', `${CFG.inspectAt} heat`)
+      + line('Raids from', `${CFG.raidAt} heat`) + line('Cash pile', G.cashPileHeat(s) ? `+${Math.round(G.cashPileHeat(s))} heat when police weigh up a raid (wash or stash it)` : 'nothing worth noticing', G.cashPileHeat(s) ? 'bad' : 'good') + line('Tax inspections from', `${CFG.inspectAt} heat`)
       + line('Cools', `${CFG.heatDecayPerHour * (s.crew.fixer ? 2 : 1)} an hour, more after ${CFG.lieLowAfterHours}h without trade`)
       + `<p><b>What raises it</b><br><small>Each cook, each bag sold, laundering too much, serving undercover officers (+${CFG.copServedHeat}), Jay getting caught.</small></p>`
       + `<p class="mute">Police check at 6am, going by how hot it got the day before. At 100, or if a raid finds product, you're <b>busted</b>: fined, everything seized, the back room sealed for ${CFG.bustSealHours / 24} days, crew lost, and a scandal in the papers.</p>`);
@@ -591,13 +655,14 @@ function tabsList() {
   const tabs = [['kitchen', '🍳 Kitchen'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['back', `💜 Back room${s.door.length ? ` (${s.door.length})` : ''}`]);
   if (s.labUnlocked && s.level >= 6) tabs.push(['turf', '🗺️ Turf']);
+  if (s.labUnlocked) tabs.push(['wash', '🧼 Wash']);
   tabs.push(['orders', `📦 Orders${s.orders.length ? ` (${s.orders.length})` : ''}`], ['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['shops', '🏪 Shops'], ['bank', '🏦 Bank']);
   return tabs;
 }
 function dockHTML() {
   const tabs = tabsList();
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'kitchen';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, orders: ordersTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, orders: ordersTab, wash: washTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
@@ -702,7 +767,7 @@ function reportModal(m) {
       ${t.pricedOut ? line('Put off by prices', t.pricedOut, 'meh') : ''}${line('Batches', t.batches)}${t.burnt ? line('Spoiled in a machine', t.burnt, 'bad') : ''}
       ${line('Ingredients bought', '-' + money(t.ingSpent))}${t.upgradesSpent ? line('Spent on the business', '-' + money(t.upgradesSpent)) : ''}
       ${line('Rent, rates and wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
-      ${t.income ? line('Property income', money(t.income), 'good') : ''}${t.laundered ? line('Laundered', money(t.laundered)) : ''}
+      ${t.income ? line('Property income', money(t.income), 'good') : ''}${t.laundered || t.washed ? line('Laundered', money(t.laundered + (t.washed || 0))) : ''}
       ${t.interest ? line('Interest on arrears', '-' + money(t.interest), 'bad') : ''}${line('XP earned', `+${Math.round(t.xp)}`, 'good')}</div>
     ${night}${t.events.slice(-12).map(e => `<div class="card ${e.kind === 'bad' ? 'alert' : ''}">${e.text}</div>`).join('')}
     ${r.tax ? `<div class="card"><h3>🧾 HMRC</h3>${line('VAT', money(r.tax.vat))}${line('Corporation tax', money(r.tax.corp))}${line('Employer NI', money(r.tax.ni))}${line('Total', money(r.tax.total), 'bad')}</div>` : ''}
@@ -722,6 +787,9 @@ function awayModal(m) {
       ${line('Bakery takings', '+' + money(a.after.sales - a.before.sales), 'good')}
       ${line('Clean cash', `${money(a.after.clean)} (${d('clean')})`)}
       ${s.labUnlocked ? line('Bags sold', (a.after.bags - a.before.bags).toLocaleString('en-GB')) + line('Dirty cash', `${money(a.after.dirty)} (${d('dirty')})`) + line('Heat', `${Math.round(a.before.heat)} → ${Math.round(a.after.heat)}`) : ''}
+      ${a.after.washed > a.before.washed ? line('Laundered', money(a.after.washed - a.before.washed)) : ''}
+      ${a.after.orders > a.before.orders ? line('Orders delivered', a.after.orders - a.before.orders, 'good') : ''}
+      ${a.after.tax > a.before.tax ? line('Paid to HMRC', money(a.after.tax - a.before.tax), 'bad') : ''}
       ${line('Popularity', `${Math.round(a.before.rep)} → ${Math.round(a.after.rep)}`)}
       ${a.after.level > a.before.level ? line('Level', `${a.before.level} → ${a.after.level}`, 'good') : ''}
       ${a.after.balance > a.before.balance + 1 ? line('Debt', `${money(a.before.balance)} → ${money(a.after.balance)}`, 'bad') : ''}</div>
@@ -919,7 +987,7 @@ function act(el) {
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
     case 'tab':
       if (id === 'design') openDesign();
-      else { ui.tab = id; ui.dockMin = false; if (id === 'back' || id === 'turf') { ui.room = 'back'; G.viewShop(s, 0); } }
+      else { ui.tab = id; ui.dockMin = false; if (id === 'back' || id === 'turf' || id === 'wash') { ui.room = 'back'; G.viewShop(s, 0); } }
       break;
     case 'dockmin': ui.dockMin = !ui.dockMin; break;
     case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') { G.viewShop(s, 0); ui.tab = 'back'; } else if (ui.tab === 'back') ui.tab = 'kitchen'; break;
@@ -982,6 +1050,14 @@ function act(el) {
     case 'bribe': G.bribe(s); break;
     case 'cut': G.setCut(s, id, el.dataset.cut); break;
     case 'declare': G.setDeclare(s, id); break;
+    case 'wash': G.washVia(s, id, el.dataset.n === 'max' ? Infinity : Number(el.dataset.n)); break;
+    case 'art': G.buyArt(s, el.dataset.n === 'max' ? Infinity : Number(el.dataset.n)); break;
+    case 'smurf': G.setSmurfing(s, Number(el.dataset.n)); break;
+    case 'offshore-in': G.stashOffshore(s, el.dataset.n === 'max' ? s.dirty : Number(el.dataset.n)); break;
+    case 'offshore-clean': G.bringBack(s, Infinity, true); break;
+    case 'offshore-dirty': G.bringBack(s, s.wash.offshore, false); break;
+    case 'front-buy': G.buyFront(s, id); break;
+    case 'front-toggle': G.toggleFront(s, id); break;
     case 'hmrc': G.payHmrc(s); break;
     case 'order': G.deliverOrder(s, Number(id)); break;
     case 'order-drop': G.dropOrder(s, Number(id)); break;
@@ -1092,7 +1168,8 @@ app.addEventListener('wheel', e => {
 // are played forward quietly and summed up in "While you were away".
 let vt = Math.max(Date.now(), s.last || 0);
 const snapshot = () => ({ clean: s.clean, dirty: s.dirty, heat: s.heat, rep: s.rep, level: s.level, balance: s.balance,
-  sales: s.stats.totalSales, bags: s.stats.totalBags, served: s.stats.served || 0, missed: s.stats.missed || 0 });
+  sales: s.stats.totalSales, bags: s.stats.totalBags, served: s.stats.served || 0, missed: s.stats.missed || 0,
+  washed: s.stats.totalLaundered || 0, tax: s.stats.taxPaid || 0, orders: s.stats.orders || 0 });
 function catchUp(to) {
   const from = s.last, before = snapshot();
   G.advance(s, to);
