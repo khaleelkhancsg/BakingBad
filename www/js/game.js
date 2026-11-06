@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -72,13 +72,15 @@ export const ownsShop = (s, id) => s.shops.some(x => x.id === id);
 export const shopWith = (s, type) => s.shops.findIndex(x => SHOPS[x.id].machines.includes(type));
 export const nextShops = s => Object.keys(SHOPS).filter(id => !ownsShop(s, id));
 // The nth shop always costs more than the one before it
+export const shopPrice = s => Math.round(SHOP_BASE * Math.pow(SHOP_GROW, s.shops.length - 1));
 export function buyShop(s, id) {
   const d = SHOPS[id];
   if (!d || ownsShop(s, id)) return;
   if (!unlocked(s, d.level)) return say(`${d.name} opens up at level ${d.level}.`, 'bad');
-  if (s.clean < d.price) return say('Not enough clean cash.', 'bad');
-  s.clean = round2(s.clean - d.price); s.today.upgradesSpent += d.price;
-  s.shops.push(makeShop(id));
+  const price = shopPrice(s);
+  if (s.clean < price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - price); s.today.upgradesSpent += price;
+  s.shops.push({ ...makeShop(id), paid: price });
   if (s.labUnlocked && !s.vans.count) { s.vans.count = 1; note(s, '🚚 Rosa\'s first delivery van comes with the branch: it can run what the branch back room makes to the stall.', 'info'); }
   say(`${d.emoji} ${d.name} is open. Fit it out with its machines.`, 'good');
 }
@@ -93,7 +95,7 @@ export const tokenBonus = s => 1 + PRESTIGE.tokenBonus * (s.prestige?.total || 0
 export function netWorth(s) {
   let v = s.clean + s.dirty + (s.wash?.offshore || 0) + (s.wash?.art || []).reduce((a, x) => a + x.amount, 0);
   for (const x of s.shops) {
-    v += SHOPS[x.id].price;
+    v += x.paid || 0;
     for (const m of x.machines) v += MACHINES[m.type].price * (1 + 0.5 * (m.tier || 0));
     for (const m of x.lab) v += LAB_MACHINES[m.type].price * (1 + 0.5 * (m.tier || 0));
   }
@@ -751,7 +753,7 @@ export function sendVan(s, i, t = s.clock, quiet = false) {
   }
   const total = Object.values(cargo).reduce((a, c) => a + c.n, 0);
   if (!total) { if (!quiet) say('Nothing packed to send.', 'bad'); return false; }
-  s.shipments.push({ id: s.nextId++, from: i, cargo, bags: total, arrive: t + VANS.travelHours[Math.min(i, VANS.travelHours.length - 1)] * HOUR });
+  s.shipments.push({ id: s.nextId++, from: i, cargo, bags: total, arrive: t + SHOPS[x.id].drive * HOUR });
   if (!quiet) say(`🚚 A van leaves ${SHOPS[x.id].short} with ${total} bags under the bread trays.`, 'good');
   return true;
 }

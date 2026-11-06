@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS, VANS, DELIVERY, PRESTIGE, PERKS } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_GROW } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -197,7 +197,7 @@ function backTab() {
   // A branch back room packs for the stall
   if (s.cur) {
     const st = s.stock, n = G.packed(s, s.cur);
-    cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${VANS.travelHours[Math.min(s.cur, 4)]}h to the stall</small></div></div>
+    cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${G.shopDef(s).drive}h to the stall</small></div></div>
       <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button><button class="small" data-act="tab" data-id="logistics">Fleet</button></div>`, ibtn('vans', 'x'), 'wide night');
   }
   // Street reputation
@@ -293,7 +293,7 @@ function logisticsTab() {
   s.shops.forEach((x, i) => {
     if (!i) return;
     const n = G.packed(s, i);
-    cards += pcard(`<div class="ptop"><span class="em">${SHOPS[x.id].emoji}</span><div><b>${SHOPS[x.id].short}</b><small>${n} bags packed · ${VANS.travelHours[Math.min(i, 4)]}h drive</small></div></div>
+    cards += pcard(`<div class="ptop"><span class="em">${SHOPS[x.id].emoji}</span><div><b>${SHOPS[x.id].short}</b><small>${n} bags packed · ${SHOPS[x.id].drive}h drive</small></div></div>
       <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${i}" ${n && G.vansFree(s) ? '' : 'disabled'}>Send a van</button></div>`, '', 'night');
   });
   // Delivery rounds
@@ -378,7 +378,7 @@ function shopsTab() {
         ibtn('shop', id), `wide hired`);
     } else {
       cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.name}</b><small>${what} · prices ×${d.priceMult}<br>rent ${money(d.rent)}/day · launders ${money(d.launder)}/day</small></div></div>
-        ${!open ? lockTag(d.level) : `<div class="pbtns"><button class="small primary" data-act="shop-buy" data-id="${id}" ${s.clean < d.price ? 'disabled' : ''}>Open · ${money(d.price)}</button></div>`}`,
+        ${!open ? lockTag(d.level) : `<div class="pbtns"><button class="small primary" data-act="shop-buy" data-id="${id}" ${s.clean < G.shopPrice(s) ? 'disabled' : ''}>Open · ${money(G.shopPrice(s))}</button></div>`}`,
         ibtn('shop', id), `wide ${open ? '' : 'locked'}`);
     }
   });
@@ -389,7 +389,7 @@ function shopsTab() {
       ${owned ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(p.level) : `<div class="pbtns"><button class="small primary" data-act="property" data-id="${id}" ${s.clean < p.price ? 'disabled' : ''}>${money(p.price)}</button></div>`}`,
       ibtn('property', id), `wide ${open ? '' : 'locked'} ${owned ? 'hired' : ''}`);
   }
-  return { cards, hint: `Every branch costs far more than the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Rent: ${money(G.shopRent(s))} a day.` };
+  return { cards, hint: `Each shop runs four machine types (up to three of each) front and back; every branch costs ${SHOP_GROW}× the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Rent: ${money(G.shopRent(s))} a day.` };
 }
 
 function marketingTab() {
@@ -632,7 +632,7 @@ function infoFor(kind, id) {
     const d = SHOPS[id], owned = s.shops.some(x => x.id === id);
     return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the stall's`)
       + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent)} a day`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
-      + (owned ? '' : line('Opening costs', money(d.price))) + line('Unlocks at', `level ${d.level}`)
+      + (owned ? '' : line('Opening costs', `${money(G.shopPrice(s))} (each branch costs ${SHOP_GROW}× the last)`)) + line('Unlocks at', `level ${d.level}`)
       + line('Back room', d.lab.map(k => `${LAB_MACHINES[k].emoji} ${LAB_MACHINES[k].name}`).join(', '))
       + '<p class="mute">Each shop has its own machines, case, menu and design, and its own back room and back door, and they all trade at once. Your crew work every shop; bags and kits are shared.</p>');
   }
@@ -756,7 +756,7 @@ function mapPanel() {
   const next = G.nextShops(s)[0];
   if (next) {
     const d = SHOPS[next], open = G.unlocked(s, d.level);
-    places.push(`<button class="place new ${open ? '' : 'locked'}" data-act="tab" data-id="shops"><span>${d.emoji}</span><b>${d.short}</b><small>${open ? `open for ${money(d.price)}` : `🔒 level ${d.level}`}</small></button>`);
+    places.push(`<button class="place new ${open ? '' : 'locked'}" data-act="tab" data-id="shops"><span>${d.emoji}</span><b>${d.short}</b><small>${open ? `open for ${money(G.shopPrice(s))}` : `🔒 level ${d.level}`}</small></button>`);
   }
   return `<div class="panel mappanel"><h4>Where to?</h4><div class="places">${places.join('')}</div></div>`;
 }

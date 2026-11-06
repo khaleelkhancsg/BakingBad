@@ -45,7 +45,7 @@ bigger batches and cover the hours you're out or asleep. Later recipes sell for 
 | 🍣 Sushi counter, 🍗 Rotisserie, 🍭 Sweet machine | 68, 76, 84 |
 | 👑 Grand patisserie | 92 |
 
-The stall only has room for the first six; the rest are fitted in Rosa's branches (see Shops).
+The stall only takes the first four; the rest are fitted in Rosa's branches (see Shops). You can run at most three of any machine in a shop.
 
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
 the kitchen island, food carts, side stalls and back-room benches (Design → Expand) add more spots. At the limit the buy
@@ -62,19 +62,19 @@ machines, but only the stall has buyers: branch back rooms pack what they make i
 the stall under the bakery's own deliveries (see Logistics). Bags, kits, heat, turf and laundering are shared. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
 buyers at the back door after dark. The products are parodies of real ones; the "chemistry" is all game mechanics.
 
-| Machine (back room of) | Products |
+| Machine (level) | Products |
 |---|---|
-| 🌿 Grow tent (stall, 1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
-| ♨️ Burner (stall, 4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
-| 💊 Pill press (stall, 12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
-| 🍄 Drying rack (café, 16) | Magic Mushies, Golden Caps |
-| 🧱 Brick press (café, 22) | Bricks, Snowman, Avalanche, Pure Paradise |
-| ⚗️ Still (café, 28) | Purple Sip, Double Cup |
-| 🏺 Curing oven (deli, 30) | Rocky Road Hash, Moonrock |
-| 🧁 Edibles oven (deli, 34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
-| 🧪 Lab bench (bistro, 42) | Rainbow Tabs, Blotter Art |
-| 🛢️ Mixing vat (bistro, 50) | Donkey Dust, Party Balloons |
-| 🔮 Clean room (maison, 68) | Diamond Dust, Unicorn Tears, The Gold Standard |
+| 🌿 Grow tent (1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
+| ♨️ Burner (4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
+| 💊 Pill press (12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
+| 🍄 Drying rack (16) | Magic Mushies, Golden Caps |
+| 🧱 Brick press (22) | Bricks, Snowman, Avalanche, Pure Paradise |
+| ⚗️ Still (28) | Purple Sip, Double Cup |
+| 🏺 Curing oven (30) | Rocky Road Hash, Moonrock |
+| 🧁 Edibles oven (34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
+| 🧪 Lab bench (42) | Rainbow Tabs, Blotter Art |
+| 🛢️ Mixing vat (50) | Donkey Dust, Party Balloons |
+| 🔮 Clean room (68) | Diamond Dust, Unicorn Tears, The Gold Standard |
 
 - **Purity** decides what a bag is worth (60% sells at the list price). It comes from the machine's tier, back-room
   upgrades (scales, extractor hood, filters, purity tester), Doc and Pip.
@@ -130,15 +130,19 @@ a friendly bank manager doubles smurfing limits.
 
 ## Shops
 
-Rosa's stall is where it starts. Branches open as you level up, and each costs far more than the one before:
+Rosa's stall is where it starts. Every shop runs four kitchen machine types and four back-room machine types, at most
+three of each. Branches open as you level up; each one you open costs five times the one before (£20,000 for the
+second, then £100,000, £500,000 and on up to £62.5M for the seventh), whichever branch it is:
 
-| Shop | Level | Opens for | Machines | Prices | Launders |
+| Shop | Level | Kitchen | Back room | Prices | Launders |
 |---|---|---|---|---|---|
-| 🥖 Rosa's Bakery (the stall) | 1 | | oven, mixer, fryer, drinks, ice cream, grill | ×1 | takings only |
-| ☕ Rosa's Café, Kingsmere | 16 | £30,000 | pizza oven, griddle, steamer, noodle bar, drinks | ×1.15 | +£2,500 a day |
-| 🧀 Rosa's Deli, Ashford | 39 | £400,000 | chocolate station, smoker, patisserie bench, drinks | ×1.3 | +£12,000 |
-| 🍷 Rosa's Bistro, Harbourside | 61 | £3M | drinks bar, sushi counter, rotisserie, ice cream | ×1.5 | +£45,000 |
-| 👑 Maison Rosa, The Capital | 84 | £15M | sweet machine, grand patisserie, patisserie bench, drinks bar | ×1.75 | +£150,000 |
+| 🥖 Rosa's Bakery (the stall) | 1 | oven, mixer, fryer, drinks | grow tent, burner, pill press, drying rack | ×1 | takings only |
+| ☕ Rosa's Café, Kingsmere | 7 | ice cream, grill, pizza oven, griddle | brick press, still, curing oven, edibles oven | ×1.1 | +£1,500 a day |
+| 🧀 Rosa's Deli, Ashford | 27 | steamer, noodle bar, chocolate station, smoker | lab bench, mixing vat, clean room, burner | ×1.2 | +£6,000 |
+| 🚉 Rosa's Express, the Station | 35 | oven, mixer, fryer, drinks | grow tent, burner, pill press, drying rack | ×1.25 | +£10,000 |
+| 🍷 Rosa's Bistro, Harbourside | 53 | patisserie bench, drinks bar, sushi counter, rotisserie | brick press, still, curing oven, edibles oven | ×1.45 | +£30,000 |
+| 🍨 Gelateria Rosa, the Pier | 70 | ice cream, grill, pizza oven, griddle | lab bench, mixing vat, clean room, pill press | ×1.6 | +£60,000 |
+| 👑 Maison Rosa, The Capital | 84 | sweet machine, grand patisserie, patisserie bench, drinks bar | clean room, lab bench, mixing vat, brick press | ×1.75 | +£150,000 |
 
 Each shop has its own machines, case, menu and design, pays its own rent, and they all trade at once (your crew work
 every one). Each shop you own brings 5% more customers to all of them. Move between shops with 🗺️ Map; open new

@@ -95,7 +95,7 @@ function checkIn(s, st, t, next) {
     s.machines.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0) < spare() * 0.15) G.upgradeMachine(s, i); });
   });
   // The next branch, once it's affordable
-  for (const id of G.nextShops(s)) if (G.unlocked(s, SHOPS[id].level) && SHOPS[id].price < spare() * 0.5) G.buyShop(s, id);
+  for (const id of G.nextShops(s)) if (G.unlocked(s, SHOPS[id].level) && G.shopPrice(s) < spare() * 0.5) G.buyShop(s, id);
   hireIf('souschef', spare() > 8000);
   hireIf('director', spare() > 20000);
   // Pay down the debt with anything well beyond what we need

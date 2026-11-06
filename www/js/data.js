@@ -197,24 +197,24 @@ export const INGREDIENTS = {
 
 // Kitchen machines. caps: [level, how many you may own from that level]. model: which 3D shape to use.
 export const MACHINES = {
-  oven:       { name: 'Oven',              plural: 'ovens',              emoji: '🔥', level: 1,  price: 800,   free: 2, caps: [[1, 2], [5, 3], [14, 4]], verb: 'Baking',   spoil: 'burnt',  model: 'oven' },
-  mixer:      { name: 'Mixer',             plural: 'mixers',             emoji: '🥣', level: 1,  price: 500,   free: 1, caps: [[1, 1], [8, 2]],          verb: 'Mixing',   spoil: 'spoiled', model: 'mixer' },
-  fryer:      { name: 'Fryer',             plural: 'fryers',             emoji: '🍳', level: 2,  price: 700,   caps: [[2, 1], [26, 2]],                  verb: 'Frying',   spoil: 'burnt',  model: 'fryer' },
-  drinks:     { name: 'Drinks machine',    plural: 'drinks machines',    emoji: '☕', level: 4,  price: 900,   caps: [[4, 1], [30, 2]],                  verb: 'Brewing',  spoil: 'gone cold', model: 'drinks' },
-  icecream:   { name: 'Ice cream machine', plural: 'ice cream machines', emoji: '🍦', level: 7,  price: 1100,  caps: [[7, 1]],                           verb: 'Churning', spoil: 'melted', model: 'icecream' },
-  grill:      { name: 'Sandwich grill',    plural: 'grills',             emoji: '🥪', level: 11, price: 1000,  caps: [[11, 1]],                          verb: 'Grilling', spoil: 'burnt',  model: 'grill' },
-  pizza:      { name: 'Pizza oven',        plural: 'pizza ovens',        emoji: '🍕', level: 16, price: 2200,  caps: [[16, 1]],                          verb: 'Firing',   spoil: 'burnt',  model: 'pizza' },
-  griddle:    { name: 'Crêpe griddle',     plural: 'griddles',           emoji: '🫓', level: 21, price: 2600,  caps: [[21, 1]],                          verb: 'Cooking',  spoil: 'burnt',  model: 'grill', tint: '#d9a066' },
-  steamer:    { name: 'Dim sum steamer',   plural: 'steamers',           emoji: '🎍', level: 27, price: 3200,  caps: [[27, 1]],                          verb: 'Steaming', spoil: 'gone soggy', model: 'steamer' },
-  noodles:    { name: 'Noodle bar',        plural: 'noodle bars',        emoji: '🍜', level: 33, price: 3800,  caps: [[33, 1]],                          verb: 'Simmering', spoil: 'gone soggy', model: 'steamer', tint: '#c8323c' },
-  choc:       { name: 'Chocolate station', plural: 'chocolate stations', emoji: '🍫', level: 39, price: 4600,  caps: [[39, 1]],                          verb: 'Tempering', spoil: 'bloomed', model: 'mixer', tint: '#5a3320' },
-  bbq:        { name: 'Smoker',            plural: 'smokers',            emoji: '🍖', level: 46, price: 5500,  caps: [[46, 1]],                          verb: 'Smoking',  spoil: 'dried out', model: 'pizza', tint: '#2b2d36' },
-  patisserie: { name: 'Patisserie bench',  plural: 'patisserie benches', emoji: '🧁', level: 53, price: 6800,  caps: [[53, 1]],                          verb: 'Assembling', spoil: 'collapsed', model: 'mixer', tint: '#ffd6de' },
-  bar:        { name: 'Drinks bar',        plural: 'drinks bars',        emoji: '🍹', level: 61, price: 8200,  caps: [[61, 1]],                          verb: 'Mixing',   spoil: 'gone flat', model: 'drinks', tint: '#3cc6c6' },
-  sushi:      { name: 'Sushi counter',     plural: 'sushi counters',     emoji: '🍣', level: 68, price: 9500,  caps: [[68, 1]],                          verb: 'Rolling',  spoil: 'spoiled', model: 'steamer', tint: '#f4f0e8' },
-  rotisserie: { name: 'Rotisserie',        plural: 'rotisseries',        emoji: '🍗', level: 76, price: 11000, caps: [[76, 1]],                          verb: 'Roasting', spoil: 'dried out', model: 'pizza', tint: '#c9ccd3' },
-  candy:      { name: 'Sweet machine',     plural: 'sweet machines',     emoji: '🍭', level: 84, price: 13000, caps: [[84, 1]],                          verb: 'Spinning', spoil: 'gone sticky', model: 'icecream', tint: '#b58cff' },
-  grand:      { name: 'Grand patisserie',  plural: 'grand patisseries',  emoji: '👑', level: 92, price: 16000, caps: [[92, 1]],                          verb: 'Creating', spoil: 'spoiled', model: 'oven', tint: '#d4af37' },
+  oven:       { name: 'Oven',              plural: 'ovens',              emoji: '🔥', level: 1,  price: 800,   free: 2, caps: [[1, 2], [5, 3]], verb: 'Baking',   spoil: 'burnt',  model: 'oven' },
+  mixer:      { name: 'Mixer',             plural: 'mixers',             emoji: '🥣', level: 1,  price: 500,   free: 1, caps: [[1, 1], [9, 2], [21, 3]],          verb: 'Mixing',   spoil: 'spoiled', model: 'mixer' },
+  fryer:      { name: 'Fryer',             plural: 'fryers',             emoji: '🍳', level: 2,  price: 700,   caps: [[2, 1], [10, 2], [22, 3]],                  verb: 'Frying',   spoil: 'burnt',  model: 'fryer' },
+  drinks:     { name: 'Drinks machine',    plural: 'drinks machines',    emoji: '☕', level: 4,  price: 900,   caps: [[4, 1], [12, 2], [24, 3]],                  verb: 'Brewing',  spoil: 'gone cold', model: 'drinks' },
+  icecream:   { name: 'Ice cream machine', plural: 'ice cream machines', emoji: '🍦', level: 7,  price: 1100,  caps: [[7, 1], [15, 2], [27, 3]],                           verb: 'Churning', spoil: 'melted', model: 'icecream' },
+  grill:      { name: 'Sandwich grill',    plural: 'grills',             emoji: '🥪', level: 11, price: 1000,  caps: [[11, 1], [19, 2], [31, 3]],                          verb: 'Grilling', spoil: 'burnt',  model: 'grill' },
+  pizza:      { name: 'Pizza oven',        plural: 'pizza ovens',        emoji: '🍕', level: 16, price: 2200,  caps: [[16, 1], [24, 2], [36, 3]],                          verb: 'Firing',   spoil: 'burnt',  model: 'pizza' },
+  griddle:    { name: 'Crêpe griddle',     plural: 'griddles',           emoji: '🫓', level: 21, price: 2600,  caps: [[21, 1], [29, 2], [41, 3]],                          verb: 'Cooking',  spoil: 'burnt',  model: 'grill', tint: '#d9a066' },
+  steamer:    { name: 'Dim sum steamer',   plural: 'steamers',           emoji: '🎍', level: 27, price: 3200,  caps: [[27, 1], [35, 2], [47, 3]],                          verb: 'Steaming', spoil: 'gone soggy', model: 'steamer' },
+  noodles:    { name: 'Noodle bar',        plural: 'noodle bars',        emoji: '🍜', level: 33, price: 3800,  caps: [[33, 1], [41, 2], [53, 3]],                          verb: 'Simmering', spoil: 'gone soggy', model: 'steamer', tint: '#c8323c' },
+  choc:       { name: 'Chocolate station', plural: 'chocolate stations', emoji: '🍫', level: 39, price: 4600,  caps: [[39, 1], [47, 2], [59, 3]],                          verb: 'Tempering', spoil: 'bloomed', model: 'mixer', tint: '#5a3320' },
+  bbq:        { name: 'Smoker',            plural: 'smokers',            emoji: '🍖', level: 46, price: 5500,  caps: [[46, 1], [54, 2], [66, 3]],                          verb: 'Smoking',  spoil: 'dried out', model: 'pizza', tint: '#2b2d36' },
+  patisserie: { name: 'Patisserie bench',  plural: 'patisserie benches', emoji: '🧁', level: 53, price: 6800,  caps: [[53, 1], [61, 2], [73, 3]],                          verb: 'Assembling', spoil: 'collapsed', model: 'mixer', tint: '#ffd6de' },
+  bar:        { name: 'Drinks bar',        plural: 'drinks bars',        emoji: '🍹', level: 61, price: 8200,  caps: [[61, 1], [69, 2], [81, 3]],                          verb: 'Mixing',   spoil: 'gone flat', model: 'drinks', tint: '#3cc6c6' },
+  sushi:      { name: 'Sushi counter',     plural: 'sushi counters',     emoji: '🍣', level: 68, price: 9500,  caps: [[68, 1], [76, 2], [88, 3]],                          verb: 'Rolling',  spoil: 'spoiled', model: 'steamer', tint: '#f4f0e8' },
+  rotisserie: { name: 'Rotisserie',        plural: 'rotisseries',        emoji: '🍗', level: 76, price: 11000, caps: [[76, 1], [84, 2], [96, 3]],                          verb: 'Roasting', spoil: 'dried out', model: 'pizza', tint: '#c9ccd3' },
+  candy:      { name: 'Sweet machine',     plural: 'sweet machines',     emoji: '🍭', level: 84, price: 13000, caps: [[84, 1], [92, 2], [99, 3]],                          verb: 'Spinning', spoil: 'gone sticky', model: 'icecream', tint: '#b58cff' },
+  grand:      { name: 'Grand patisserie',  plural: 'grand patisseries',  emoji: '👑', level: 92, price: 16000, caps: [[92, 1], [97, 2], [99, 3]],                          verb: 'Creating', spoil: 'spoiled', model: 'oven', tint: '#d4af37' },
 };
 export const MACHINE_PRICE_STEP = 0.35;
 
@@ -469,17 +469,17 @@ export const START_RECIPES = ['sourdough', 'croissant', 'cookies', 'pancakes'];
 // The back room: machines and what they make. All the "chemistry" is game mechanics: kits come from Dez,
 // a cook takes time, and purity, cutting and equipment tiers decide what a bag is worth.
 export const LAB_MACHINES = {
-  tent:       { name: 'Grow tent',     plural: 'grow tents',    emoji: '🌿', level: 1,  price: 1200,  free: 1, caps: [[1, 1], [8, 2], [24, 3]], verb: 'Growing', model: 'tent' },
-  burner:     { name: 'Burner',        plural: 'burners',       emoji: '♨️', level: 4,  price: 1800,  caps: [[4, 1], [18, 2], [45, 3]], verb: 'Cooking', model: 'burner' },
-  pillpress:  { name: 'Pill press',    plural: 'pill presses',  emoji: '💊', level: 12, price: 4500,  caps: [[12, 1], [40, 2]], verb: 'Pressing', model: 'press', tint: '#e8b9d6' },
-  dryer:      { name: 'Drying rack',   plural: 'drying racks',  emoji: '🍄', level: 16, price: 5500,  caps: [[16, 1], [50, 2]], verb: 'Drying', model: 'rack' },
-  brickpress: { name: 'Brick press',   plural: 'brick presses', emoji: '🧱', level: 22, price: 9000,  caps: [[22, 1], [60, 2]], verb: 'Pressing', model: 'press' },
-  still:      { name: 'Still',         plural: 'stills',        emoji: '⚗️', level: 28, price: 12000, caps: [[28, 1]], verb: 'Brewing', model: 'still' },
-  kiln:       { name: 'Curing oven',   plural: 'curing ovens',  emoji: '🏺', level: 30, price: 15000, caps: [[30, 1]], verb: 'Curing', model: 'kiln' },
-  edibles:    { name: 'Edibles oven',  plural: 'edibles ovens', emoji: '🧁', level: 34, price: 16000, caps: [[34, 1]], verb: 'Baking', model: 'oven', tint: '#9c7bd6' },
-  lab:        { name: 'Lab bench',     plural: 'lab benches',   emoji: '🧪', level: 42, price: 24000, caps: [[42, 1]], verb: 'Dropping', model: 'chamber' },
-  vat:        { name: 'Mixing vat',    plural: 'mixing vats',   emoji: '🛢️', level: 50, price: 32000, caps: [[50, 1]], verb: 'Mixing', model: 'still', tint: '#7fb8a0' },
-  chamber:    { name: 'Clean room',    plural: 'clean rooms',   emoji: '🔮', level: 68, price: 60000, caps: [[68, 1], [90, 2]], verb: 'Refining', model: 'chamber' },
+  tent:       { name: 'Grow tent',     plural: 'grow tents',    emoji: '🌿', level: 1,  price: 1200,  free: 1, caps: [[1, 1], [9, 2], [21, 3]], verb: 'Growing', model: 'tent' },
+  burner:     { name: 'Burner',        plural: 'burners',       emoji: '♨️', level: 4,  price: 1800,  caps: [[4, 1], [12, 2], [24, 3]], verb: 'Cooking', model: 'burner' },
+  pillpress:  { name: 'Pill press',    plural: 'pill presses',  emoji: '💊', level: 12, price: 4500,  caps: [[12, 1], [20, 2], [32, 3]], verb: 'Pressing', model: 'press', tint: '#e8b9d6' },
+  dryer:      { name: 'Drying rack',   plural: 'drying racks',  emoji: '🍄', level: 16, price: 5500,  caps: [[16, 1], [24, 2], [36, 3]], verb: 'Drying', model: 'rack' },
+  brickpress: { name: 'Brick press',   plural: 'brick presses', emoji: '🧱', level: 22, price: 9000,  caps: [[22, 1], [30, 2], [42, 3]], verb: 'Pressing', model: 'press' },
+  still:      { name: 'Still',         plural: 'stills',        emoji: '⚗️', level: 28, price: 12000, caps: [[28, 1], [36, 2], [48, 3]], verb: 'Brewing', model: 'still' },
+  kiln:       { name: 'Curing oven',   plural: 'curing ovens',  emoji: '🏺', level: 30, price: 15000, caps: [[30, 1], [38, 2], [50, 3]], verb: 'Curing', model: 'kiln' },
+  edibles:    { name: 'Edibles oven',  plural: 'edibles ovens', emoji: '🧁', level: 34, price: 16000, caps: [[34, 1], [42, 2], [54, 3]], verb: 'Baking', model: 'oven', tint: '#9c7bd6' },
+  lab:        { name: 'Lab bench',     plural: 'lab benches',   emoji: '🧪', level: 42, price: 24000, caps: [[42, 1], [50, 2], [62, 3]], verb: 'Dropping', model: 'chamber' },
+  vat:        { name: 'Mixing vat',    plural: 'mixing vats',   emoji: '🛢️', level: 50, price: 32000, caps: [[50, 1], [58, 2], [70, 3]], verb: 'Mixing', model: 'still', tint: '#7fb8a0' },
+  chamber:    { name: 'Clean room',    plural: 'clean rooms',   emoji: '🔮', level: 68, price: 60000, caps: [[68, 1], [76, 2], [88, 3]], verb: 'Refining', model: 'chamber' },
 };
 // Parody products (nothing here is a real recipe). share: how often buyers ask for it. heat: per cook.
 // cop: extra chance a buyer wanting it is undercover. ing: bakery stock it also uses (edibles).
@@ -563,17 +563,23 @@ export const CORNERS = {
 // more for the same food. Branches are also fronts: each lets you launder more every day.
 // lab: the back-room machines that shop's back room takes (each branch has its own back room and back door)
 export const SHOPS = {
-  stall:   { name: "Rosa's Bakery",        short: 'The stall', emoji: '🥖', level: 1,  price: 0,       rent: 40,    priceMult: 1,   cust: 1,
-             launder: 0,     machines: ['oven', 'mixer', 'fryer', 'drinks', 'icecream', 'grill'], lab: ['tent', 'burner', 'pillpress'], floor: 'checker', wall: 'plaster', sign: "Rosa's Bakery" },
-  cafe:    { name: "Rosa's Café, Kingsmere", short: 'The café', emoji: '☕', level: 16, price: 30000,   rent: 300,   priceMult: 1.15, cust: 0.6,
-             launder: 2500,  machines: ['pizza', 'griddle', 'steamer', 'noodles', 'drinks'], lab: ['dryer', 'brickpress', 'still'], floor: 'wood', wall: 'brick', sign: "Rosa's Café" },
-  deli:    { name: "Rosa's Deli, Ashford",  short: 'The deli', emoji: '🧀', level: 39, price: 400000,  rent: 2500,  priceMult: 1.3, cust: 0.5,
-             launder: 12000, machines: ['choc', 'bbq', 'patisserie', 'drinks'], lab: ['kiln', 'edibles'], floor: 'terracotta', wall: 'teal', sign: "Rosa's Deli" },
-  bistro:  { name: "Rosa's Bistro, Harbourside", short: 'The bistro', emoji: '🍷', level: 61, price: 3000000, rent: 10000, priceMult: 1.5, cust: 0.4,
-             launder: 45000, machines: ['bar', 'sushi', 'rotisserie', 'icecream'], lab: ['lab', 'vat'], floor: 'navy', wall: 'damask', sign: "Rosa's Bistro" },
-  maison:  { name: 'Maison Rosa, The Capital', short: 'The maison', emoji: '👑', level: 84, price: 15000000, rent: 40000, priceMult: 1.75, cust: 0.35,
-             launder: 150000, machines: ['candy', 'grand', 'patisserie', 'bar'], lab: ['chamber'], floor: 'blackmarble', wall: 'golden', sign: 'Maison Rosa' },
+  stall:     { name: "Rosa's Bakery",           short: 'The stall',     emoji: '🥖', level: 1,  rent: 40,    priceMult: 1,    cust: 1,    launder: 0,      drive: 0,
+               machines: ['oven', 'mixer', 'fryer', 'drinks'],             lab: ['tent', 'burner', 'pillpress', 'dryer'],    floor: 'checker',     wall: 'plaster', sign: "Rosa's Bakery" },
+  cafe:      { name: "Rosa's Café, Kingsmere",  short: 'The café',      emoji: '☕', level: 7,  rent: 150,   priceMult: 1.1,  cust: 0.6,  launder: 1500,   drive: 1,
+               machines: ['icecream', 'grill', 'pizza', 'griddle'],        lab: ['brickpress', 'still', 'kiln', 'edibles'],   floor: 'wood',        wall: 'brick',   sign: "Rosa's Café" },
+  deli:      { name: "Rosa's Deli, Ashford",    short: 'The deli',      emoji: '🧀', level: 27, rent: 600,   priceMult: 1.2,  cust: 0.55, launder: 6000,   drive: 2,
+               machines: ['steamer', 'noodles', 'choc', 'bbq'],            lab: ['lab', 'vat', 'chamber', 'burner'],          floor: 'terracotta',  wall: 'teal',    sign: "Rosa's Deli" },
+  express:   { name: "Rosa's Express, the Station", short: 'The express', emoji: '🚉', level: 35, rent: 1000, priceMult: 1.25, cust: 0.6,  launder: 10000,  drive: 1,
+               machines: ['oven', 'mixer', 'fryer', 'drinks'],             lab: ['tent', 'burner', 'pillpress', 'dryer'],    floor: 'mint',        wall: 'stripes', sign: "Rosa's Express" },
+  bistro:    { name: "Rosa's Bistro, Harbourside", short: 'The bistro', emoji: '🍷', level: 53, rent: 4000,  priceMult: 1.45, cust: 0.45, launder: 30000,  drive: 3,
+               machines: ['patisserie', 'bar', 'sushi', 'rotisserie'],     lab: ['brickpress', 'still', 'kiln', 'edibles'],   floor: 'navy',        wall: 'damask',  sign: "Rosa's Bistro" },
+  gelateria: { name: 'Gelateria Rosa, the Pier', short: 'The gelateria', emoji: '🍨', level: 70, rent: 9000,  priceMult: 1.6,  cust: 0.4,  launder: 60000,  drive: 3,
+               machines: ['icecream', 'grill', 'pizza', 'griddle'],        lab: ['lab', 'vat', 'chamber', 'pillpress'],       floor: 'rose',        wall: 'mintdot', sign: 'Gelateria Rosa' },
+  maison:    { name: 'Maison Rosa, The Capital', short: 'The maison',   emoji: '👑', level: 84, rent: 20000, priceMult: 1.75, cust: 0.35, launder: 150000, drive: 4,
+               machines: ['candy', 'grand', 'patisserie', 'bar'],          lab: ['chamber', 'lab', 'vat', 'brickpress'],      floor: 'blackmarble', wall: 'golden',  sign: 'Maison Rosa' },
 };
+// Each branch you open costs SHOP_GROW times the one before, whichever it is
+export const SHOP_BASE = 20000, SHOP_GROW = 5;
 
 export const PRICE_LEVELS = {
   low:    { label: 'Low',    mult: 0.8,  buy: 0.97 },
