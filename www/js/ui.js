@@ -1,6 +1,6 @@
 // Screens, input and the main loop.
 import * as G from './game.js';
-import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, CREW, FEATURES, GOLD, MACHINES, CAPS, capAt, nextCap } from './data.js';
+import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, CREW, FEATURES, GOLD, MACHINES, CAPS, capAt, nextCap, CAMPAIGNS } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -66,7 +66,11 @@ function hudHTML() {
       <span class="badge cash" title="Clean cash">💷 ${money(s.clean)}</span>
       ${showDirty ? `<span class="badge cash dirty" title="Dirty cash">💜 ${money(s.dirty)}</span>` : ''}
       ${showDirty ? `<span class="badge heat ${heatCls}" title="Police heat">🚨 <span class="meter"><i style="width:${s.heat}%"></i></span> ${Math.round(s.heat)}</span>` : ''}
-      <span class="badge" title="Reputation">⭐ ${Math.round(s.rep)}</span>
+      <span class="badge" title="Popularity" data-act="info" data-kind="pop" data-id="pop">⭐ ${Math.round(s.rep)}</span>
+      ${s.scandalDays > 0 ? `<span class="badge warn" title="Scandal: fewer customers">📰 Scandal ${s.scandalDays}d</span>` : ''}
+      ${s.sealedNights > 0 ? `<span class="badge warn" title="The back room is sealed">🚧 Sealed ${s.sealedNights}n</span>` : ''}
+      ${s.arrears > 0 && !s.won ? `<span class="badge warn" title="Behind with the bank">🔨 Behind ${money(s.arrears)}</span>` : ''}
+      ${G.activeCampaigns(s).length ? `<span class="badge" title="Marketing running">📣 ${G.activeCampaigns(s).map(c => CAMPAIGNS[c.id].emoji).join('')}</span>` : ''}
       <span class="badge lvl" data-act="info" data-kind="level" data-id="xp" title="Level and XP">🎖️ Lv ${s.level}<span class="meter xp"><i style="width:${Math.min(100, s.xp / G.xpToNext(s.level) * 100)}%"></i></span></span>
     </div>
   </header>`;
@@ -100,6 +104,27 @@ function suppliesTab() {
   return { cards, hint: 'Today\'s market. ▲ dear, ▼ cheap.' };
 }
 
+function marketingTab() {
+  const popCls = s.rep < 30 ? 'hot' : s.rep < 55 ? 'warm' : '';
+  let cards = pcard(`<div class="ptop"><span class="em">⭐</span><div><b>Popularity ${Math.round(s.rep)}</b><small>${s.scandalDays > 0 ? `scandal: ${s.scandalDays} more days` : 'out of 100'}</small></div></div>
+    <span class="heat pop ${popCls}"><span class="meter wide"><i style="width:${s.rep}%"></i></span></span>`, ibtn('pop', 'pop'), 'wide');
+  const pr = CREW.pr, prOpen = G.unlocked(s, pr.level);
+  cards += pcard(`<div class="ptop"><span class="em">${pr.emoji}</span><div><b>${pr.name}</b><small>${pr.role} · 💷 ${money(pr.wage)}/day</small></div></div>
+    ${!prOpen ? `<div class="lockline">Reach level ${pr.level} to hire a PR manager</div>` : `<div class="pbtns">${s.crew.pr ? '<button class="small danger" data-act="fire" data-id="pr">Let go</button>' : '<button class="small" data-act="hire" data-id="pr">Hire</button>'}</div>`}`,
+    ibtn('crew', 'pr'), `${prOpen ? '' : 'locked'} ${s.crew.pr ? 'hired' : ''}`);
+  for (const [id, c] of Object.entries(CAMPAIGNS)) {
+    const running = G.activeCampaigns(s).find(x => x.id === id), block = G.campaignBlock(s, id), open = G.unlocked(s, c.level);
+    const effect = [c.cust ? `+${Math.round(c.cust * 100)}% customers` : '', c.pop ? `+${c.pop} pop/day` : '', c.once ? `+${c.once} pop` : ''].filter(Boolean).join(' · ');
+    const btn = running ? `<span class="lock good">Running · ${running.days}d left</span>`
+      : block ? `<div class="lockline">${block.text}</div>`
+      : `<div class="pbtns"><button class="small primary" data-act="campaign" data-id="${id}" ${s.clean < c.price ? 'disabled' : ''}>${money(c.price)}</button></div>`;
+    cards += pcard(`<div class="ptop"><span class="em">${c.emoji}</span><div><b>${c.name}</b><small>${effect}${c.days > 1 ? ` · ${c.days} days` : ''}</small></div></div>${btn}`,
+      ibtn('campaign', id), `${open ? '' : 'locked'} ${running ? 'hired' : ''}`);
+  }
+  const nx = nextCap(CAPS.campaigns, s.level);
+  return { cards, hint: `Popularity brings customers. Campaigns running: ${G.activeCampaigns(s).length} of ${G.campaignCap(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}.` };
+}
+
 function kitchenTab() {
   const cards = Object.entries(MACHINES).map(([type, M]) => {
     const n = G.machineCount(s, type), block = G.machineBlock(s, type), open = G.unlocked(s, M.level);
@@ -107,8 +132,10 @@ function kitchenTab() {
     const buy = block
       ? `<div class="lockline">${block.text}</div>`
       : `<button class="small" data-act="buymachine" data-id="${type}" ${s.clean < G.machinePrice(s, type) ? 'disabled' : ''}>+1 · ${money(G.machinePrice(s, type))}</button>`;
+    const broken = G.machinesOf(s, type).map((m, i) => m.broken ? i : -1).filter(i => i >= 0);
+    const fix = broken.length ? `<button class="small danger" data-act="repair" data-stage="${type}" data-i="${broken[0]}" ${s.clean < G.repairCost(type) ? 'disabled' : ''}>🔧 Repair ${money(G.repairCost(type))}${broken.length > 1 ? ` (${broken.length} broken)` : ''}</button>` : '';
     return pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>${open ? `× ${n} · ${known}/${total} recipes` : 'not yet'}</small></div></div>
-      <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-stage="${type}" data-i="0">Menu</button>` : ''}${buy}</div>`,
+      <div class="pbtns col">${fix}${n ? `<button class="small primary" data-act="machine" data-stage="${type}" data-i="0">Menu</button>` : ''}${buy}</div>`,
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
   }).join('');
   const menu = G.menuOf(s), nx = nextCap(CAPS.menu, s.level);
@@ -178,7 +205,7 @@ function bankTab() {
   let cards;
   if (s.won) cards = pcard(`<div class="ptop"><span class="em">🎉</span><div><b>Debt cleared</b><small>The stall is yours</small></div></div>`, '', 'wide');
   else cards = pcard(`<div class="ptop"><span class="em">🏦</span><div><b>${money(s.balance)} owed</b><small>${money(G.nextDue(s))} in ${G.daysToPayment(s)}d</small></div></div>
-      ${s.strikes ? `<small class="bad">Missed ${s.strikes} of ${CFG.maxStrikes}</small>` : ''}${s.holidayNext ? '<small class="good">Next payment skipped</small>' : ''}`, ibtn('bank', 'debt'), 'wide')
+      ${s.arrears > 0 ? `<small class="bad">Behind: ${money(s.arrears)}</small>` : ''}${s.holidayNext ? '<small class="good">Next payment skipped</small>' : ''}`, ibtn('bank', 'debt'), 'wide')
     + pcard(`<b>Pay early</b>
       <div class="pbtns col"><button class="small" data-act="pay" data-id="500" ${s.clean < 500 ? 'disabled' : ''}>£500</button>
       <button class="small" data-act="pay" data-id="1000" ${s.clean < 1000 ? 'disabled' : ''}>£1,000</button>
@@ -190,6 +217,11 @@ function bankTab() {
     const holOpen = G.feature(s, 'holiday');
     cards += pcard(`<div class="ptop"><span class="em">🏖️</span><div><b>Payment holiday</b><small>once only</small></div></div>
       ${holOpen ? `<div class="pbtns"><button class="small" data-act="holiday" ${s.holidayUsed ? 'disabled' : ''}>${s.holidayUsed ? 'Used' : 'Skip next'}</button></div>` : lockTag(10)}`, ibtn('bank', 'holiday'), holOpen ? '' : 'locked');
+  }
+  if (s.arrears > 0 && !s.won) {
+    cards += pcard(`<div class="ptop"><span class="em">📑</span><div><b>Restructure</b><small>stop the visits</small></div></div>
+      ${G.restructureReady(s) ? `<div class="pbtns"><button class="small" data-act="restructure">Fold in · ${money(s.arrears * CFG.restructureFee)} fee</button></div>`
+        : `<div class="lockline">${s.behind < 2 ? 'Available two payments behind' : 'Once a month'}</div>`}`, ibtn('bank', 'restructure'), 'wide');
   }
   cards += pcard(`<b>Start over</b><div class="pbtns"><button class="small danger" data-act="restart">New game</button></div>`, ibtn('bank', 'restart'));
   return { cards, hint: 'The bank takes its payment automatically.' };
@@ -211,6 +243,8 @@ function unlocksAt(L) {
   for (const [l, n] of CAPS.loan) if (l === L && l > 4) out.push(`💳 Loans up to ${money(n)}`);
   for (const [, c] of Object.entries(CREW)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name}, ${c.role.toLowerCase()}`);
   for (const f of FEATURES) if (f.level === L) out.push(`✨ ${f.name}: ${f.desc}`);
+  for (const [, c] of Object.entries(CAMPAIGNS)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name} (Marketing)`);
+  for (const [l, n] of CAPS.campaigns) if (l === L && l > 1) out.push(`📣 Run ${n} campaigns at once`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
     for (const [, x] of Object.entries(tbl)) if (x.level === L) out.push(`${x.emoji || icon} ${x.name} (design)`);
   }
@@ -246,6 +280,20 @@ function infoFor(kind, id) {
     return T(`${UPGRADE_EMOJI[id] || '🛠️'} ${u.name}`, `<p>${u.desc}</p>` + line('Cost', `${u.cash === 'dirty' ? '💜' : '💷'} ${money(u.cost)}`)
       + line('Paid with', u.cash === 'dirty' ? 'dirty cash' : 'clean cash') + (u.requires ? line('Needs', UPGRADES.find(x => x.id === u.requires).name) : '')
       + `<p class="mute">${u.lab ? 'A back-room upgrade.' : 'A bakery upgrade.'} Upgrades are permanent.</p>`);
+  }
+  if (kind === 'pop') {
+    return T(`⭐ Popularity ${Math.round(s.rep)}`, line('Customers a day', `about ${Math.round(G.customersExpected(s))}`)
+      + line('Scandal', s.scandalDays > 0 ? `${s.scandalDays} days (fewer customers)` : 'none', s.scandalDays > 0 ? 'bad' : 'good')
+      + line('Marketing boost', `+${Math.round(G.campaignBoost(s) * 100)}% customers`) + line('PR manager', s.crew.pr ? `yes (+${CFG.prPopPerDay}/day)` : 'no')
+      + `<p><b>Goes up</b><br><small>Happy customers, low prices, campaigns, a PR manager, the charity bake sale.</small></p>`
+      + `<p><b>Goes down</b><br><small>Customers who leave empty-handed or put off by prices; getting busted (-${CFG.bustPop}); the debt collectors' visits (-${CFG.heaviesPop}); missed bank payments (-${CFG.missPop}); being robbed (-${CFG.rivalPop}). A PR manager softens all of it.</small></p>`);
+  }
+  if (kind === 'campaign') {
+    const c = CAMPAIGNS[id];
+    return T(`${c.emoji} ${c.name}`, `<p>${c.desc}</p>` + line('Cost', money(c.price)) + line('Lasts', `${c.days} day${c.days === 1 ? '' : 's'}`)
+      + (c.cust ? line('Customers', `+${Math.round(c.cust * 100)}%`) : '') + (c.pop ? line('Popularity', `+${c.pop} a day`) : '')
+      + (c.once ? line('Popularity now', `+${c.once}${s.crew.pr ? ` (+25% with Mel)` : ''}`) : '') + (c.heat ? line('Heat', `${c.heat}`) : '')
+      + line('Unlocks at', `level ${c.level}`) + `<p class="mute">You can run ${G.campaignCap(s)} at once at your level.</p>`);
   }
   if (kind === 'machine') {
     const M = MACHINES[id], nx = G.machineNextCap(s, id);
@@ -308,7 +356,7 @@ function infoFor(kind, id) {
       + line('Raids from', `${CFG.raidAt} heat`) + line('Tax inspections from', `${CFG.inspectAt} heat`)
       + line('Falls each night', `${CFG.heatDecay}, or ${CFG.heatDecay + CFG.lieLowBonus} lying low`)
       + `<p><b>What raises it</b><br><small>Cooking (+${CFG.heatPerBatch} a batch), selling, laundering too much, serving undercover officers (+${CFG.copServedHeat}), Jay getting caught.</small></p>`
-      + '<p class="mute">At 100 you\'re arrested. A raid that finds product can end the run too.</p>');
+      + `<p class="mute">At 100, or if a raid finds product, you're <b>busted</b>: fined, everything seized, the back room sealed for ${CFG.bustSealNights} nights, crew lost, and a scandal in the papers.</p>`);
   }
   if (kind === 'dez' && id === 'bribe') {
     return T('👮 A friendly sergeant', line('Cost', `💜 ${money(CFG.bribeCost)}`) + line('Heat', `-${CFG.bribeHeat}`) + line('How often', 'once a day')
@@ -316,9 +364,10 @@ function infoFor(kind, id) {
   }
   if (kind === 'bank' && id === 'debt') {
     return T('🏦 The bank', line('Still owed', money(s.balance)) + line('Next payment', `${money(G.nextDue(s))} in ${G.daysToPayment(s)} days`)
-      + line('Paid so far', money(s.stats.paid)) + line('Missed', `${s.strikes} of ${CFG.maxStrikes}`)
-      + `<p class="mute">${money(CFG.weekly)} comes out of clean cash every 7 days. Miss one and it rolls into the next, plus ${CFG.missPenalty * 100}%. Miss ${CFG.maxStrikes} and the bank takes the stall.</p>`);
+      + line('Paid so far', money(s.stats.paid)) + line('Behind by', s.arrears > 0 ? money(s.arrears) : 'nothing', s.arrears > 0 ? 'bad' : 'good') + line('Payments missed (ever)', s.strikes)
+      + `<p class="mute">${money(CFG.weekly)} comes out of clean cash every 7 days. Miss one and it rolls into the next, plus ${CFG.missPenalty * 100}%, then ${CFG.arrearsInterest * 100}% interest a day until you catch up. While you're behind, Grimshaw Recovery's heavies may visit at night: smashed decorations, cracked tiles, torn wallpaper, wrecked machines, an emptied till. Big Ron helps.</p>`);
   }
+  if (kind === 'bank' && id === 'restructure') return T('📑 Restructure the debt', `<p>When you're two or more payments behind, the bank will fold what you've missed into the loan for a ${CFG.restructureFee * 100}% fee. The interest on missed payments stops and Grimshaw Recovery is called off. Once a month.</p>`);
   if (kind === 'bank' && id === 'pay') return T('Paying early', '<p>Extra payments come off what you owe straight away, clearing any missed payment first. Pay it all to finish the debt.</p>');
   if (kind === 'bank' && id === 'restart') return T('Start over', '<p>Starts a brand-new game on day 1. This run, its money and its design are lost.</p>');
   if (kind === 'floor') {
@@ -353,15 +402,15 @@ function infoFor(kind, id) {
 function planScreen() {
   const tabs = [['supplies', '🧺 Supplies'], ['kitchen', '🍳 Kitchen'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['dez', '💜 Dez']);
-  tabs.push(['design', '🎨 Design'], ['bank', '🏦 Bank']);
+  tabs.push(['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['bank', '🏦 Bank']);
   if (!tabs.some(t => t[0] === s.tab) || s.tab === 'design') s.tab = 'supplies';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, dez: dezTab, marketing: marketingTab, bank: bankTab }[s.tab]();
   // Floating above the dock: the day-one story, or today's event
   const float = s.day === 1 && !s.introSeen
     ? `<div class="floatcard">
         <h2>Aunt Rosa's stall</h2>
         <p>Aunt Rosa ran this bakery stall at the night market for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank.</p>
-        <p>The bank wants <b>${money(CFG.weekly)}</b> every week, starting in two weeks. Miss ${CFG.maxStrikes} payments and they take the stall.</p>
+        <p>The bank wants <b>${money(CFG.weekly)}</b> every week, starting in two weeks. Fall behind and the debt grows, and the people the bank sells it to aren't polite.</p>
         <p class="mute">Buy ingredients, open up, and tap each station to move batches along: mixer → proofing → oven. Don't leave anything in the oven too long.</p>
         <button class="small" data-act="intro-ok">Got it</button></div>`
     : s.event ? `<div class="floatbanner">${s.event.text}</div>` : '';
@@ -419,7 +468,9 @@ function eveningScreen() {
         ${t.launderHeat ? line('That looked off', `heat +${t.launderHeat}`, 'bad') : line('Looked normal', 'no extra heat', 'good')}</div>`;
     }
   }
-  const actions = s.labUnlocked
+  const actions = s.labUnlocked && s.sealedNights > 0
+    ? `<button class="violet big" disabled>🚧 Back room sealed (${s.sealedNights} night${s.sealedNights === 1 ? '' : 's'})</button><button class="big" data-act="home">Go home</button>`
+    : s.labUnlocked
     ? `<button class="violet big" data-act="night">🌙 Open the back room</button><button class="big" data-act="home">Lie low tonight & go home</button>`
     : `<button class="primary big" data-act="home">🌙 Close up & go home</button>`;
   return hud() + `<div class="card"><h2>Closing time</h2>
@@ -482,14 +533,14 @@ function reportScreen() {
     ? r.payment.holiday ? `<div class="card win">🏖️ Payment holiday: the bank skipped this week's ${money(r.payment.due)}.</div>`
     : (r.payment.paid
       ? `<div class="card win">🏦 Paid the bank <b>${money(r.payment.due)}</b>. ${s.won ? '' : `${money(s.balance)} still to go.`}</div>`
-      : `<div class="card alert">🏦 <b>Missed the payment of ${money(r.payment.due)}.</b> A ${money(r.payment.penalty)} penalty goes on top, so next week you owe ${money(G.nextDue(s))}. Strike ${s.strikes} of ${CFG.maxStrikes}.</div>`)
+      : `<div class="card alert">🏦 <b>Couldn't pay the full ${money(r.payment.due)}.</b> ${r.payment.part ? `The bank took ${money(r.payment.part)} and left you ${money(CFG.keepForStock)} for stock. ` : ''}A ${money(r.payment.penalty)} penalty goes on what's left, and ${CFG.arrearsInterest * 100}% interest builds every day you're behind. Next week you owe ${money(G.nextDue(s))}. Until you catch up, expect visitors at night.</div>`)
     : '';
   const offer = s.offerPending ? `<div class="card story night"><h2>A quiet word</h2>
       <p>Dez, one of Aunt Rosa's regulars, was waiting by the bins when you locked up.</p>
       <p class="quote">"Rosa never told you how she really kept this place going, did she? Bread doesn't pay a bank. The back room's still set up. I bring kits, you cook, people come to the back door. I'll throw in the first kit."</p>
       <div class="row2"><button class="violet" data-act="offer" data-id="yes">Hear him out</button><button data-act="offer" data-id="no">Not interested</button></div></div>` : '';
   const won = s.won && !s.wonSeen ? `<div class="card win"><h2>🎉 Debt cleared</h2>
-      <p>Aunt Rosa's stall is yours, free and clear. How clean it stays is up to you. You can keep running the place for as long as you like.</p>
+      <p>Aunt Rosa's stall is yours, free and clear. No more weekly payments: everything you make is yours to grow the place with. How clean it stays is up to you.</p>
       <button class="small" data-act="won-ok">Keep going</button></div>` : '';
   const heatDelta = Math.round(r.heatTo - r.heatFrom);
   return hud() + `${won}${pay}${offer}
@@ -503,7 +554,7 @@ function reportScreen() {
       ${r.xp ? line('XP earned', `+${r.xp} · level ${s.level}`, 'good') : ''}
     </div>
     ${night}
-    ${r.lines.map(l => `<div class="card ${l.kind === 'bad' ? 'alert' : ''}">${l.text}</div>`).join('')}
+    ${r.lines.map(l => `<div class="card ${l.kind === 'bad' ? 'alert' : ''} ${l.big ? 'bigalert' : ''}">${l.text}</div>`).join('')}
     ${s.event ? `<div class="card">Today: ${s.event.text}</div>` : ''}` +
     footer(`<button class="primary big" data-act="plan" ${s.offerPending ? 'disabled' : ''}>${s.offerPending ? 'Answer Dez first' : 'Plan the day'}</button>`);
 }
@@ -540,7 +591,10 @@ function modalHTML() {
           <small>${ingText(r)}${known ? ` · stock for ${batches}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
+    const brokenHere = G.isBroken(s, m.stage, m.i);
     inner = `<h2>${M.emoji} ${M.name}${G.machineCount(s, m.stage) > 1 ? ` ${m.i + 1}` : ''}</h2>
+      ${brokenHere ? `<div class="card alert">🔧 Wrecked by the debt collectors. It can't cook until it's fixed.
+        ${cooking ? '' : `<button class="small danger" data-act="repair" data-stage="${m.stage}" data-i="${m.i}" ${s.clean < G.repairCost(m.stage) ? 'disabled' : ''}>Repair ${money(G.repairCost(m.stage))}</button>`}</div>` : ''}
       <p class="mute">${cooking ? (slot.item ? `${M.verb}… ${Math.ceil(slot.dur - slot.t)}s left.` : 'Pick something to make.') : `On sale: ${menu.length} of ${G.menuSlots(s)}${nx ? ` (reach level ${nx.level} for ${nx.amount})` : ''}.`}</p>
       <div class="mlist">${rows}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`;
   } else if (m.type === 'recipes') {
@@ -606,14 +660,16 @@ function designScreen() {
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
   if (dv.cat === 'floor') {
-    items = Object.entries(D.FLOORS).map(([id, f]) => swatch(id, f, dv.item === id, 'floor')).join('');
+    items = Object.entries(D.FLOORS).filter(([, f]) => !f.hidden).map(([id, f]) => swatch(id, f, dv.item === id, 'floor')).join('');
     const { n, cost } = D.fillFloorCost(s, dv.item);
     hint = `Tap squares to lay <b>${D.FLOORS[dv.item].name}</b> (${money(D.FLOORS[dv.item].price)} a square).`;
+    if (D.damage(s).tiles) hint += ` <span class="bad">🔨 ${D.damage(s).tiles} cracked to fix (min ${money(D.REPAIR_TILE)} each).</span>`;
     if (n) extra = `<button class="small" data-act="d-fill">Do all ${n} squares · ${money(cost)}</button>`;
   } else if (dv.cat === 'wall') {
-    items = Object.entries(D.WALLS).map(([id, f]) => swatch(id, f, dv.item === id, 'wall')).join('');
+    items = Object.entries(D.WALLS).filter(([, f]) => !f.hidden).map(([id, f]) => swatch(id, f, dv.item === id, 'wall')).join('');
     const { n, cost } = D.fillWallCost(s, dv.item);
     hint = `Tap a wall panel to hang <b>${D.WALLS[dv.item].name}</b> (${money(D.WALLS[dv.item].price)} a panel).`;
+    if (D.damage(s).panels) hint += ` <span class="bad">🔨 ${D.damage(s).panels} torn to fix (min ${money(D.REPAIR_PANEL)} each).</span>`;
     if (n) extra = `<button class="small" data-act="d-fill">Do all ${n} panels · ${money(cost)}</button>`;
   } else if (dv.cat === 'decor') {
     items = Object.entries(D.DECOR).map(([id, d]) => emojiItem(id, d, dv.item === id, 'decor')).join('');
@@ -788,6 +844,9 @@ function act(el) {
     case 'machine': ui.modal = { type: 'machine', stage: el.dataset.stage, i: Number(el.dataset.i || 0) }; break;
     case 'learn': G.buyRecipe(s, id); break;
     case 'buymachine': G.buyMachine(s, id); break;
+    case 'repair': G.repairMachine(s, el.dataset.stage, Number(el.dataset.i)); break;
+    case 'campaign': G.startCampaign(s, id); break;
+    case 'restructure': G.restructure(s); break;
     case 'close': ui.modal = null; break;
     case 'buyer': ui.modal = { type: 'buyer', id: Number(id) }; break;
     case 'sell':

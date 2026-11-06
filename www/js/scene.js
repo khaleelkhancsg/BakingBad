@@ -783,6 +783,12 @@ export function createScene(canvas, overlayEl, { onPick }) {
     c.save(); c.beginPath(); c.rect(x, y, S, S); c.clip();
     c.fillStyle = a; c.fillRect(x, y, S, S);
     if (style === 'checker') { c.fillStyle = (cx + cz) % 2 ? b : a; c.fillRect(x, y, S, S); }
+    else if (style === 'cracked') {
+      c.fillStyle = (cx + cz) % 2 ? '#cbbda6' : a; c.fillRect(x, y, S, S);
+      c.strokeStyle = b; c.lineWidth = 1.6;
+      for (let k = 0; k < 2; k++) { let px = x + r() * S, py = y; c.beginPath(); c.moveTo(px, py); for (let j = 0; j < 5; j++) { px += (r() - 0.5) * S * 0.5; py += S / 5; c.lineTo(px, py); } c.stroke(); }
+      c.fillStyle = 'rgba(60,50,40,0.25)'; c.beginPath(); c.arc(x + r() * S, y + r() * S, 4 + r() * 5, 0, PI * 2); c.fill();
+    }
     else if (style === 'lemon') { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { c.fillStyle = (i + j) % 2 ? b : a; c.fillRect(x + i * S / 4, y + j * S / 4, S / 4, S / 4); } }
     else if (style === 'navy') { for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) if ((i + j) % 3 === 0 || (i * j) % 7 === 3) { c.fillStyle = b; c.fillRect(x + i * S / 8 + 1, y + j * S / 8 + 1, S / 8 - 2, S / 8 - 2); } }
     else if (style === 'wood') {
@@ -811,7 +817,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const r = seeded(idx * 31337 + 7);
     c.save(); c.beginPath(); c.rect(x, y, W, H); c.clip();
     c.fillStyle = a; c.fillRect(x, y, W, H);
-    if (style === 'plaster') { for (let i = 0; i < 60; i++) { c.fillStyle = 'rgba(160,100,60,0.06)'; c.fillRect(x + r() * W, y + r() * H, 2, 2); } }
+    if (style === 'torn') {
+      c.fillStyle = b; c.fillRect(x, y, W, H);
+      c.fillStyle = a;
+      for (let k = 0; k < 4; k++) { const sx = x + r() * W * 0.6, sy = y + r() * H * 0.6; c.beginPath(); c.moveTo(sx, sy); c.lineTo(sx + 14 + r() * 20, sy + r() * 8); c.lineTo(sx + 10 + r() * 16, sy + 20 + r() * 30); c.lineTo(sx - 4, sy + 16 + r() * 20); c.closePath(); c.fill(); }
+      c.strokeStyle = 'rgba(40,30,20,0.4)'; c.lineWidth = 1; c.strokeRect(x + 2, y + H * 0.7, W - 4, 2);
+    }
+    else if (style === 'plaster') { for (let i = 0; i < 60; i++) { c.fillStyle = 'rgba(160,100,60,0.06)'; c.fillRect(x + r() * W, y + r() * H, 2, 2); } }
     else if (style === 'tiles') { c.strokeStyle = b; c.lineWidth = 1.5; for (let j = 0; j < 8; j++) { c.beginPath(); c.moveTo(x, y + j * H / 8); c.lineTo(x + W, y + j * H / 8); c.stroke(); for (let i = 0; i < 3; i++) { const xx = x + i * W / 2 + (j % 2 ? W / 4 : 0); c.beginPath(); c.moveTo(xx, y + j * H / 8); c.lineTo(xx, y + (j + 1) * H / 8); c.stroke(); } } }
     else if (style === 'stripes' || style === 'lemon') { c.fillStyle = b; for (let i = 0; i < 8; i += 2) c.fillRect(x + i * W / 8, y, W / 8, H); }
     else if (style === 'mintdot') { c.fillStyle = b; for (let j = 0; j < 8; j++) for (let i = 0; i < 4; i++) { c.beginPath(); c.arc(x + i * 16 + (j % 2 ? 16 : 8), y + j * 16 + 8, 3.5, 0, PI * 2); c.fill(); } }
@@ -1303,9 +1315,10 @@ export function createScene(canvas, overlayEl, { onPick }) {
     tmp.copy(v).project(camera);
     return [(tmp.x + 1) / 2 * W, (1 - tmp.y) / 2 * H];
   }
-  function slotBubble(st, slot) {
+  function slotBubble(st, slot, s) {
     const first = st.kind === 'day' || st.stage === 'prep';
     const at = `data-act="slot" data-stage="${st.stage}" data-i="${st.i}"`;
+    if (!slot.item && st.kind === 'day' && G.isBroken(s, st.stage, st.i)) return { html: '<span>🔧</span>', cls: 'bub burn', at };
     if (!slot.item) return first ? { html: `<b>＋</b>`, cls: 'bub add', at } : null;
     const r = G.recipeOf(slot.item);
     if (!slot.done) return { html: `<span>${r.emoji}</span><small>${Math.ceil(slot.dur - slot.t)}</small>`, cls: 'bub run', at, p: slot.t / slot.dur };
@@ -1319,7 +1332,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
     if (!sh && s.phase === 'plan' && !view.design) {
       for (const st of Object.values(stations).flat()) {
         if (st.kind !== 'day') continue;
-        want.set(`m-${st.stage}-${st.i}`, { html: `<span>${MACHINES[st.stage].emoji}</span>`, cls: 'bub mach', at: `data-act="machine" data-stage="${st.stage}" data-i="${st.i}"`, pos: st.anchorW });
+        const broken = G.isBroken(s, st.stage, st.i);
+        want.set(`m-${st.stage}-${st.i}`, { html: `<span>${broken ? '🔧' : MACHINES[st.stage].emoji}</span>`, cls: `bub mach ${broken ? 'burn' : ''}`, at: `data-act="machine" data-stage="${st.stage}" data-i="${st.i}"`, pos: st.anchorW });
       }
     }
     if (sh) {
@@ -1327,7 +1341,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
         if (st.kind !== sh.kind) continue;
         const slot = sh.slots[st.stage]?.[st.i];
         if (!slot) continue;
-        const b = slotBubble(st, slot);
+        const b = slotBubble(st, slot, s);
         if (b) want.set(`s-${st.stage}-${st.i}`, { ...b, pos: st.anchorW });
       }
       if (sh.kind === 'day') {
@@ -1382,16 +1396,20 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const sh = s.shift;
     for (const list of Object.values(stations)) for (const st of list) {
       const slot = (sh && sh.kind === st.kind && sh.slots[st.stage]?.[st.i]) || { item: null };
-      const fx = st.update(slot, dt, now);
+      let fx = st.update(slot, dt, now);
+      const broken = st.kind === 'day' && G.isBroken(s, st.stage, st.i);
+      if (broken) fx = 'smoke';
+      st.group.rotation.z = broken ? 0.06 : 0;
       if (st.bounce > 0) {
         st.bounce = Math.max(0, st.bounce - dt * 3.5);
         const b = Math.sin(st.bounce * PI * 2) * st.bounce;
         st.group.scale.set(1 - b * 0.05, 1 + b * 0.09, 1 - b * 0.05);
       }
+      if (fx && !st.smokeW) st.smokeW = st.anchorW.clone().add(V3(0, -0.4, 0));
       if (fx && st.smokeW) {
         const key = st.stage + st.i;
         const acc = (emitAcc.get(key) || 0) + dt;
-        const every = fx === 'smoke' ? 0.08 : 0.25;
+        const every = broken ? 0.5 : fx === 'smoke' ? 0.08 : 0.25;
         if (acc > every) { emit(st.smokeW, fx); emitAcc.set(key, 0); } else emitAcc.set(key, acc);
       }
     }

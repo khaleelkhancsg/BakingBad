@@ -4,8 +4,8 @@ export const CFG = {
   // Debt
   debtTotal: 24000,      // what Aunt Rosa owed the bank
   weekly: 2000,          // due every 7 days, taken from clean cash
-  missPenalty: 0.10,     // a missed payment is added to the next one, plus 10%
-  maxStrikes: 3,         // three missed payments and the bank takes the stall
+  missPenalty: 0.05,     // what you couldn't pay rolls into next week, plus 5%
+  keepForStock: 150,     // on payment day the bank leaves you this much for ingredients
   firstPaymentDay: 15,   // two weeks' grace, then every 7 days
 
   // Money and shop
@@ -51,7 +51,7 @@ export const CFG = {
 
 // XP and levels. XP needed to go from level n to n+1 is levelBase + levelStep * (n - 1).
 Object.assign(CFG, {
-  levelBase: 200, levelStep: 120, maxLevel: 20, levelCash: 10,
+  levelBase: 200, levelStep: 120, maxLevel: 60, levelCash: 10,
   xpPerSecond: 0.25,          // a batch is worth its total stage time x this (longer recipes, more XP)
   xpBag: 2, xpGoldBag: 4, xpVelvetBatch: 8, xpGoldBatch: 14, xpCourier: 30, xpDealerBag: 1, xpRival: 20,
   cashierBonus: 0.1, drinkAddOn: 0.35, // share of food customers who also grab a drink
@@ -64,7 +64,35 @@ Object.assign(CFG, {
   safeRaidShare: 0.2, vanArrestMult: 0.5,
   // Bank
   loanFee: 0.2, loanEvery: 7,
+  // Nothing ends the game. Trouble costs you instead.
+  arrearsInterest: 0.005,                // a day, on payments you're behind with
+  hardshipGrant: 150,                    // the market traders' association helps if you're broke and can't bake
+  heaviesBase: 0.35, heaviesPerMiss: 0.1, heaviesMax: 0.6, heaviesCooldown: 3, heaviesPop: 5, prHeaviesPop: 2, // debt collectors' night visits
+  restructureFee: 0.1, restructureEvery: 30,   // fold missed payments into the loan and call off the collectors
+  popHome: 50,           // popularity drifts back towards this over time
+  tillTake: 0.15, repairShare: 0.3,       // what they take from the till; repairs cost 30% of the machine's price
+  bustFineClean: 1000, bustFineDirty: 0.3, bustSealNights: 3, bustHeat: 45, bustPop: 30, prBustPop: 12, bustCrewQuit: 0.5,
+  scandalDays: 4, scandalMult: 0.7, prScandalMult: 0.85, missPop: 5, rivalPop: 5,
+  prPopPerDay: 1.5,
 });
+
+// Marketing campaigns: run for a few days. pop: popularity a day; cust: extra customers; once: popularity straight away.
+export const CAMPAIGNS = {
+  flyers:    { name: 'Flyers',             emoji: '📄', level: 1,  price: 80,   days: 3, pop: 2,   cust: 0,
+               desc: 'Hand them out round the market. A little popularity each day.' },
+  paper:     { name: 'Newspaper ad',       emoji: '📰', level: 3,  price: 250,  days: 4, pop: 0.5, cust: 0.10,
+               desc: 'A quarter page in the local paper. More people come in.' },
+  charity:   { name: 'Charity bake sale',  emoji: '❤️', level: 5,  price: 300,  days: 1, pop: 0,   cust: 0, once: 12, heat: -5, weekly: true,
+               desc: 'Good press, a big lift in popularity, and the police think a little better of you. Once a week.' },
+  radio:     { name: 'Radio spot',         emoji: '📻', level: 6,  price: 600,  days: 5, pop: 1,   cust: 0.20,
+               desc: 'A jingle on local radio all week.' },
+  influencer:{ name: 'Influencer visit',   emoji: '📱', level: 9,  price: 900,  days: 3, pop: 0,   cust: 0.15, once: 8,
+               desc: 'Someone with a lot of followers posts about your buns.' },
+  billboard: { name: 'Billboard',          emoji: '🪧', level: 12, price: 1500, days: 7, pop: 0.5, cust: 0.25,
+               desc: 'Your face, six metres wide, by the ring road.' },
+  festival:  { name: 'Sponsor the festival', emoji: '🎪', level: 15, price: 2000, days: 1, pop: 0, cust: 0, once: 10, festival: true,
+               desc: 'Tomorrow the street festival is yours: packed market, your name on every banner.' },
+};
 
 export const INGREDIENTS = {
   flour:     { name: 'Flour',      emoji: '🌾', base: 1.5 },
@@ -145,7 +173,8 @@ export const CAPS = {
   menu:  [[1, 4], [3, 5], [5, 6], [8, 7], [12, 8]],       // different things on sale at once (the case has 8 trays)
   kits:  [[1, 4], [5, 6], [9, 8], [13, 10]],              // kits Dez will sell you a day
   loan:  [[4, 1000], [8, 2000], [12, 3000]],              // biggest loan the bank will give
-  decor: [[1, 6], [3, 10], [5, 14], [7, 18], [9, 22], [12, 28], [15, 34], [18, 40]], // decorations placed
+  decor: [[1, 6], [3, 10], [5, 14], [7, 18], [9, 22], [12, 28], [15, 34], [18, 40], [24, 48], [30, 56]], // decorations placed
+  campaigns: [[1, 1], [5, 2], [10, 3], [15, 4]],          // marketing campaigns running at once
 };
 // What a cap table allows at a level, and when it next goes up.
 export function capAt(table, level) { let n = 0; for (const [l, v] of table) if (level >= l) n = v; return n; }
@@ -204,7 +233,9 @@ export const CREW = {
   cook:    { name: 'Sam',     role: 'Night cook',    emoji: '🥽', level: 8, wage: 50, cash: 'dirty', shift: 'night', lab: true,
              desc: 'Moves finished cooks on to the next station, so nothing scorches on the burner.' },
   muscle:  { name: 'Big Ron', role: 'Muscle',        emoji: '💪', level: 9, wage: 80, cash: 'dirty', shift: 'night', lab: true,
-             desc: 'Stands at the back door. When a rival crew turns up, he sees them off instead of them robbing you.' },
+             desc: 'Stands at the back door. Sees off rival crews, and usually the debt collectors\' heavies too.' },
+  pr:      { name: 'Mel',     role: 'PR manager',    emoji: '📣', level: 3, wage: 60, cash: 'clean', shift: 'day',
+             desc: 'Keeps your name in the papers for the right reasons: popularity creeps up every day, scandals hurt less and blow over sooner.' },
 };
 
 // Features that switch on at a level (announced on level-up).

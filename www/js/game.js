@@ -1,8 +1,8 @@
 // Game rules and state. No DOM in here, so the balance simulator can run it in Node.
 import { CFG, ITEMS, VELVET, GOLD, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
          LINES, FACES, BUYER_NAMES, START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL,
-         CAPS, capAt, nextCap } from './data.js';
-import { charmBonus, defaultDesign } from './design.js';
+         CAPS, capAt, nextCap, CAMPAIGNS } from './data.js';
+import { charmBonus, defaultDesign, allCells, cellKey, PANELS } from './design.js';
 
 export const SAVE_VERSION = 2;
 
@@ -126,6 +126,52 @@ export function buyRecipe(s, id) {
 export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) - (s.today?.kitsBought || 0));
 export const loanAmount = s => capAt(CAPS.loan, s.level);
 
+// ---------- Marketing: campaigns and PR win popularity back ----------
+export const campaignCap = s => capAt(CAPS.campaigns, s.level);
+export const activeCampaigns = s => (s.campaigns || []).filter(c => c.days > 0);
+export const campaignBoost = s => activeCampaigns(s).reduce((a, c) => a + (CAMPAIGNS[c.id]?.cust || 0), 0);
+export const scandalFactor = s => (s.scandalDays > 0 ? (s.crew.pr ? CFG.prScandalMult : CFG.scandalMult) : 1);
+export function campaignBlock(s, id) {
+  const c = CAMPAIGNS[id];
+  if (!unlocked(s, c.level)) return { lock: true, text: `Reach level ${c.level} to run ${c.name.toLowerCase()}` };
+  if (activeCampaigns(s).some(x => x.id === id)) return { text: 'Running now' };
+  if (c.weekly && s.day - s.lastCharity < 7) return { text: `Again in ${7 - (s.day - s.lastCharity)} days` };
+  if (activeCampaigns(s).length >= campaignCap(s)) {
+    const nx = nextCap(CAPS.campaigns, s.level);
+    return { lock: true, text: nx ? `Reach level ${nx.level} to run ${nx.amount} campaigns at once` : 'That\'s as many campaigns as you can run' };
+  }
+  return null;
+}
+export function startCampaign(s, id) {
+  const c = CAMPAIGNS[id];
+  if (!c) return;
+  const block = campaignBlock(s, id);
+  if (block) return toast(block.text + '.', 'bad');
+  if (s.clean < c.price) return toast('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - c.price);
+  if (s.today) s.today.upgradesSpent += c.price;
+  if (c.once) s.rep = clamp(s.rep + c.once * (s.crew.pr ? 1.25 : 1), 0, 100);
+  if (c.heat) s.heat = clamp(s.heat + c.heat, 0, 100);
+  if (c.weekly) s.lastCharity = s.day;
+  if (c.festival) s.sponsorNext = true;
+  s.campaigns = activeCampaigns(s).concat([{ id, days: c.days }]);
+  toast(`${c.emoji} ${c.name} is running.`, 'good');
+}
+
+// ---------- Broken machines (the heavies' handiwork) ----------
+export const machinesOf = (s, type) => s.machines.filter(m => m.type === type);
+export const isBroken = (s, type, i) => !!machinesOf(s, type)[i]?.broken;
+export const repairCost = type => Math.round(MACHINES[type].price * CFG.repairShare / 10) * 10;
+export function repairMachine(s, type, i) {
+  const m = machinesOf(s, type)[i];
+  if (!m?.broken) return;
+  const cost = repairCost(type);
+  if (s.clean < cost) return toast('Not enough clean cash for the repair.', 'bad');
+  s.clean = round2(s.clean - cost);
+  m.broken = false;
+  toast(`${MACHINES[type].name} repaired.`, 'good');
+}
+
 function startMachines() {
   return [{ type: 'oven', spot: 0 }, { type: 'oven', spot: 1 }, { type: 'mixer', spot: 5 }];
 }
@@ -152,6 +198,11 @@ export function migrate(s) {
   for (const id in ITEMS) { s.priceLevel[id] ||= 'normal'; s.display[id] ||= { fresh: 0, stale: 0 }; }
   for (const role in CREW) s.crew[role] ??= false;
   s.gold ??= 0; s.goldKits ??= 0; s.loanDay ??= -99; s.holidayUsed ??= false; s.holidayNext ??= false;
+  s.campaigns ||= []; s.scandalDays ??= 0; s.sealedNights ??= 0; s.lastCharity ??= -99; s.sponsorNext ??= false;
+  s.behind ??= (s.arrears > 0 ? Math.max(1, s.strikes || 1) : 0);
+  s.stats.busts ??= 0; s.stats.visits ??= 0;
+  // Nothing ends the game any more: a finished run picks up again
+  if (s.over) { s.over = null; s.phase = 'report'; }
   learnFree(s);
   return s;
 }
@@ -165,7 +216,8 @@ export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce(
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
 export const customersExpected = s =>
-  (CFG.baseCustomers + s.rep * CFG.repCustomers) * (has(s, 'sign') ? 1.2 : 1) * (s.event?.cust || 1) * charmBonus(s);
+  (CFG.baseCustomers + s.rep * CFG.repCustomers) * (has(s, 'sign') ? 1.2 : 1) * (s.event?.cust || 1) * charmBonus(s)
+  * (1 + campaignBoost(s)) * scandalFactor(s);
 export const buyersExpected = s => CFG.buyersBase + Math.min(CFG.buyersGrowMax, s.nightsActive);
 export const copChance = s => CFG.copBase + s.heat * CFG.copPerHeat;
 
@@ -200,6 +252,7 @@ function rollDay(s) {
   s.event = null;
   let r = rand();
   for (const ev of EVENTS) { if (r < ev.p) { s.event = { ...ev }; break; } r -= ev.p; }
+  if (s.sponsorNext) { s.sponsorNext = false; s.event = { ...EVENTS.find(e => e.id === 'festival'), text: '🎪 Your street festival! Your name is on every banner and the market is packed.' }; }
   for (const k in INGREDIENTS) s.market[k] = round2(0.85 + rand() * 0.4);
   if (s.event?.flour) s.market.flour = round2(s.market.flour * s.event.flour);
 }
@@ -215,11 +268,12 @@ export function newGame() {
     priceLevel: {}, recipes: [...START_RECIPES], onMenu: [...START_RECIPES], upgrades: {}, machines: startMachines(),
     crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     loanDay: -99, holidayUsed: false, holidayNext: false,
+    campaigns: [], scandalDays: 0, sealedNights: 0, lastCharity: -99, sponsorNext: false, behind: 0,
     labUnlocked: false, offerDay: 2, offerPending: false, nightsActive: 0,
     display: {}, market: {}, event: null,
     today: null, report: null, shift: null,
     design: defaultDesign(),
-    over: null, won: false, dealerAssign: 0, stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0 },
+    over: null, won: false, dealerAssign: 0, stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0, busts: 0, visits: 0 },
   };
   for (const id in ITEMS) { s.priceLevel[id] = 'normal'; s.display[id] = { fresh: 0, stale: 0 }; }
   s.display.sourdough.fresh = 4; s.display.croissant.fresh = 6; // Aunt Rosa's last bake
@@ -300,6 +354,15 @@ export function takeLoan(s) {
   s.loanDay = s.day;
   toast(`Borrowed £${amount.toLocaleString('en-GB')}. The debt goes up £${(amount * (1 + CFG.loanFee)).toLocaleString('en-GB')}.`, 'good');
 }
+// Restructuring: missed payments fold into the loan (plus a fee) and the collectors are called off.
+export const restructureReady = s => s.arrears > 0 && s.behind >= 2 && s.day - (s.lastRestructure ?? -99) >= CFG.restructureEvery;
+export function restructure(s) {
+  if (!restructureReady(s)) return toast(s.behind < 2 ? 'Only once you are two payments behind.' : 'The bank will only do this once a month.', 'bad');
+  const fee = round2(s.arrears * CFG.restructureFee);
+  s.balance = round2(s.balance + fee);
+  s.arrears = 0; s.behind = 0; s.lastRestructure = s.day;
+  toast(`Restructured: your missed payments are folded into the loan (fee £${Math.round(fee)}). The collectors are called off.`, 'good');
+}
 export function useHoliday(s) {
   if (!feature(s, 'holiday') || s.holidayUsed) return toast('No payment holiday available.', 'bad');
   s.holidayUsed = true; s.holidayNext = true;
@@ -337,6 +400,7 @@ export function answerOffer(s, yes) {
 const emptySlot = () => ({ item: null, t: 0, dur: 0, done: false, over: 0 });
 
 export function startShift(s, kind) {
+  if (kind === 'night' && s.sealedNights > 0) return toast(`Police tape on the back room for ${s.sealedNights} more night${s.sealedNights === 1 ? '' : 's'}.`, 'bad');
   const sh = { kind, t: 0, len: kind === 'day' ? CFG.dayLen : CFG.nightLen, slots: {}, feed: [], buyers: [], customers: [], nextId: 1, next: 0 };
   for (const { stage, n } of stationLayout(s, kind)) sh.slots[stage] = Array.from({ length: n }, emptySlot);
   const expected = kind === 'day' ? customersExpected(s) : buyersExpected(s);
@@ -420,7 +484,10 @@ export function tapSlot(s, stage, i) {
   const slot = sh?.slots[stage]?.[i];
   if (!slot) return null;
   if (!slot.item) {
-    if (sh.kind === 'day') return { pick: true, stage };
+    if (sh.kind === 'day') {
+      if (isBroken(s, stage, i)) { toast(`This ${STAGES[stage].name.toLowerCase()} is broken. Repair it from its menu in the morning.`, 'bad'); return null; }
+      return { pick: true, stage };
+    }
     if (stage !== 'prep') { toast('Finished batches move here from the previous station.'); return null; }
     if (sh.kind === 'night') {
       if (s.kits > 0 && s.goldKits > 0) return { pickLab: true };
@@ -479,7 +546,7 @@ export function startRecipe(s, id, stage, i) {
   const r = ITEMS[id];
   if (!sh || sh.kind !== 'day' || !r || !s.recipes.includes(id) || r.machine !== stage) return;
   const slot = sh.slots[stage]?.[i];
-  if (!slot || slot.item) return;
+  if (!slot || slot.item || isBroken(s, stage, i)) return;
   if (!canMake(s, id)) return toast('Not enough ingredients. Buy more in the morning.', 'bad');
   for (const [k, q] of Object.entries(r.ing)) s.inv[k] -= q;
   sh.slots[stage][i] = { item: id, t: 0, dur: r.times[stage], done: false, over: 0 };
@@ -669,6 +736,7 @@ function rivalsStrike(s) {
   const cash = Math.round(s.dirty * CFG.rivalRob), bags = Math.floor(s.bags * CFG.rivalRob);
   s.dirty -= cash; s.bags -= bags;
   s.heat = clamp(s.heat + 3, 0, 100);
+  s.rep = clamp(s.rep - CFG.rivalPop, 0, 100);
   feed(sh, '👥', `Rivals took £${cash} and ${bags} bags`, 'bad');
   t.nightEvents.push({ kind: 'bad', text: `👥 A rival crew robbed the back room: £${cash} and ${bags} bags gone. Muscle would have stopped them.` });
   toast(`👥 Robbed! A rival crew took £${cash} and ${bags} bags.`, 'bad');
@@ -700,7 +768,15 @@ export function endShift(s) {
     const t = s.today;
     t.rent = CFG.rent;
     t.wages = crewWages(s, 'day');
-    s.clean = round2(s.clean - t.rent - t.wages);
+    const bill = t.rent + t.wages;
+    if (s.clean >= bill) s.clean = round2(s.clean - bill);
+    else {
+      let left = round2(bill - Math.max(0, s.clean));
+      s.clean = 0;
+      // Day crew who can't be paid walk out; the rent goes on the bank's tab
+      for (const [r, c] of Object.entries(CREW)) if (left > 0 && s.crew[r] && c.shift === 'day') { s.crew[r] = false; left = round2(left - c.wage); t.nightEvents.push({ kind: 'bad', text: `💸 You couldn't pay ${c.name} today, so ${c.name} quit.` }); }
+      if (left > 0) { s.arrears = round2(s.arrears + left); s.balance = round2(s.balance + left); s.behind = Math.max(1, s.behind); t.nightEvents.push({ kind: 'bad', text: `💸 You couldn't cover the rent. £${Math.round(left)} goes on what you owe the bank.` }); }
+    }
     t.launderCap = Math.round(t.sales * launderRatio(s));
     s.stats.totalSales += t.sales;
     s.phase = 'evening';
@@ -710,7 +786,13 @@ export function endShift(s) {
     if (w) {
       s.today.nightWages = w;
       const fromDirty = Math.min(w, Math.floor(s.dirty));
-      s.dirty -= fromDirty; s.clean = round2(s.clean - (w - fromDirty));
+      s.dirty -= fromDirty;
+      const rest = w - fromDirty;
+      if (s.clean >= rest) s.clean = round2(s.clean - rest);
+      else if (rest > 0) {
+        s.clean = 0;
+        for (const r of ['muscle', 'lookout', 'cook']) if (s.crew[r]) { s.crew[r] = false; s.today.nightEvents.push({ kind: 'bad', text: `💸 You couldn't pay ${CREW[r].name}, so ${CREW[r].name} walked.` }); break; }
+      }
     }
     s.dealerAssign = s.crew.dealer ? s.bags : 0;
     s.phase = 'nightEnd';
@@ -780,24 +862,32 @@ export function goHome(s) {
 
   lines.push(...t.nightEvents);
   if (t.nightOps) s.nightsActive++;
+  const heatPeak = s.heat; // the police act on how hot it got, before it cools overnight
   s.heat = clamp(s.heat - CFG.heatDecay - (t.nightOps ? 0 : CFG.lieLowBonus), 0, 100);
-  s.rep = clamp(s.rep + CFG.repDrift, 0, 100);
+  s.rep = clamp(s.rep + (s.rep > CFG.popHome ? CFG.repDrift : -CFG.repDrift), 0, 100); // drifts back towards the middle
+
+  // Marketing, PR and scandals tick over
+  for (const c of activeCampaigns(s)) { s.rep = clamp(s.rep + (CAMPAIGNS[c.id].pop || 0), 0, 100); c.days--; }
+  s.campaigns = activeCampaigns(s);
+  if (s.crew.pr) s.rep = clamp(s.rep + CFG.prPopPerDay, 0, 100);
+  if (s.scandalDays > 0) s.scandalDays--;
+  if (s.sealedNights > 0) s.sealedNights--;
 
   // Police
-  if (s.heat >= 100) {
-    s.over = { reason: 'arrested', text: 'Armed police come through the back door at dawn. They find the lab, the cash and the bags. It\'s over.' };
-  } else if (s.heat >= CFG.raidAt && rand() < (s.heat - 50) / 100) {
+  const raid = heatPeak < 100 && s.heat >= CFG.raidAt && rand() < (s.heat - 50) / 100;
+  const found = raid && s.bags + s.kits + s.gold + s.goldKits > 0 && rand() < (s.heat - 60) / 60;
+  if (heatPeak >= 100) {
+    bust(s, lines, 'Heat hit the limit and armed police came through the back door at dawn.');
+  } else if (found) {
+    bust(s, lines, 'A dawn raid found product in the back room.');
+  } else if (raid) {
     const lostDirty = Math.round(s.dirty * (has(s, 'safe') ? CFG.safeRaidShare : 0.5));
-    const product = s.bags + s.kits + s.gold + s.goldKits;
-    if (product > 0 && rand() < (s.heat - 60) / 60) {
-      s.over = { reason: 'arrested', text: `A dawn raid. This time they find ${s.bags + s.gold ? (s.bags + s.gold) + ' bags' : (s.kits + s.goldKits) + ' kits'} in the back room. You're arrested.` };
-    }
     lines.push({ kind: 'bad', text: `🚓 Raid! They took ${s.bags + s.gold} bags, ${s.kits + s.goldKits} kits and £${lostDirty} of dirty cash${has(s, 'safe') ? ' (the safe kept the rest)' : ''}. Not enough to charge you. Yet.` });
     s.bags = 0; s.kits = 0; s.gold = 0; s.goldKits = 0; s.dirty -= lostDirty;
     s.heat = clamp(s.heat - 10, 0, 100);
   } else if (s.heat >= CFG.inspectAt && rand() < CFG.inspectChance) {
     if (t.launderHeat > 0) {
-      s.clean = round2(s.clean - CFG.inspectFine);
+      s.clean = round2(Math.max(0, s.clean - CFG.inspectFine));
       s.heat = clamp(s.heat + 15, 0, 100);
       lines.push({ kind: 'bad', text: `🧾 A tax inspector went through yesterday's books. The takings didn't add up. Fined £${CFG.inspectFine}, heat +15.` });
     } else {
@@ -806,10 +896,20 @@ export function goHome(s) {
     }
   }
 
+  // Behind with the bank: interest builds every day, and Grimshaw Recovery may send someone round
+  if (s.arrears > 0 && !s.won) {
+    const interest = round2(s.arrears * CFG.arrearsInterest);
+    s.arrears = round2(s.arrears + interest); s.balance = round2(s.balance + interest);
+    t.interest = interest;
+    lines.push({ kind: 'meh', text: `📈 You're behind with the bank: £${interest.toFixed(2)} interest added. You owe £${Math.round(s.arrears).toLocaleString('en-GB')} in missed payments.` });
+    const odds = Math.min(CFG.heaviesMax, CFG.heaviesBase + CFG.heaviesPerMiss * Math.max(0, s.behind - 1));
+    if (s.day - (s.lastVisit ?? -99) >= CFG.heaviesCooldown && rand() < odds) { s.lastVisit = s.day; heaviesVisit(s, lines); }
+  }
+
   // Next day
   s.day++;
   let payment = null;
-  if (!s.over && !s.won && s.day >= CFG.firstPaymentDay && (s.day - CFG.firstPaymentDay) % 7 === 0) {
+  if (!s.won && s.day >= CFG.firstPaymentDay && (s.day - CFG.firstPaymentDay) % 7 === 0) {
     const due = nextDue(s);
     if (s.holidayNext) {
       s.holidayNext = false;
@@ -817,23 +917,30 @@ export function goHome(s) {
     } else if (s.clean >= due) {
       s.clean = round2(s.clean - due);
       s.balance = round2(s.balance - due);
-      s.arrears = 0;
+      s.arrears = 0; s.behind = 0;
       s.paymentsMade++;
       s.stats.paid += due;
       payment = { paid: true, due };
       if (s.balance <= 0.5) { s.balance = 0; s.won = true; }
     } else {
-      const penalty = round2(due * CFG.missPenalty);
+      const part = Math.max(0, Math.floor(s.clean - CFG.keepForStock));
+      s.clean = round2(s.clean - part);
+      s.balance = round2(s.balance - part);
+      s.stats.paid += part;
+      const short = round2(due - part), penalty = round2(short * CFG.missPenalty);
       s.balance = round2(s.balance + penalty);
-      s.arrears = round2(due + penalty);
-      s.strikes++;
-      payment = { paid: false, due, penalty };
-      if (s.strikes >= CFG.maxStrikes) {
-        s.over = { reason: 'bank', text: 'Third missed payment. The bank changes the locks on Aunt Rosa\'s stall.' };
-      }
+      s.arrears = round2(short + penalty);
+      s.strikes++; s.behind++;
+      s.rep = clamp(s.rep - CFG.missPop, 0, 100);
+      payment = { paid: false, due, part, penalty };
     }
   }
   if (!s.labUnlocked && !s.offerPending && s.day >= s.offerDay) s.offerPending = true;
+  const canBake = s.recipes.some(id => canMake(s, id) && machinesOf(s, ITEMS[id].machine).some(m => !m.broken));
+  if (s.clean < 30 && !canBake) {
+    s.clean = round2(s.clean + CFG.hardshipGrant);
+    lines.push({ kind: 'good', text: `🤝 You're broke and the shelves are bare. The market traders' association chips in £${CFG.hardshipGrant} so you can buy flour and start again.` });
+  }
 
   rollDay(s);
   s.report = { day: s.day - 1, ledger: t, lines, payment, xp: t.xp, level: s.level, heatFrom: t.start.heat, heatMid: heatBefore, heatTo: s.heat,
@@ -842,7 +949,67 @@ export function goHome(s) {
   s.phase = 'report';
 }
 
-export function toPlan(s) { if (!s.over) s.phase = 'plan'; }
+export function toPlan(s) { s.phase = 'plan'; }
+
+// Busted: a heavy blow, never the end. Fines, everything seized, the back room sealed, a scandal.
+function bust(s, lines, why) {
+  const fineDirty = Math.round(s.dirty * CFG.bustFineDirty);
+  s.dirty -= fineDirty;
+  s.clean = round2(Math.max(0, s.clean - CFG.bustFineClean));
+  const bags = s.bags + s.gold, kits = s.kits + s.goldKits;
+  s.bags = s.gold = s.kits = s.goldKits = 0;
+  s.sealedNights = CFG.bustSealNights;
+  s.heat = CFG.bustHeat;
+  const pop = s.crew.pr ? CFG.prBustPop : CFG.bustPop;
+  s.rep = clamp(s.rep - pop, 0, 100);
+  s.scandalDays = Math.max(s.scandalDays, CFG.scandalDays - (s.crew.pr ? 2 : 0));
+  const crew = [];
+  if (s.crew.dealer) { s.crew.dealer = false; crew.push('Jay was charged and is gone'); }
+  for (const r of ['lookout', 'cook', 'muscle']) if (s.crew[r] && rand() < CFG.bustCrewQuit) { s.crew[r] = false; crew.push(`${CREW[r].name} quit`); }
+  s.stats.busts++;
+  lines.push({ kind: 'bad', big: true, text: `🚔 <b>Busted.</b> ${why} Fined £${CFG.bustFineClean.toLocaleString('en-GB')} plus £${fineDirty.toLocaleString('en-GB')} of dirty cash. `
+    + `${bags} bags and ${kits} kits seized. Police tape on the back room for ${CFG.bustSealNights} nights. `
+    + `It's in the papers: popularity -${pop}${s.crew.pr ? ' (Mel kept it short)' : ''}, and a scandal keeps customers away for a few days.${crew.length ? ' ' + crew.join('; ') + '.' : ''}` });
+}
+
+// Debt collectors' heavies: they break things, take cash, and hurt your name.
+function heaviesVisit(s, lines) {
+  s.stats.visits++;
+  if (s.crew.muscle && rand() < 0.5) {
+    lines.push({ kind: 'good', text: '💪 Grimshaw Recovery sent heavies round in the night. Big Ron sent them packing.' });
+    return;
+  }
+  const d = s.design, done = [];
+  const options = ['decor', 'tiles', 'walls', 'machine', 'till'];
+  const n = s.crew.muscle ? 1 : 1 + Math.floor(rand() * 3);
+  for (let k = 0; k < n && options.length; k++) {
+    const what = options.splice(Math.floor(rand() * options.length), 1)[0];
+    if (what === 'decor' && d.decor.length) {
+      const smashed = [];
+      for (let j = 0; j < 1 + Math.floor(rand() * 2) && d.decor.length; j++) smashed.push(d.decor.splice(Math.floor(rand() * d.decor.length), 1)[0].type);
+      done.push(`smashed ${smashed.length === 1 ? 'a decoration' : smashed.length + ' decorations'}`);
+    } else if (what === 'tiles') {
+      const cells = allCells('inside');
+      for (let j = 0; j < 3 + Math.floor(rand() * 4); j++) { const [cx, cz] = pick(cells); d.floor[cellKey(cx, cz)] = 'cracked'; }
+      done.push('cracked floor tiles');
+    } else if (what === 'walls') {
+      for (let j = 0; j < 1 + Math.floor(rand() * 3); j++) { const key = pick(PANELS); d.wall[key] = 'torn'; delete d.art[key]; }
+      done.push('tore down wallpaper');
+    } else if (what === 'machine') {
+      const working = s.machines.filter(m => !m.broken);
+      // They always leave you one machine to work with
+      if (working.length > 1) { const m = pick(working); m.broken = true; done.push(`wrecked ${/^[aeiou]/i.test(MACHINES[m.type].name) ? 'an' : 'a'} ${MACHINES[m.type].name.toLowerCase()}`); }
+    } else if (what === 'till' && s.clean > 0) {
+      const take = Math.round(s.clean * CFG.tillTake);
+      s.clean = round2(s.clean - take);
+      done.push(`emptied £${take.toLocaleString('en-GB')} from the till`);
+    }
+  }
+  if (!done.length) done.push('made a mess and a lot of threats');
+  const pop = s.crew.pr ? CFG.prHeaviesPop : CFG.heaviesPop;
+  s.rep = clamp(s.rep - pop, 0, 100);
+  lines.push({ kind: 'bad', text: `🔨 Grimshaw Recovery's heavies came round in the night about the money you owe. They ${done.join(', ')}. Word gets round: popularity -${pop}.` });
+}
 
 // Pay the bank early from clean cash. Arrears are cleared first.
 export function payBank(s, amount) {
@@ -851,6 +1018,7 @@ export function payBank(s, amount) {
   s.clean = round2(s.clean - amount);
   s.balance = round2(s.balance - amount);
   s.arrears = Math.max(0, round2(s.arrears - amount));
+  if (s.arrears <= 0) s.behind = 0;
   s.stats.paid += amount;
   if (s.balance <= 0.5) { s.balance = 0; s.won = true; }
   toast(`Paid the bank £${amount.toLocaleString('en-GB')}.`, 'good');

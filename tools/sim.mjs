@@ -57,6 +57,13 @@ function plan(s, st) {
   for (const id of best) if (!pickMenu.includes(id)) pickMenu.push(id);
   s.onMenu = pickMenu.slice(0, G.menuSlots(s));
   if (st.baker && s.day >= st.baker && !s.crew.baker) G.hire(s, 'baker');
+  if (G.restructureReady(s)) G.restructure(s);
+  if (G.unlocked(s, 3) && !s.crew.pr && s.clean > 2500) G.hire(s, 'pr');
+  if (s.rep < 60 && s.clean > reserve + 500 && !G.campaignBlock(s, 'flyers')) G.startCampaign(s, 'flyers');
+  if (s.rep < 45 && s.clean > reserve + 800 && !G.campaignBlock(s, 'charity')) G.startCampaign(s, 'charity');
+  for (const [type, list] of Object.entries({ oven: 1, mixer: 1, fryer: 1, drinks: 1, icecream: 1, grill: 1 })) {
+    G.machinesOf(s, type).forEach((m, i) => { if (m.broken && s.clean > G.repairCost(type) + reserve) G.repairMachine(s, type, i); });
+  }
   const cust = G.customersExpected(s);
   const need = {};
   const menu = G.menuOf(s);
@@ -95,39 +102,40 @@ function runShift(s, st) {
 }
 
 let name0 = "";
+// The game never ends, so a run is a fixed number of days and we look at how far the bakery got.
 function playOne(st) {
   const s = G.newGame();
   const weekly = [];
-  while (!s.over && !s.won && s.day <= MAX_DAYS) {
+  let clearedDay = null;
+  while (s.day <= MAX_DAYS) {
     plan(s, st);
     G.startShift(s, 'day'); runShift(s, st);
     if (s.dirty > 0) G.launder(s, Math.min(s.dirty, s.today.launderCap * (st.launder || 1)));
     else G.launder(s, 0);
-    if (s.labUnlocked && st.crook && (s.kits > 0 || s.bags > 0) && !(st.lieLowAt && s.heat >= st.lieLowAt)) {
-      G.startShift(s, 'night'); runShift(s, st);
+    if (s.labUnlocked && st.crook && !s.sealedNights && (s.kits > 0 || s.bags > 0) && !(st.lieLowAt && s.heat >= st.lieLowAt)) {
+      G.startShift(s, 'night'); if (s.shift) runShift(s, st);
     }
     G.goHome(s);
-    if (process.env.TRACE === name0) { const t = s.report.ledger; console.log(`d${s.report.day} sales ${Math.round(t.sales)} served ${t.served} missed ${t.missed} pricey ${t.pricedOut} ing ${Math.round(t.ingSpent)} upg ${t.upgradesSpent} | launder ${t.laundered}/${t.launderCap} | bags ${t.bagsMade}/${t.bagsSold} night £${t.nightSales} cops ${t.copsServed}/${t.copsTurned} lost ${t.buyersLost} | clean ${Math.round(s.clean)} dirty ${Math.round(s.dirty)} kits ${s.kits} heat ${Math.round(s.heat)} rep ${Math.round(s.rep)} ${s.report.payment ? (s.report.payment.paid ? "PAID" : "MISSED") : ""}`); }
-    if ((s.day - 1) % 7 === 0) weekly.push({ day: s.day, clean: Math.round(s.clean), dirty: Math.round(s.dirty), heat: Math.round(s.heat), rep: Math.round(s.rep), sales: Math.round(s.report.ledger.sales), paid: s.report.payment?.paid });
+    if (s.won && clearedDay == null) clearedDay = s.day;
+    if (process.env.TRACE === name0) { const t = s.report.ledger; console.log(`d${s.report.day} L${s.level} sales ${Math.round(t.sales)} served ${t.served} missed ${t.missed} | launder ${t.laundered}/${t.launderCap} | bags ${t.bagsMade}/${t.bagsSold} night £${t.nightSales} | clean ${Math.round(s.clean)} dirty ${Math.round(s.dirty)} heat ${Math.round(s.heat)} pop ${Math.round(s.rep)} owe ${Math.round(s.balance)} behind ${Math.round(s.arrears)} ${s.report.payment ? (s.report.payment.paid ? "PAID" : "MISSED") : ""} ${s.report.lines.filter(l => /Busted|heavies/.test(l.text)).map(l => l.text.slice(0, 30)).join(' ')}`); }
+    if ((s.day - 1) % 14 === 0) weekly.push({ day: s.day, level: s.level, clean: Math.round(s.clean), owe: Math.round(s.balance), pop: Math.round(s.rep) });
     G.toPlan(s);
   }
-  return { s, weekly };
+  return { s, weekly, clearedDay };
 }
 
 for (const [name, st] of Object.entries(STRATS)) {
   name0 = name;
-  const res = { won: 0, arrested: 0, bank: 0, timeout: 0, days: [], paid: [] };
+  const res = { cleared: [], level: [], busts: [], visits: [], missed: [], worth: [], owe: [] };
   let example = null;
   for (let r = 0; r < RUNS; r++) {
-    const { s, weekly } = playOne(st);
-    if (s.won) { res.won++; res.days.push(s.day); }
-    else if (s.over?.reason === 'arrested') res.arrested++;
-    else if (s.over?.reason === 'bank') res.bank++;
-    else res.timeout++;
-    res.paid.push(s.paymentsMade);
+    const { s, weekly, clearedDay } = playOne(st);
+    if (clearedDay) res.cleared.push(clearedDay);
+    res.level.push(s.level); res.busts.push(s.stats.busts); res.visits.push(s.stats.visits); res.missed.push(s.strikes);
+    res.worth.push(Math.round(s.clean + s.dirty)); res.owe.push(Math.round(s.balance));
     if (!example) example = weekly;
   }
   const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : '-';
-  console.log(`\n== ${name}: won ${res.won}/${RUNS} (avg day ${avg(res.days)}), arrested ${res.arrested}, bank ${res.bank}, timeout ${res.timeout}, avg payments ${avg(res.paid)}`);
-  console.log('   first run by week:', example.map(w => `d${w.day} £${w.clean}c/£${w.dirty}d h${w.heat} r${w.rep} s${w.sales}${w.paid === false ? ' MISSED' : ''}`).join(' | '));
+  console.log(`\n== ${name} (${MAX_DAYS} days): debt cleared in ${res.cleared.length}/${RUNS} runs (avg day ${avg(res.cleared)}), level ${avg(res.level)}, busts ${avg(res.busts)}, collector visits ${avg(res.visits)}, missed payments ${avg(res.missed)}, cash £${avg(res.worth)}, still owed £${avg(res.owe)}`);
+  console.log('   first run every 2 weeks:', example.map(w => `d${w.day} L${w.level} £${w.clean} owe£${w.owe} pop${w.pop}`).join(' | '));
 }

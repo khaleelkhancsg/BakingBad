@@ -13,6 +13,7 @@ export const FLOORS = {
   navy:       { level: 7, name: 'Navy mosaic',    price: 22, colors: ['#2f3e66', '#e9e4d8'] },
   herring:    { level: 9, name: 'Herringbone',    price: 25, colors: ['#b98255', '#93603a'] },
   marble:     { level: 11, name: 'Marble',         price: 30, colors: ['#f4f1ec', '#c9c1b8'] },
+  cracked:    { level: 1, name: 'Cracked tiles',  price: 0,  colors: ['#d8ccb8', '#6f6456'], hidden: true },
   stone:      { level: 1, name: 'Patio stone',    price: 10, colors: ['#c9c2b6', '#ada595'] },
 };
 export const WALLS = {
@@ -24,6 +25,7 @@ export const WALLS = {
   wood:    { level: 6, name: 'Wood panels',   price: 30, colors: ['#a8703f', '#8a5a32'] },
   brick:   { level: 8, name: 'Exposed brick', price: 35, colors: ['#b0604c', '#e8d8c8'] },
   sky:     { level: 10, name: 'Sky & clouds',  price: 35, colors: ['#bfe6ff', '#ffffff'] },
+  torn:    { level: 1, name: 'Torn wallpaper', price: 0,  colors: ['#e9d3bd', '#8d8478'], hidden: true },
   damask:  { level: 12, name: 'Plum damask',   price: 40, colors: ['#6b3a5a', '#8e5479'] },
 };
 // outdoor: terrace only. indoor: inside only. Otherwise either.
@@ -54,6 +56,7 @@ export const EXPANSIONS = {
   side:  { level: 9, name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
 };
 export const SELL_BACK = 0.5;
+export const REPAIR_TILE = 8, REPAIR_PANEL = 12; // fixing damage costs at least this, even with a free style
 export const decorCap = s => capAt(CAPS.decor, s.level || 1);
 export const levelOk = (s, item) => (s.level || 1) >= (item?.level || 1);
 const lockMsg = item => ({ msg: `${item.name} unlocks at level ${item.level}.` });
@@ -166,14 +169,16 @@ export function paintFloor(s, cx, cz, style) {
   if (!levelOk(s, FLOORS[style])) return lockMsg(FLOORS[style]);
   if (!cellOwned(s, cx, cz)) return { msg: `Buy the ${EXPANSIONS[zone].name.toLowerCase()} first.` };
   if (floorAt(s, cx, cz) === style) return { ok: false };
-  if (!pay(s, FLOORS[style].price)) return { msg: 'Not enough clean cash.' };
+  if (!pay(s, tileCost(s, cx, cz, style))) return { msg: 'Not enough clean cash.' };
   s.design.floor[cellKey(cx, cz)] = style;
   return { ok: true };
 }
+export const tileCost = (s, cx, cz, style) => Math.max(FLOORS[style].price, floorAt(s, cx, cz) === 'cracked' ? REPAIR_TILE : 0);
+export const panelCost = (s, key, style) => Math.max(WALLS[style].price, wallAt(s, key) === 'torn' ? REPAIR_PANEL : 0);
 export function fillFloorCost(s, style) {
-  let n = 0;
-  for (const zone of ['inside', 'front', 'side']) for (const [cx, cz] of allCells(zone)) if (cellOwned(s, cx, cz) && floorAt(s, cx, cz) !== style) n++;
-  return { n, cost: n * FLOORS[style].price };
+  let n = 0, cost = 0;
+  for (const zone of ['inside', 'front', 'side']) for (const [cx, cz] of allCells(zone)) if (cellOwned(s, cx, cz) && floorAt(s, cx, cz) !== style) { n++; cost += tileCost(s, cx, cz, style); }
+  return { n, cost };
 }
 export function fillFloor(s, style) {
   if (!levelOk(s, FLOORS[style])) return lockMsg(FLOORS[style]);
@@ -188,13 +193,13 @@ export function paintWall(s, key, style) {
   if (!PANELS.includes(key) || !WALLS[style]) return { msg: 'Not a wall panel.' };
   if (!levelOk(s, WALLS[style])) return lockMsg(WALLS[style]);
   if (wallAt(s, key) === style) return { ok: false };
-  if (!pay(s, WALLS[style].price)) return { msg: 'Not enough clean cash.' };
+  if (!pay(s, panelCost(s, key, style))) return { msg: 'Not enough clean cash.' };
   s.design.wall[key] = style;
   return { ok: true };
 }
 export function fillWallCost(s, style) {
-  const n = PANELS.filter(k => wallAt(s, k) !== style).length;
-  return { n, cost: n * WALLS[style].price };
+  const keys = PANELS.filter(k => wallAt(s, k) !== style);
+  return { n: keys.length, cost: keys.reduce((a, k) => a + panelCost(s, k, style), 0) };
 }
 export function fillWalls(s, style) {
   if (!levelOk(s, WALLS[style])) return lockMsg(WALLS[style]);
@@ -278,8 +283,15 @@ export function charm(s) {
   let c = 0;
   for (const it of d.decor) c += DECOR[it.type]?.charm || 0;
   for (const k in d.art) c += ART[d.art[k]]?.charm || 0;
-  for (const k in d.floor) if (!['checker', 'stone'].includes(d.floor[k])) c += 0.1;
-  for (const k in d.wall) if (d.wall[k] !== 'plaster') c += 0.3;
+  for (const k in d.floor) c += d.floor[k] === 'cracked' ? -0.2 : ['checker', 'stone'].includes(d.floor[k]) ? 0 : 0.1;
+  for (const k in d.wall) c += d.wall[k] === 'torn' ? -0.5 : d.wall[k] === 'plaster' ? 0 : 0.3;
+  c = Math.max(0, c);
   return Math.round(c * 10) / 10;
 }
 export const charmBonus = s => 1 + Math.min(CHARM_CAP, charm(s) * CHARM_PER_CUSTOMER);
+
+// Damage left by the debt collectors, for the design screen and reports.
+export const damage = s => ({
+  tiles: Object.values(s.design.floor).filter(v => v === 'cracked').length,
+  panels: Object.values(s.design.wall).filter(v => v === 'torn').length,
+});

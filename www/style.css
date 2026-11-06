@@ -345,3 +345,11 @@ button.chip { cursor: pointer; }
 .mrow.locked { opacity: .5; }
 .mrow .ibtn { top: 6px; right: 6px; }
 .lockline { font-size: 11px; line-height: 1.25; color: var(--meh); background: #0004; border: 1px dashed #e6c35c66; border-radius: 8px; padding: 5px 7px; text-align: center; }
+
+
+/* ---------- Trouble and marketing ---------- */
+.card.bigalert { border-width: 2px; background: linear-gradient(180deg, #3a1418, #1d1528); }
+.heat.pop .meter i { background: var(--good); }
+.heat.pop.warm .meter i { background: var(--meh); }
+.heat.pop.hot .meter i { background: var(--bad); }
+.lock.good { color: var(--good); border-color: #5fd38d66; }
