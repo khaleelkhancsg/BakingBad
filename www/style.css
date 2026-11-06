@@ -535,3 +535,43 @@ button.big { padding: 11px; font-size: 15px; }
 .pcard .pbtns.stepper { align-items: center; }
 .pcard .pbtns.stepper b { min-width: 30px; text-align: center; font-size: 14px; }
 .pcard .pbtns.stepper button { flex: 0 0 34px; }
+
+/* =====================================================================
+   Neater, more solid look: fewer see-through blurred panels, one compact strip at the top.
+   ===================================================================== */
+:root { --solid: #1b1526; --solid2: #241c33; --edge: rgba(255, 255, 255, .07); }
+/* Top bar: one row of small chips, tight to the top */
+#app .hud.compact { padding: calc(4px + env(safe-area-inset-top)) 6px 0; }
+.hudbar { display: flex; flex-wrap: wrap; gap: 4px; max-width: 640px; margin: 0 auto; pointer-events: none; }
+.chip2 { pointer-events: auto; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 8px; font-size: 12.5px;
+  background: var(--solid); border: 1px solid var(--edge); color: var(--text); white-space: nowrap; cursor: default; }
+.chip2[data-act] { cursor: pointer; }
+.chip2.clock { background: var(--solid2); }
+.chip2.clock b { font-size: 13.5px; font-weight: 600; }
+.chip2.clock small { color: var(--mute); font-size: 11px; }
+.chip2.cash { font-weight: 600; } .chip2.dirty { color: var(--violet); }
+.chip2.warm { color: var(--meh); } .chip2.hot, .chip2.warn { color: var(--bad); border-color: rgba(229, 122, 131, .35); }
+.chip2.ok { color: var(--good); border-color: rgba(121, 201, 154, .35); }
+.chip2.night { border-color: rgba(169, 139, 224, .4); }
+.chip2 .meter.xp { width: 34px; height: 4px; }
+/* Panels: solid, with a hairline edge instead of frosted glass */
+.designbar, .designbar.night, .panel, .modal, .modal.night, .toast, .fab, .floatcard, .floatbanner {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.designbar { background: var(--solid); border-color: var(--edge); box-shadow: 0 -2px 10px rgba(0, 0, 0, .25); }
+.designbar.night { background: #1c1430; border-color: rgba(169, 139, 224, .14); }
+.panel { background: var(--solid); border-color: var(--edge); box-shadow: 0 4px 16px rgba(0, 0, 0, .3); }
+.modal { background: var(--solid); } .modal.night { background: #1c1430; }
+.toast { background: var(--solid2); }
+.fab { background: var(--solid); box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+.fab.on { background: var(--solid2); }
+.pcard { background: var(--solid2); border-color: var(--edge); }
+.pcard.night { background: #261c3a; border-color: rgba(169, 139, 224, .12); }
+.mrow, .card, .ptile, .place, .ditem, .dexp { background: var(--solid2); }
+.floatcard, .floatbanner { background: var(--solid) !important; }
+.bub { background: rgba(27, 21, 38, .92); }
+/* Report card grades */
+.gradeRow { display: flex; gap: 8px; }
+.gradeRow > div { flex: 1; text-align: center; background: var(--solid); border-radius: 10px; padding: 8px 4px; }
+.gradeRow b { display: block; font-size: 24px; line-height: 1.1; }
+.gradeRow small { color: var(--mute); font-size: 11px; }
+.gA, .gB { color: var(--good); } .gC { color: var(--meh); } .gD, .gF { color: var(--bad); }

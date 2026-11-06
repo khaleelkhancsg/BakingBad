@@ -112,6 +112,62 @@ export const PERKS = {
   legend:   { name: 'Street legend',   emoji: '🕶️', max: 5,  cost: 3, desc: '+10 starting street rep and +5% on every bag, a level.' },
 };
 
+// Supplier contracts: cheaper ingredients for a weekly minimum order (a fine if you fall short)
+export const SUPPLIERS = {
+  millers: { name: "Millers' co-op",    emoji: '🌾', level: 5,  ings: ['flour', 'sugar'],                     disc: 0.2,  min: 150, fine: 300 },
+  dairy:   { name: 'Valley Dairy',      emoji: '🥛', level: 8,  ings: ['butter', 'milk', 'cream', 'eggs'],    disc: 0.2,  min: 150, fine: 400 },
+  grocer:  { name: 'Greens & Sons',     emoji: '🍓', level: 16, ings: ['fruit', 'tomato', 'citrus', 'honey'], disc: 0.18, min: 120, fine: 500 },
+  butcher: { name: 'Hartley Butchers',  emoji: '🥩', level: 20, ings: ['meat', 'fish'],                       disc: 0.18, min: 100, fine: 800 },
+  pantry:  { name: 'The Spice Pantry',  emoji: '🌶️', level: 30, ings: ['cheese', 'nuts', 'spices', 'rice', 'noodles', 'beans', 'leaves', 'chocolate', 'ice'], disc: 0.15, min: 150, fine: 1200 },
+  fine:    { name: 'Fine Foods Direct', emoji: '✨', level: 60, ings: ['cocoa', 'vanilla', 'saffron', 'truffle', 'goldleaf'], disc: 0.15, min: 60, fine: 5000 },
+};
+// Insurance: a daily premium; claims make HMRC look a little harder that week
+export const INSURANCE = {
+  premises: { name: 'Premises cover', emoji: '🛡️', base: 25, perLevel: 5, desc: 'Pays back anything the heavies or robbers take from the till, and repairs smashed decor.' },
+  machines: { name: 'Machine cover',  emoji: '🔧', base: 20, perLevel: 4, desc: 'Repairs to wrecked machines are free.' },
+  claimSuspect: 0.02,
+};
+// A rival bakery opens across the road once you're popular
+export const RIVAL = { name: 'Crumbs & Co', level: 12, pop: 65, chance: 0.1, start: 0.12, grow: 0.01, max: 0.35, campaignHit: 0.04, lowPriceHit: 0.015,
+  buyoutBase: 40000, buyoutPerLevel: 4000, closedDays: 30 };
+// The detective building a case. Evidence comes from seizures, stings, informants and unexplained money; at 100 it goes to court.
+export const CASE = { detective: 'DI Harrow', decay: 2.5, decayBusy: 1.2, doorCop: 1, stages: [25, 50, 75],
+  sting: 6, seizure: 7, riderStop: 2, sweep: 3, informant: 10, hmrc: 6, raid: 4, bust: 10,
+  bribeBase: 2000, bribePerLevel: 300, bribeCut: 30, bribeFail: 0.3, bribeBack: 20,
+  frameBase: 5000, framePerLevel: 500, frameCut: 45, frameFail: 0.4, frameBack: 25,
+  courtSealDays: 7, courtClean: 0.25, courtCapPerLevel: 5000, courtDirty: 0.5, courtPop: 25, after: 0 };
+// Crew loyalty: paid crew warm up over time; disloyal night crew may talk
+export const LOYALTY = { start: [55, 80], perDay: 1, informAt: 30, informChance: 0.05, bonusGain: 15, bailBase: 500, bailPerLevel: 60 };
+// Weekly black-market auction of rare kits (rare products can't be bought from Dez any other way)
+export const AUCTION = { day: 5, hours: 24, kitsMin: 2, kitsMax: 5, priceMin: 1.6, priceMax: 2.6, level: 10 };
+// Daily and weekly goals. key: the stat that counts; per: target per level (plus base)
+export const GOALS = {
+  sales:   { text: n => `Take £${n.toLocaleString('en-GB')} in the shops`, stat: 'totalSales', base: 300, per: 120 },
+  served:  { text: n => `Serve ${n} customers`, stat: 'served', base: 60, per: 15 },
+  batches: { text: n => `Bake ${n} batches`, stat: 'batches', base: 6, per: 1 },
+  orders:  { text: n => `Deliver ${n} special orders`, stat: 'orders', base: 1, per: 0.04 },
+  bags:    { text: n => `Sell ${n} bags`, stat: 'totalBags', base: 10, per: 3, night: true },
+  washed:  { text: n => `Launder £${n.toLocaleString('en-GB')}`, stat: 'totalLaundered', base: 300, per: 150, night: true },
+};
+export const GOAL_REWARD = { dailyCash: 40, dailyXp: 3, weeklyMult: 5, weeklyTokens: 1 };
+// Risky choices that come up now and then (answered from a pop-up; ignored ones take the safe option)
+export const CHOICES = {
+  bulk:       { title: 'A bulk deal', night: true, text: 'A buyer from out of town wants a big order, right now, at a discount.', yes: 'Do the deal', no: 'Turn it down' },
+  journalist: { title: 'A journalist', text: 'A local reporter wants to do a piece on "the little stall that grew".', yes: 'Give the interview', no: 'No comment' },
+  inspector:  { title: 'Health inspector', text: 'A health inspector has found a few things to "improve". There\'s a quick fix, for a fee.', yes: 'Pay for the fix', no: 'Risk it' },
+  package:    { title: 'A favour for Dez', night: true, text: 'Dez wants you to keep a package in the back room for a week. He\'ll pay well. Don\'t ask what\'s in it.', yes: 'Keep it', no: 'Say no' },
+  charity:    { title: 'A charity appeal', text: 'The children\'s hospital is raising money and has asked local businesses to chip in.', yes: 'Donate', no: 'Not this time' },
+};
+// Prestige challenges: harder runs for more tokens next time
+export const CHALLENGES = {
+  none:      { name: 'No challenge', mult: 1, desc: 'A normal fresh start.' },
+  nolab:     { name: 'Clean hands',  mult: 1.5, desc: 'No back room this run: Dez never comes by. +50% tokens.' },
+  doubletax: { name: 'The taxman cometh', mult: 1.5, desc: 'Every tax bill is doubled. +50% tokens.' },
+  bigdebt:   { name: 'Rosa\'s real debts', mult: 1.4, desc: 'The debt you inherit is doubled. +40% tokens.' },
+};
+// Heat in separate places: vans and the streets have their own, and cool faster than the back room
+export const AREA_HEAT = { decayPerHour: 1, mainShare: 0.3 };
+
 // Special orders: a client wants a batch of something by a deadline and pays well for it
 export const CLIENTS = ['The Kingsmere Cricket Club', 'A wedding at St Mary\'s', 'An office leaving do', 'The primary school fete', 'A film crew on location',
   'The bowls club', 'A christening', 'The council canteen', 'A charity fun run', 'The rugby club bar', 'A hen party', 'The care home',
@@ -532,6 +588,11 @@ export const PRODUCTS = {
   diamond:     P('chamber', 'Diamond Dust', '💠', 'premium', 68, 360, 10, 600),
   unicorn:     P('chamber', 'Unicorn Tears', '🦄', 'premium', 80, 420, 10, 850),
   goldstandard: P('chamber', 'The Gold Standard', '🏆', 'premium', 92, 480, 8, 1400),
+  // Rare: only from the weekly black-market auction
+  bluemoon:    P('burner', 'Blue Moon Crystal', '🌙', 'crystal', 10, 60, 10, 160, { rare: true, share: 1.2 }),
+  dragon:      P('tent', "Dragon's Breath", '🐉', 'green', 10, 240, 14, 90, { rare: true, share: 1.2 }),
+  goldbrick:   P('brickpress', 'Golden Brick', '🟨', 'powder', 30, 120, 8, 420, { rare: true, share: 1 }),
+  stardust:    P('chamber', 'Stardust', '🌠', 'premium', 70, 300, 8, 1800, { rare: true, share: 0.8 }),
 };
 // Cutting: more bags, lower purity
 export const CUTS = {

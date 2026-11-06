@@ -9,7 +9,7 @@ It's a 3D game: you look down into the shop at an angle. The bakery has ovens, m
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
 (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
-Three buttons sit in the bottom-right corner: **☰ Menu** (everything, grouped into the bakery, business and after
+A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Three buttons sit in the bottom-right corner: **☰ Menu** (everything, grouped into the bakery, business and after
 dark), **🎨 Design**, and **🗺️ Map** to move between your shops and the back room.
 
 ## The real clock
@@ -193,6 +193,32 @@ earned adds 1% to every sale and bag, for good. Spend tokens on perks that make 
 
 Perks cost more tokens with each level. Perks and tokens carry over every reset; everything else (milestones
 included) starts again.
+
+## The long game
+
+- **Crew loyalty**: every hire has loyalty and greed (greedy ones cost more). Loyalty grows while they're paid; a bonus
+  (a day's pay) buys more. Night crew below 30 may talk to the detective.
+- **Decisions** pop up and wait for you (❗ in the top bar): bail for an arrested dealer or driver (pay to keep the crew
+  loyal, or cut them loose for less heat), and now and then a bulk deal, a journalist, a health inspector, a package
+  Dez wants you to hide, or a charity appeal. Ignore one and the safe option is taken.
+- **DI Harrow's case** (🕵️ in the top bar): stings, seized vans and deliveries, corner sweeps, raids, informants and HMRC
+  finds all add evidence; lying low lets it fade. At 100% it goes to court: big fines, everything seized, back rooms
+  sealed for a week and most of the night crew sent down. Bribe the detective or frame a rival crew to knock it back.
+- **Heat by area**: vans and the streets (corners and riders) have their own heat, which cools faster than the back room's.
+- **Supplier contracts** (Supplies): ingredients 15–20% cheaper for a weekly minimum order, or a fine.
+- **Insurance** (Bank & tax): premises cover pays back the till and repairs decor; machine cover makes repairs free.
+  Claims make HMRC look a little harder.
+- **A rival bakery**, Crumbs & Co, opens across the road once you're popular and takes a growing share of customers.
+  Campaigns and low prices win them back; or buy them out.
+- **Customers come in types**: regulars tip, commuters fill the station branch at rush hour, the café has a lunch rush,
+  tourists come in summer (the gelateria most of all) and the maison is busiest at weekends. A food customer who also
+  buys a drink pays a little extra for the combo.
+- **The black-market auction**: once a week Dez auctions a few kits of a rare product (Blue Moon Crystal, Dragon's
+  Breath, Golden Brick, Stardust) you can't get any other way.
+- **Daily and weekly goals** (Orders): three a day and two a week, for cash and XP; weekly goals also pay a prestige token.
+- **Weekly report card**: an A–F grade for the bakery, the back room and the books with every tax bill.
+- **Prestige challenges**: when you start again, pick a harder run (no back room, doubled tax or doubled debt) for
+  more tokens next time.
 
 ## Orders, milestones and critics
 

@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -117,14 +117,17 @@ export function buyPerk(s, id) {
   say(`${P.emoji} ${P.name} is now level ${s.prestige.perks[id]}.`, 'good');
 }
 // Hand it all on and start again: a brand-new game, plus the tokens and every perk you've bought
-export function prestigeReset(s, t = Date.now()) {
+export function prestigeReset(s, t = Date.now(), next = 'none') {
   if (!prestigeReady(s)) { say(`Prestige opens at level ${PRESTIGE.level}, once the business is worth something.`, 'bad'); return s; }
-  const earned = prestigeTokens(s);
+  const earned = Math.floor(prestigeTokens(s) * challenge(s).mult);
   const pr = { ...(s.prestige || { tokens: 0, total: 0, resets: 0, perks: {} }) };
   pr.perks = { ...(pr.perks || {}) };
   pr.tokens = (pr.tokens || 0) + earned; pr.total = (pr.total || 0) + earned; pr.resets = (pr.resets || 0) + 1;
   pr.best = Math.max(pr.best || 0, netWorth(s));
   const n = newGame(t, pr);
+  n.challenge = CHALLENGES[next] ? next : 'none';
+  if (n.challenge === 'bigdebt') n.balance *= 2;
+  if (n.challenge === 'nolab') { n.labUnlocked = false; n.offerPending = false; n.offerAfter = Infinity; for (const x of n.shops) x.lab = []; }
   n.feed.push({ t, text: `⭐ A fresh start. ${earned} prestige tokens earned (${pr.tokens} to spend in Bank & tax).`, kind: 'good' });
   return n;
 }
@@ -144,6 +147,218 @@ function applyPerks(s) {
   s.street = Math.min(100, s.street + 10 * perk(s, 'legend'));
 }
 
+// ---------- Crew loyalty, decisions and the detective ----------
+export function newStaff() { return { loyalty: Math.round(LOYALTY.start[0] + rand() * (LOYALTY.start[1] - LOYALTY.start[0])), greed: round2(0.9 + rand() * 0.3) }; }
+export const staffOf = (s, role) => (s.staff[role] ||= newStaff());
+export function payBonus(s, role) {
+  const c = CREW[role], st = staffOf(s, role), cost = Math.round(c.wage * st.greed) || 100, cash = c.cash;
+  if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad');
+  s[cash] = round2(s[cash] - cost); st.loyalty = Math.min(100, st.loyalty + LOYALTY.bonusGain);
+  say(`${c.name} appreciates it. Loyalty ${Math.round(st.loyalty)}.`, 'good');
+}
+// Choices that wait for you (a pop-up); if you don't answer in time the safe option is taken
+export function pushDecision(s, d, t = s.clock) { d.id = s.nextId++; d.until ??= t + 12 * HOUR; s.decisions.push(d); }
+export function answerDecision(s, id, yes, t = s.clock) {
+  const d = s.decisions.find(x => x.id === id);
+  if (!d) return;
+  s.decisions = s.decisions.filter(x => x !== d);
+  resolveDecision(s, d, yes, t, false);
+}
+function resolveDecision(s, d, yes, t, auto) {
+  const nightCrew = Object.keys(CREW).filter(r => CREW[r].shift === 'night' && s.crew[r]);
+  if (d.kind === 'bail') {
+    if (yes && s.dirty >= d.cost) {
+      s.dirty -= d.cost; if (d.role) s.crew[d.role] = true;
+      for (const r of nightCrew) staffOf(s, r).loyalty = Math.min(100, staffOf(s, r).loyalty + 5);
+      return note(s, `⚖️ You paid ${d.who}'s bail (£${d.cost.toLocaleString('en-GB')}). The crew notice you look after your own.`, 'good', t);
+    }
+    s.heat = clamp(s.heat - 5, 0, 100);
+    for (const r of nightCrew) staffOf(s, r).loyalty = Math.max(0, staffOf(s, r).loyalty - 10);
+    return note(s, `⚖️ You cut ${d.who} loose${auto ? ' (no answer in time)' : ''}. Heat -5, but the crew don't like it.`, 'meh', t);
+  }
+  const c = d.kind;
+  if (c === 'bulk') {
+    if (yes) {
+      const have = s.bags[d.product] || 0, n = Math.min(have, d.qty);
+      if (n < 1) return note(s, '📦 You had nothing to sell the bulk buyer.', 'meh', t);
+      const cash = Math.round(n * bagPrice(s, { product: d.product }) * 0.7);
+      s.bags[d.product] -= n; s.dirty += cash; s.heat = clamp(s.heat + 6, 0, 100); addXp(s, n * bagXp(d.product));
+      if (rand() < 0.15) addEvidence(s, CASE.sting, t, 'The bulk buyer was wearing a wire.');
+      return note(s, `📦 Bulk deal: ${n} ${PRODUCTS[d.product].name} for £${cash.toLocaleString('en-GB')}. Heat +6.`, 'good', t);
+    }
+    return;
+  }
+  if (c === 'journalist') {
+    if (!yes) return;
+    s.rep = clamp(s.rep + 8, 0, 100);
+    if (s.labUnlocked && rand() < 0.3) { addEvidence(s, 5, t, 'The journalist asked about the back door.'); return note(s, '📰 The piece was lovely, but the journalist asked a lot about the back door. Popularity +8.', 'meh', t); }
+    return note(s, '📰 A glowing piece in the paper. Popularity +8.', 'good', t);
+  }
+  if (c === 'inspector') {
+    if (yes && s.clean >= d.cost) { s.clean = round2(s.clean - d.cost); return note(s, `🧽 Fixed it for £${d.cost}. The inspector left happy.`, 'good', t); }
+    if (rand() < 0.4) { s.scandalUntil = Math.max(s.scandalUntil, t + 24 * HOUR); s.rep = clamp(s.rep - 6, 0, 100); return note(s, '🧽 The inspector came back and gave you a poor hygiene rating. Popularity -6.', 'bad', t); }
+    return note(s, '🧽 The inspector never came back. Lucky.', 'info', t);
+  }
+  if (c === 'package') {
+    if (!yes) return;
+    s.dirty += d.cost; s.packageUntil = t + 7 * DAY;
+    return note(s, `📦 Dez's package is in the back room. £${d.cost.toLocaleString('en-GB')} for your trouble. A raid this week would go badly.`, 'meh', t);
+  }
+  if (c === 'charity') {
+    if (yes && s.clean >= d.cost) { s.clean = round2(s.clean - d.cost); s.rep = clamp(s.rep + 6, 0, 100); s.heat = clamp(s.heat - 3, 0, 100); return note(s, `❤️ You gave £${d.cost.toLocaleString('en-GB')}. Popularity +6.`, 'good', t); }
+  }
+}
+function randomChoice(s, t) {
+  const pool = Object.keys(CHOICES).filter(k => !CHOICES[k].night || s.labUnlocked);
+  const kind = pick(pool), C = CHOICES[kind], d = { kind, title: C.title, text: C.text, yes: C.yes, no: C.no };
+  if (kind === 'bulk') {
+    const stocked = Object.keys(s.bags).filter(k => s.bags[k] > 5);
+    if (!stocked.length) return;
+    d.product = pick(stocked); d.qty = Math.round(s.bags[d.product] * 0.8);
+    d.text += ` ${d.qty} ${PRODUCTS[d.product].name} at 70% of the price.`;
+  }
+  if (kind === 'inspector') { d.cost = 200 + 40 * s.level; d.text += ` £${d.cost.toLocaleString('en-GB')}.`; }
+  if (kind === 'package') { d.cost = 1000 + 150 * s.level; d.text += ` £${d.cost.toLocaleString('en-GB')} dirty.`; }
+  if (kind === 'charity') { d.cost = 150 + 50 * s.level; d.text += ` They're asking for £${d.cost.toLocaleString('en-GB')}.`; }
+  pushDecision(s, d, t);
+}
+function runDecisions(s, t) {
+  for (const d of [...s.decisions]) if (t >= d.until) { s.decisions = s.decisions.filter(x => x !== d); resolveDecision(s, d, false, t, true); }
+  if (s.nextChoiceAt && t >= s.nextChoiceAt) { s.nextChoiceAt = null; if (s.level >= 3) randomChoice(s, t); }
+}
+// Evidence for the detective's case
+export function addEvidence(s, n, t = s.clock, why = '') {
+  if (!s.labUnlocked) return;
+  const before = s.case.evidence;
+  s.case.evidence = clamp(before + n, 0, 100);
+  for (const st of CASE.stages) if (before < st && s.case.evidence >= st)
+    note(s, `🕵️ ${CASE.detective}'s case against you is ${st}% built.${why ? ' ' + why : ''}`, 'bad', t);
+  if (s.case.evidence >= 100) courtCase(s, t);
+}
+function courtCase(s, t) {
+  const lawyer = s.crew.lawyer, half = lawyer ? 0.5 : 1;
+  const fineClean = Math.round(Math.min(Math.max(0, s.clean) * CASE.courtClean, CASE.courtCapPerLevel * s.level) * half), fineDirty = Math.round(s.dirty * CASE.courtDirty * half);
+  s.clean = round2(s.clean - fineClean); s.dirty -= fineDirty;
+  for (const id in s.bags) s.bags[id] = 0;
+  for (const id in s.kits) s.kits[id] = 0;
+  for (const x of s.shops) { for (const m of x.lab) m.job = null; x.door = []; x.stock = {}; }
+  s.sealedUntil = Math.max(s.sealedUntil, t + CASE.courtSealDays * (lawyer ? 0.5 : 1) * DAY);
+  s.rep = clamp(s.rep - CASE.courtPop * half, 0, 100);
+  s.scandalUntil = Math.max(s.scandalUntil, t + 7 * DAY);
+  const gone = [];
+  if (!lawyer) for (const r of Object.keys(CREW)) if (CREW[r].shift === 'night' && s.crew[r] && rand() < 0.6) { s.crew[r] = false; gone.push(CREW[r].name); }
+  s.case.evidence = CASE.after; s.case.trials = (s.case.trials || 0) + 1; s.stats.busts++;
+  note(s, `⚖️ ${CASE.detective}'s case went to court. Fined £${fineClean.toLocaleString('en-GB')} plus £${fineDirty.toLocaleString('en-GB')} dirty, every bag and kit seized, the back rooms sealed for ${CASE.courtSealDays * (lawyer ? 0.5 : 1)} days.${gone.length ? ' ' + gone.join(', ') + ' went down.' : ''}${lawyer ? ' Ms Okafor kept the worst of it away.' : ''}`, 'bad', t);
+}
+export const caseBribeCost = s => CASE.bribeBase + CASE.bribePerLevel * s.level;
+export const caseFrameCost = s => CASE.frameBase + CASE.framePerLevel * s.level;
+export function bribeDetective(s, t = s.clock) {
+  const cost = caseBribeCost(s);
+  if (s.dirty < cost) return say('Not enough dirty cash.', 'bad');
+  s.dirty -= cost;
+  if (rand() < CASE.bribeFail) { s.heat = clamp(s.heat + 10, 0, 100); addEvidence(s, CASE.bribeBack, t, 'And now attempted bribery too.'); return say(`${CASE.detective} wasn't for sale. Evidence +${CASE.bribeBack}.`, 'bad'); }
+  s.case.evidence = Math.max(0, s.case.evidence - CASE.bribeCut);
+  say(`Some evidence went missing. The case is down to ${Math.round(s.case.evidence)}%.`, 'good');
+}
+export function frameRival(s, t = s.clock) {
+  const cost = caseFrameCost(s);
+  if (!feature(s, 'rivals')) return say('There is no rival crew to pin it on yet.', 'bad');
+  if (s.dirty < cost) return say('Not enough dirty cash.', 'bad');
+  s.dirty -= cost;
+  if (rand() < CASE.frameFail) { addEvidence(s, CASE.frameBack, t, 'The frame-up fell apart.'); return say(`It fell apart. Evidence +${CASE.frameBack}.`, 'bad'); }
+  s.case.evidence = Math.max(0, s.case.evidence - CASE.frameCut);
+  say(`The rival crew take the fall. The case is down to ${Math.round(s.case.evidence)}%.`, 'good');
+}
+
+// ---------- Suppliers, insurance and the rival bakery ----------
+export const supplierFor = (s, ing) => Object.keys(s.contracts).find(id => SUPPLIERS[id].ings.includes(ing));
+export function signContract(s, id) {
+  const c = SUPPLIERS[id];
+  if (!c || s.contracts[id]) return;
+  if (!unlocked(s, c.level)) return say(`${c.name} deals with you from level ${c.level}.`, 'bad');
+  s.contracts[id] = { bought: 0 };
+  say(`${c.emoji} Signed with ${c.name}: ${Math.round(c.disc * 100)}% off, at least ${c.min} a week.`, 'good');
+}
+export function endContract(s, id) { delete s.contracts[id]; }
+export const insurancePremium = (s, id) => Math.round(INSURANCE[id].base + INSURANCE[id].perLevel * s.level);
+export function toggleInsurance(s, id) { if (INSURANCE[id]) s.insurance[id] = !s.insurance[id]; }
+function claim(s, amount, what, t) {
+  if (amount <= 0) return;
+  s.clean = round2(s.clean + amount); s.taxWeek.claims = (s.taxWeek.claims || 0) + 1;
+  note(s, `🛡️ The insurers paid out £${Math.round(amount).toLocaleString('en-GB')} for ${what}.`, 'good', t);
+}
+export const rivalShare = s => (s.rival?.open ? s.rival.share : 0);
+export const rivalBuyout = s => RIVAL.buyoutBase + RIVAL.buyoutPerLevel * s.level;
+export function buyOutRival(s, t = s.clock) {
+  if (!s.rival.open) return;
+  const cost = rivalBuyout(s);
+  if (s.clean < cost) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - cost); s.today.upgradesSpent += cost;
+  s.rival = { open: false, share: 0, closedUntil: t + RIVAL.closedDays * DAY };
+  say(`🏳️ You bought out ${RIVAL.name}. Their customers are yours again.`, 'good');
+}
+// Customers come in types: commuters at the station, lunch at the café, tourists in summer, weekends at the maison
+function shopRush(s, t) {
+  const d = new Date(t), h = d.getHours(), m = d.getMonth(), wd = d.getDay(), id = s.shops[s.cur || 0].id;
+  let k = (m >= 5 && m <= 7) ? 1.1 : 1; // summer tourists everywhere
+  if (id === 'express' && ((h >= 7 && h < 9) || (h >= 17 && h < 19))) k *= 1.5;
+  if (id === 'cafe' && h >= 12 && h < 14) k *= 1.3;
+  if (id === 'gelateria') k *= (m >= 5 && m <= 7) ? 1.4 : (m <= 1 || m === 11) ? 0.8 : 1;
+  if (id === 'maison' && (wd === 0 || wd === 6)) k *= 1.3;
+  return k;
+}
+
+// ---------- Auctions, goals, area heat and prestige challenges ----------
+export const rareProducts = () => Object.keys(PRODUCTS).filter(id => PRODUCTS[id].rare);
+function startAuction(s, t) {
+  const options = rareProducts().filter(id => s.level + 10 >= PRODUCTS[id].level);
+  if (!options.length || !s.labUnlocked || s.level < AUCTION.level) return;
+  const id = pick(options), p = PRODUCTS[id];
+  const kits = AUCTION.kitsMin + Math.floor(rand() * (AUCTION.kitsMax - AUCTION.kitsMin + 1));
+  s.auction = { product: id, kits, price: Math.round(kits * p.kit * (AUCTION.priceMin + rand() * (AUCTION.priceMax - AUCTION.priceMin)) / 10) * 10, until: t + AUCTION.hours * HOUR };
+  note(s, `🔨 Dez has a lot at auction: ${kits} kits of ${p.name}. Bids close in a day.`, 'info', t);
+}
+export function buyAuction(s, t = s.clock) {
+  const a = s.auction;
+  if (!a || t > a.until) return say('Nothing at auction right now.', 'bad');
+  if (s.dirty < a.price) return say('Not enough dirty cash.', 'bad');
+  s.dirty -= a.price; s.kits[a.product] = (s.kits[a.product] || 0) + a.kits; s.auction = null;
+  say(`🔨 Yours: ${a.kits} kits of ${PRODUCTS[a.product].name}.`, 'good');
+}
+function makeGoals(s, kind) {
+  const keys = Object.keys(GOALS).filter(k => !GOALS[k].night || s.labUnlocked);
+  const picked = [];
+  while (picked.length < (kind === 'daily' ? 3 : 2) && keys.length) picked.push(keys.splice(Math.floor(rand() * keys.length), 1)[0]);
+  return picked.map(k => {
+    const g = GOALS[k], mult = kind === 'daily' ? 1 : 6;
+    const n = Math.max(1, Math.round((g.base + g.per * s.level * (k === 'sales' || k === 'washed' ? s.level / 10 + 1 : 1)) * mult));
+    return { key: k, target: n, base: s.stats[g.stat] || 0, done: false };
+  });
+}
+export const goalProgress = (s, g) => Math.min(g.target, (s.stats[GOALS[g.key].stat] || 0) - g.base);
+function checkGoals(s, t) {
+  for (const kind of ['daily', 'weekly']) for (const g of s.goals[kind]) {
+    if (g.done || goalProgress(s, g) < g.target) continue;
+    g.done = true;
+    const cash = GOAL_REWARD.dailyCash * s.level * (kind === 'weekly' ? GOAL_REWARD.weeklyMult : 1);
+    s.clean = round2(s.clean + cash);
+    addXp(s, GOAL_REWARD.dailyXp * s.level * (kind === 'weekly' ? GOAL_REWARD.weeklyMult : 1));
+    if (kind === 'weekly') s.prestige.tokens += GOAL_REWARD.weeklyTokens; // spendable on perks; not part of the price bonus
+    note(s, `🎯 ${kind === 'weekly' ? 'Weekly goal' : 'Goal'} done: ${GOALS[g.key].text(g.target)}. +£${cash.toLocaleString('en-GB')}${kind === 'weekly' ? ` and ${GOAL_REWARD.weeklyTokens} prestige token` : ''}.`, 'good', t);
+  }
+}
+function areaHeat(s, area, n) { s.areaHeat[area] = clamp((s.areaHeat[area] || 0) + n, 0, 100); s.heat = clamp(s.heat + n * AREA_HEAT.mainShare, 0, 100); }
+export const challenge = s => CHALLENGES[s.challenge || 'none'];
+// Weekly report card
+const grade = v => (v >= 0.9 ? 'A' : v >= 0.75 ? 'B' : v >= 0.55 ? 'C' : v >= 0.35 ? 'D' : 'F');
+function reportCard(s, est) {
+  const w = s.taxWeek;
+  const bakery = grade((w.served || 0) / Math.max(1, (w.served || 0) + (w.missed || 0)));
+  const back = !s.labUnlocked ? '—' : (w.busts ? 'F' : w.seizures >= 3 ? 'D' : w.seizures ? 'C' : (w.bags || 0) > 50 ? 'A' : 'B');
+  const books = w.caught ? 'F' : s.hmrc > 1 ? 'D' : est.hidden > 0 ? 'C' : (w.laundered + (w.washSuspect || 0)) > w.sales * 0.5 ? 'B' : 'A';
+  return { bakery, back, books };
+}
+
 // ---------- Small state helpers ----------
 export const has = (s, id) => !!s.upgrades[id];
 export function eff(s, key) { // the sum of every owned upgrade's and property's effect called key
@@ -155,7 +370,7 @@ export function eff(s, key) { // the sum of every owned upgrade's and property's
 export const unlocked = (s, level) => (s.level || 1) >= (level || 1);
 export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.level);
 export const recipeOf = id => ITEMS[id] || PRODUCTS[id];
-export const ingPrice = (s, ing) => round2(INGREDIENTS[ing].base * (s.market[ing] || 1));
+export const ingPrice = (s, ing) => { const c = s.contracts && supplierFor(s, ing); return round2(INGREDIENTS[ing].base * (s.market[ing] || 1) * (c ? 1 - SUPPLIERS[c].disc : 1)); };
 export const itemPrice = (s, id) => round2(ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
 export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + q * ingPrice(s, k), 0));
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
@@ -319,7 +534,7 @@ export function collectJob(s, idx, t, { quiet = false } = {}) {
   if (!s.onMenu.includes(id) && menuOf(s).length < menuSlots(s)) s.onMenu.push(id);
   m.job = null;
   addXp(s, batchXp(id));
-  s.today.batches++;
+  s.today.batches++; s.stats.batches = (s.stats.batches || 0) + 1;
   if (!quiet && !s.onMenu.includes(id)) say(`${r.name} isn't on sale: put it on the menu to sell it.`, 'info');
   // The head chef starts the same thing again straight away, if there's room for it
   if (s.crew.chef && m.last) chefRestart(s, idx, t);
@@ -348,9 +563,10 @@ export const repairCost = (type, lab = false) => Math.round(Math.max(300, TYPES(
 export function repairMachine(s, idx, lab = false) {
   const m = kitchenList(s, lab)[idx];
   if (!m?.broken) return;
-  const cost = repairCost(m.type, lab);
+  const cost = s.insurance?.machines ? 0 : repairCost(m.type, lab);
   if (s.clean < cost) return say('Not enough clean cash for the repair.', 'bad');
   s.clean = round2(s.clean - cost);
+  if (!cost) s.taxWeek.claims = (s.taxWeek.claims || 0) + 1;
   m.broken = false;
   say(`${TYPES(lab)[m.type].name} repaired.`, 'good');
 }
@@ -457,7 +673,7 @@ function runCorners(s, t0, t1, mins) {
     const cash = n * cornerBagPrice(s, id, k.product);
     s.dirty += cash; s.stats.nightCash = (s.stats.nightCash || 0) + cash; s.stats.totalBags += n;
     s.today.cornerSales += n; s.today.cornerCash += cash; s.today.nightSales += cash;
-    s.heat = clamp(s.heat + CFG.cornerHeat * n, 0, 100);
+    areaHeat(s, 'streets', CFG.cornerHeat * n);
     s.street = clamp(s.street + n * CFG.streetPerBag * ((s.purity[k.product] ?? 0.6) - 0.65) * 0.5, 0, 100);
     addXp(s, Math.ceil(n * bagXp(k.product) / 2));
   }
@@ -482,6 +698,7 @@ export function buyIngredient(s, ing, qty, silent = false) {
   if (s.clean < cost) { if (!silent) say('Not enough clean cash.', 'bad'); return false; }
   s.clean = round2(s.clean - cost);
   s.inv[ing] = (s.inv[ing] || 0) + qty;
+  const sup = supplierFor(s, ing); if (sup) s.contracts[sup].bought += qty;
   s.today.ingSpent = round2(s.today.ingSpent + cost);
   return true;
 }
@@ -512,10 +729,11 @@ export function hire(s, role) {
   if (!c || (c.lab && !s.labUnlocked)) return;
   if (!unlocked(s, c.level)) return say(`${c.name} is available from level ${c.level}.`, 'bad');
   s.crew[role] = true;
+  if (!s.staff[role]) s.staff[role] = newStaff();
   say(`${c.name} (${c.role.toLowerCase()}) starts now.`, 'good');
 }
 export function fire(s, role) { s.crew[role] = false; }
-export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [, c]) => a + c.wage, 0);
+export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [r, c]) => a + Math.round(c.wage * (s.staff?.[r]?.greed || 1)), 0);
 
 // ---------- Customers ----------
 export function customersPerHour(s, t) {
@@ -524,7 +742,7 @@ export function customersPerHour(s, t) {
   const inStock = menuOf(s).filter(id => s.display[id] > 0).length;
   const variety = 1 + Math.min(CFG.varietyCap, CFG.varietyBonus * Math.max(0, inStock - 1));
   return (CFG.custBase + s.rep * CFG.custPerPop) * HOUR_TRADE[h] * nightApp * (1 + eff(s, 'cust')) * (s.event?.cust || 1)
-    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t);
+    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t) * (1 - rivalShare(s)) * shopRush(s, t);
 }
 const tasteAt = t => { const h = localHour(t); return HOUR_TASTE.find(b => h < b.until).w; };
 const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
@@ -554,26 +772,29 @@ function customerVisit(s, t, showIt) {
   let qty = 1 + (rand() < 0.45 ? 1 : 0) + ((g === 'sweet' || g === 'cold') && rand() < 0.3 ? 1 : 0);
   qty = Math.min(qty, s.display[id]);
   s.display[id] -= qty;
-  let rev = qty * itemPrice(s, id), xp = qty * saleXp(id);
+  let rev = qty * itemPrice(s, id), xp = qty * saleXp(id), combo = false;
   if (TAX.vatGroups.includes(g)) td.vatSales += rev;
   // Plenty of people grab a drink with their food
   if (g !== 'drink' && rand() < CFG.drinkAddOn) {
     const drinks = stock.filter(x => ITEMS[x].group === 'drink' && s.display[x] > 0);
-    if (drinks.length) { const d = pick(drinks); s.display[d]--; rev += itemPrice(s, d); td.vatSales += itemPrice(s, d); xp += saleXp(d); td.itemsSold++; }
+    if (drinks.length) { const d = pick(drinks), dp = itemPrice(s, d) * 1.1; s.display[d]--; rev += dp; td.vatSales += dp; xp += saleXp(d); td.itemsSold++; combo = true; }
   }
+  const regular = rand() < 0.2;
+  if (regular) rev *= 1.1;
   rev = round2(rev);
   s.clean = round2(s.clean + rev);
+  if (regular) s.rep = clamp(s.rep + 0.01, 0, 100);
   td.sales = round2(td.sales + rev); td.itemsSold += qty; td.served++; s.stats.served = (s.stats.served || 0) + 1;
   s.stats.totalSales = round2(s.stats.totalSales + rev);
   s.rep = clamp(s.rep + CFG.popServed, 0, 100);
   addXp(s, xp);
-  show({ kind: 'good', text: `+£${rev.toFixed(2)}`, want: id });
+  show({ kind: 'good', text: `+£${rev.toFixed(2)}${combo ? ' combo' : ''}${regular ? ' 🫶' : ''}`, want: id });
 }
 
 // ---------- Night trade ----------
 export const copChance = (s, product = 'homegrown') => CFG.copBase + s.heat * CFG.copPerHeat + (PRODUCTS[product]?.cop || 0);
 export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel * (s.level || 1), CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers')) * (0.5 + (s.street ?? CFG.streetStart) / 100);
-export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level));
+export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level) && (!PRODUCTS[id].rare || (s.bags[id] || 0) > 0));
 function buyerArrives(s, t) {
   const choices = {};
   for (const id of knownProducts(s)) choices[id] = PRODUCTS[id].share * ((s.bags[id] || 0) > 0 ? 2 : 1);
@@ -632,6 +853,7 @@ function sell(s, b, qty, cash, t, byCrew) {
   if (b.cop) {
     td.copsServed++;
     const h = byCrew ? CFG.copCrewHeat : CFG.copServedHeat;
+    addEvidence(s, CASE.doorCop, t);
     s.heat = clamp(s.heat + h, 0, 100);
     note(s, `🚨 ${b.name} was undercover${byCrew ? ' (the crew served them)' : ''}. Heat +${h}.`, 'bad', t);
   } else if (!byCrew) say(`${PRODUCTS[b.product].emoji} ${b.name} ×${qty} +£${cash}`, 'good');
@@ -664,6 +886,7 @@ export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) + 2 * pe
 export function buyKit(s, cash, product = 'homegrown', { quiet = false } = {}) {
   const p = PRODUCTS[product];
   if (!s.labUnlocked || !p) return false;
+  if (p.rare) { if (!quiet) say(`${p.name} only comes up at Dez's auctions.`, 'bad'); return false; }
   if (!unlocked(s, p.level)) { if (!quiet) say(`${p.name} unlocks at level ${p.level}.`, 'bad'); return false; }
   if (!kitsLeftToday(s)) {
     const nx = nextCap(CAPS.kits, s.level);
@@ -739,7 +962,7 @@ export function upgradeVans(s, what) {
   s.vans[what] = lvl + 1;
   say(what === 'level' ? `Bigger vans: ${vanCapacity(s)} bags a run.` : `Better hidden compartments (level ${s.vans.hide}).`, 'good');
 }
-export const stopChance = (s, bags) => Math.min(0.6, (VANS.stop + s.heat * VANS.stopPerHeat + bags * VANS.stopPerBag) * (s.crew.copper ? 0.6 : 1));
+export const stopChance = (s, bags) => Math.min(0.6, (VANS.stop + (s.heat * 0.4 + (s.areaHeat?.vans || 0)) * VANS.stopPerHeat + bags * VANS.stopPerBag) * (s.crew.copper ? 0.6 : 1));
 export const findChance = s => VANS.find * (1 - VANS.hideCut * s.vans.hide);
 export function sendVan(s, i, t = s.clock, quiet = false) {
   const x = s.shops[i];
@@ -765,7 +988,9 @@ function runLogistics(s, t) {
     if (rand() < stopChance(s, sh.bags)) {
       if (rand() < findChance(s)) {
         s.vans.impounded.push(t + VANS.impoundDays * DAY);
-        s.heat = clamp(s.heat + VANS.seizeHeat, 0, 100); s.stats.seized = (s.stats.seized || 0) + sh.bags;
+        areaHeat(s, 'vans', VANS.seizeHeat * 2); s.stats.seized = (s.stats.seized || 0) + sh.bags; s.taxWeek.seizures = (s.taxWeek.seizures || 0) + 1;
+        addEvidence(s, CASE.seizure, t, 'The van driver is talking.');
+        if (s.crew.dispatcher || true) pushDecision(s, { kind: 'bail', who: 'the van driver', cost: LOYALTY.bailBase + LOYALTY.bailPerLevel * s.level, title: 'Bail for the driver', text: `Your van driver is in a cell. Pay £${(LOYALTY.bailBase + LOYALTY.bailPerLevel * s.level).toLocaleString('en-GB')} dirty bail, or leave them to it?`, yes: 'Pay bail', no: 'Cut them loose' }, t);
         note(s, `🚓 Police stopped the van from ${from} and found ${sh.bags} bags under the bread. Seized, the van impounded for ${VANS.impoundDays} days and the driver arrested. Heat +${VANS.seizeHeat}.`, 'bad', t);
         continue;
       }
@@ -798,11 +1023,11 @@ function deliveryDone(s, d, t) {
   if (have < 1) { s.today.buyersLost++; return; }
   const qty = Math.min(d.want, have);
   if (d.cop) {
-    s.bags[d.product] -= qty; s.delivery.out++; s.heat = clamp(s.heat + DELIVERY.stingHeat, 0, 100); s.stats.seized = (s.stats.seized || 0) + qty;
+    s.bags[d.product] -= qty; s.delivery.out++; areaHeat(s, 'streets', DELIVERY.stingHeat); s.stats.seized = (s.stats.seized || 0) + qty; s.taxWeek.seizures = (s.taxWeek.seizures || 0) + 1; addEvidence(s, CASE.sting, t, 'A rider was caught in a sting.');
     return note(s, `🚨 A delivery was a police sting: the rider was arrested with ${qty} ${p.name}. Heat +${DELIVERY.stingHeat}.`, 'bad', t);
   }
   if (rand() < DELIVERY.stop + s.heat * DELIVERY.stopPerHeat) {
-    s.bags[d.product] -= qty; s.delivery.out++; s.heat = clamp(s.heat + DELIVERY.stopHeat, 0, 100); s.stats.seized = (s.stats.seized || 0) + qty;
+    s.bags[d.product] -= qty; s.delivery.out++; areaHeat(s, 'streets', DELIVERY.stopHeat); s.stats.seized = (s.stats.seized || 0) + qty; s.taxWeek.seizures = (s.taxWeek.seizures || 0) + 1; addEvidence(s, CASE.riderStop, t);
     return note(s, `🚔 A rider was stopped and searched on the way to a drop: ${qty} ${p.name} seized, rider arrested. Heat +${DELIVERY.stopHeat}.`, 'bad', t);
   }
   const b = { product: d.product, want: qty, courier: false, cop: false, name: d.name };
@@ -953,18 +1178,19 @@ export function taxEstimate(s, extraDay = true) {
   const corp = corpTax(profit);
   const ni = Math.max(0, w.wages - TAX.niThreshold) * TAX.niRate;
   const save = s.crew.accountant ? TAX.accountantSave : 0;
-  const total = Math.round((vat + corp + ni) * (1 - save));
+  const total = Math.round((vat + corp + ni) * (1 - save) * (s.challenge === 'doubletax' ? 2 : 1));
   return { vat: Math.round(vat), corp: Math.round(corp), ni: Math.round(ni), profit: Math.round(profit), declared: Math.round(declared * share), hidden: Math.round(declared * (1 - share)), total, saved: Math.round((vat + corp + ni) * save) };
 }
 function addDayToTaxWeek(w, td) {
+  w.served = (w.served || 0) + td.served; w.missed = (w.missed || 0) + td.missed; w.bags = (w.bags || 0) + td.bagsSold;
   w.sales += td.sales; w.vatSales += td.vatSales; w.laundered += td.laundered; w.income += td.income;
   w.costs += td.ingSpent + td.upgradesSpent + td.capex + td.rent + td.wages; w.wages += td.wages;
 }
 const freshTaxWeek = () => ({ sales: 0, vatSales: 0, laundered: 0, income: 0, costs: 0, wages: 0, washTaxed: 0, washSuspect: 0 });
 export function setDeclare(s, k) { if (DECLARE[k]) s.declare = k; }
 export const investigateChance = s => Math.min(0.9, (TAX.investigateBase + TAX.investigateUnder * (1 - declareShare(s))
-  + TAX.investigateLaunder * Math.min(1, (s.taxWeek.laundered + (s.taxWeek.washSuspect || 0)) / Math.max(1, s.taxWeek.sales + s.taxWeek.laundered + (s.taxWeek.washSuspect || 0))) + s.heat / 500)
-  * (s.crew.accountant ? 0.5 : 1) * (1 - eff(s, 'audit')));
+  + TAX.investigateLaunder * Math.min(1, (s.taxWeek.laundered + (s.taxWeek.washSuspect || 0)) / Math.max(1, s.taxWeek.sales + s.taxWeek.laundered + (s.taxWeek.washSuspect || 0))) + s.heat / 500
+  + INSURANCE.claimSuspect * (s.taxWeek.claims || 0)) * (s.crew.accountant ? 0.5 : 1) * (1 - eff(s, 'audit')));
 function settleTax(s, t) {
   const est = taxEstimate(s, false), w = s.taxWeek;
   s.stats.declared = (s.stats.declared || 0) + est.declared;
@@ -986,6 +1212,7 @@ function settleTax(s, t) {
       s.rep = clamp(s.rep - TAX.evasionPop, 0, 100);
       s.scandalUntil = Math.max(s.scandalUntil, t + 48 * HOUR);
       s.heat = clamp(s.heat + 10, 0, 100);
+      w.caught = true; addEvidence(s, CASE.hmrc, t);
       note(s, `🕵️ HMRC investigated your books and found £${est.hidden.toLocaleString('en-GB')} you didn't declare: £${bill.toLocaleString('en-GB')} in back tax and penalties. It made the papers.`, 'bad', t);
     }
     // They may shut a front while they look into it
@@ -998,7 +1225,13 @@ function settleTax(s, t) {
       note(s, '🕵️ HMRC went through the books. Everything was declared, but they asked a lot of questions about where the money came from. Heat +8.', 'bad', t);
     } else note(s, '🕵️ HMRC went through the books and found everything in order.', 'good', t);
   }
+  est.grades = reportCard(s, est);
   note(s, line, paid < est.total ? 'bad' : 'info', t);
+  for (const [id, k] of Object.entries(s.contracts)) {
+    const c = SUPPLIERS[id];
+    if (k.bought < c.min) { s.clean = round2(s.clean - c.fine); note(s, `${c.emoji} You bought ${k.bought} of ${c.min} from ${c.name} this week: £${c.fine} fine.`, 'bad', t); }
+    k.bought = 0;
+  }
   s.taxWeek = freshTaxWeek();
   return est;
 }
@@ -1128,6 +1361,7 @@ export function startCampaign(s, id, t = s.clock) {
   if (c.once) s.rep = clamp(s.rep + c.once * (s.crew.pr ? 1.25 : 1), 0, 100);
   if (c.heat) s.heat = clamp(s.heat + c.heat, 0, 100);
   if (c.weeklyOnce) s.lastCharity = t;
+  if (s.rival?.open) s.rival.share = Math.max(0, s.rival.share - RIVAL.campaignHit);
   s.campaigns = activeCampaigns(s, t).concat([{ id, until: t + c.hours * HOUR * (s.crew.director ? 1.5 : 1) }]);
   say(`${c.emoji} ${c.name} is running.`, 'good');
 }
@@ -1196,7 +1430,7 @@ export function newGame(t = Date.now(), prestige = null) {
     level: 1, xp: 0, levelUps: [],
     recipes: [...START_RECIPES], priceLevel: {}, shops: [makeShop('stall')], cur: 0,
     kits: {}, bags: {}, purity: {}, cut: {}, street: CFG.streetStart, corners: {},
-    taxWeek: freshTaxWeek(), wash: freshWash(), vans: { count: 0, level: 0, hide: 0, impounded: [] }, shipments: [], delivery: { on: false, riders: 0, out: 0 }, deliveries: [], declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
+    taxWeek: freshTaxWeek(), wash: freshWash(), staff: {}, decisions: [], nextChoiceAt: null, case: { evidence: 0 }, contracts: {}, insurance: {}, rival: { open: false, share: 0 }, auction: null, goals: { daily: [], weekly: [], dayStart: 0 }, areaHeat: { vans: 0, streets: 0 }, challenge: 'none', packageUntil: 0, vans: { count: 0, level: 0, hide: 0, impounded: [] }, shipments: [], delivery: { on: false, riders: 0, out: 0 }, deliveries: [], declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
@@ -1236,6 +1470,8 @@ export function migrate(s, t = Date.now()) {
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
     s.prestige ??= { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
+    s.staff ??= {}; s.decisions ??= []; s.case ??= { evidence: 0 }; s.contracts ??= {}; s.insurance ??= {}; s.rival ??= { open: false, share: 0 }; s.auction ??= null;
+    s.goals ??= { daily: [], weekly: [], dayStart: 0 }; s.areaHeat ??= { vans: 0, streets: 0 }; s.challenge ??= 'none'; s.packageUntil ??= 0;
     s.taxWeek ??= freshTaxWeek(); s.wash ??= freshWash(); s.vans ??= { count: 0, level: 0, hide: 0, impounded: [] }; s.shipments ??= []; s.delivery ??= { on: false, riders: 0, out: 0 }; s.deliveries ??= []; s.taxWeek.washTaxed ??= 0; s.taxWeek.washSuspect ??= 0; s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
     if (s.today) { s.today.vatSales ??= 0; s.today.capex ??= 0; s.today.ordersDone ??= 0; s.today.ordersMissed ??= 0; }
     for (const x of s.shops) { for (const id in ITEMS) x.display[id] ??= 0; x.custAcc ||= 0; x.design.base ??= { floor: SHOPS[x.id].floor, wall: SHOPS[x.id].wall }; }
@@ -1292,6 +1528,7 @@ export function advance(s, now, { live: watching = false } = {}) {
   }
   s.last = now; s.clock = now;
   checkMilestones(s, now);
+  checkGoals(s, now);
   liveMode = false;
 }
 
@@ -1303,6 +1540,9 @@ function span(s, t0, t1, showIt) {
   shared(s, t0, t1, mins);
   if (s.labUnlocked) { runLogistics(s, t1); runDeliveries(s, t1); }
   runOrders(s, t1);
+  runDecisions(s, t1);
+  for (const a in s.areaHeat) s.areaHeat[a] = Math.max(0, s.areaHeat[a] - AREA_HEAT.decayPerHour * mins / 60);
+  if (s.auction && t1 > s.auction.until) s.auction = null;
   if (s.criticAt && t1 >= s.criticAt) { s.criticAt = null; const keep = s.cur; s.cur = Math.floor(rand() * s.shops.length); criticVisits(s, t1); s.cur = keep; }
   // HMRC interest on unpaid tax
   if (s.hmrc > 0) s.hmrc += s.hmrc * TAX.interestDaily * mins / 1440;
@@ -1361,7 +1601,7 @@ function shared(s, t0, t1, mins) {
   }
   s.today.peakHeat = Math.max(s.today.peakHeat, s.heat);
   if (s.heat >= 100) bust(s, t1, 'Heat hit the limit and armed police came through the back door.');
-  if (!s.labUnlocked && !s.offerPending && t1 >= s.offerAfter) s.offerPending = true;
+  if (!s.labUnlocked && !s.offerPending && t1 >= s.offerAfter && s.challenge !== 'nolab') s.offerPending = true;
 }
 
 function scheduleNight(s, t) {
@@ -1385,6 +1625,7 @@ function rivalsStrike(s, t) {
 
 // Busted: a heavy blow, never the end.
 function bust(s, t, why) {
+  s.taxWeek.busts = (s.taxWeek.busts || 0) + 1; addEvidence(s, CASE.bust, t);
   const lawyer = s.crew.lawyer;
   const fineDirty = Math.round(s.dirty * CFG.bustFineDirty * (lawyer ? 0.5 : 1));
   const fineClean = Math.min(Math.max(0, s.clean), CFG.bustFineClean * (lawyer ? 0.5 : 1));
@@ -1442,6 +1683,7 @@ function heaviesVisit(s, t) {
       const take = Math.round(s.clean * CFG.tillTake);
       s.clean = round2(s.clean - take);
       done.push(`emptied £${take.toLocaleString('en-GB')} from the till`);
+      if (s.insurance?.premises) claim(s, take, 'the till', t);
     }
   }
   if (!done.length) done.push('made a mess and a lot of threats');
@@ -1479,19 +1721,21 @@ function rollover(s, t) {
   // Jay's luck on the street
   if (td.jayWorked && s.crew.dealer && rand() < (CFG.dealerArrestPerNight + s.heat * CFG.dealerArrestPerHeat) * (has(s, 'van') ? CFG.vanArrestMult : 1)) {
     s.crew.dealer = false; s.heat = clamp(s.heat + CFG.dealerArrestHeat, 0, 100);
-    note(s, `🚔 Jay was picked up on the street. He kept his mouth shut, but he's gone. Heat +${CFG.dealerArrestHeat}.`, 'bad', t);
+    note(s, `🚔 Jay was picked up on the street. Heat +${CFG.dealerArrestHeat}.`, 'bad', t);
+    const bail = LOYALTY.bailBase + LOYALTY.bailPerLevel * s.level;
+    pushDecision(s, { kind: 'bail', who: 'Jay', role: 'dealer', cost: bail, title: 'Bail for Jay', text: `Jay's in a cell and hasn't said a word, yet. Pay £${bail.toLocaleString('en-GB')} dirty bail and he's back on the street tonight.`, yes: 'Pay bail', no: 'Cut him loose' }, t);
   }
   if (td.bagsSold || td.labBatches) s.nightsActive++;
   // Police: raids and tax inspections, judged on how hot it got yesterday
   const hot = td.peakHeat + cashPileHeat(s);
   const raid = hot >= CFG.raidAt && rand() < (hot - 50) / 100 * (1 - eff(s, 'tipoff')) * (s.crew.copper ? 0.6 : 1) * (s.delivery.on ? DELIVERY.raidMult : 1);
   const product = Object.values(s.bags).reduce((a, b) => a + b, 0) + Object.values(s.kits).reduce((a, b) => a + b, 0);
-  if (raid && product > 0 && rand() < (hot - 60) / 60 * (1 - eff(s, 'hide'))) bust(s, t, 'A dawn raid found product in the back room.');
+  if (raid && (product > 0 || (s.packageUntil || 0) > t) && rand() < (hot - 60) / 60 * (1 - eff(s, 'hide')) * ((s.packageUntil || 0) > t ? 1.6 : 1)) bust(s, t, (s.packageUntil || 0) > t ? 'A dawn raid found Dez\'s package in the back room.' : 'A dawn raid found product in the back room.');
   else if (raid) {
     const lost = Math.round(s.dirty * (has(s, 'safe') ? CFG.safeRaidShare : 0.5));
     for (const id in s.bags) s.bags[id] = 0;
     for (const id in s.kits) s.kits[id] = 0;
-    s.dirty -= lost; s.heat = clamp(s.heat - 10, 0, 100);
+    s.dirty -= lost; s.heat = clamp(s.heat - 10, 0, 100); addEvidence(s, CASE.raid, t);
     note(s, `🚓 Raid! They took every bag and kit and £${lost.toLocaleString('en-GB')} of dirty cash. Not enough to charge you. Yet.`, 'bad', t);
   } else if (td.peakHeat >= CFG.inspectAt && rand() < CFG.inspectChance) {
     if (td.launderHeat > 0) {
@@ -1504,8 +1748,8 @@ function rollover(s, t) {
   for (const [id, k] of Object.entries(s.corners)) {
     const c = CORNERS[id], sold = k.soldToday; k.soldToday = 0;
     if (!sold) continue;
-    if (rand() < c.risk * (0.5 + s.heat / 100) * (s.crew.copper ? 0.5 : 1)) {
-      const lost = k.stock; k.stock = 0; s.heat = clamp(s.heat + CFG.cornerSweepHeat, 0, 100);
+    if (rand() < c.risk * (0.5 + (s.areaHeat?.streets || 0) / 60 + s.heat / 300) * (s.crew.copper ? 0.5 : 1)) {
+      const lost = k.stock; k.stock = 0; areaHeat(s, 'streets', CFG.cornerSweepHeat); addEvidence(s, CASE.sweep, t); s.taxWeek.seizures = (s.taxWeek.seizures || 0) + 1;
       note(s, `🚓 Police swept ${c.name.toLowerCase()}: ${lost} bags seized. Heat +${CFG.cornerSweepHeat}.`, 'bad', t);
     } else if (feature(s, 'rivals') && !s.crew.muscle && rand() < 0.03) {
       const lost = k.stock; k.stock = 0;
@@ -1561,8 +1805,29 @@ function rollover(s, t) {
     if (take > 0) { s.clean = round2(s.clean - take); s.hmrc -= take; s.stats.taxPaid = (s.stats.taxPaid || 0) + take; note(s, `🧾 HMRC collected £${take.toLocaleString('en-GB')} of what you owe them.`, 'bad', t); }
   }
   if (!s.criticAt && rand() < CRITIC.chance) s.criticAt = t + (2 + rand() * 14) * HOUR;
+  // Insurance premiums, crew loyalty, the case, the rival, auctions, goals, the next surprise
+  const premium = Object.keys(INSURANCE).filter(k => s.insurance[k]).reduce((a, k) => a + insurancePremium(s, k), 0);
+  if (premium) { s.clean = round2(Math.max(0, s.clean - premium)); td.rent += premium; }
+  for (const r of Object.keys(CREW)) if (s.crew[r]) {
+    const st = staffOf(s, r); st.loyalty = Math.min(100, st.loyalty + LOYALTY.perDay);
+    if (CREW[r].shift === 'night' && st.loyalty < LOYALTY.informAt && rand() < LOYALTY.informChance) {
+      addEvidence(s, CASE.informant, t); note(s, `🐀 ${CREW[r].name} has been talking to ${CASE.detective}. Evidence +${CASE.informant}. A bonus might buy some loyalty back.`, 'bad', t);
+    }
+  }
+  if (s.labUnlocked) s.case.evidence = Math.max(0, s.case.evidence - (td.labBatches ? CASE.decayBusy : CASE.decay));
+  if (s.rival.open) {
+    const low = menuOf(s).filter(id => s.priceLevel[id] === 'low').length > menuOf(s).length / 2;
+    s.rival.share = clamp(s.rival.share + RIVAL.grow - (low ? RIVAL.lowPriceHit * 2 : 0), 0, RIVAL.max);
+    if (s.rival.share <= 0.02) { s.rival = { open: false, share: 0, closedUntil: t + RIVAL.closedDays * DAY }; note(s, `🏳️ ${RIVAL.name} closed down. Their regulars are back.`, 'good', t); }
+  } else if (s.level >= RIVAL.level && s.rep >= RIVAL.pop && t > (s.rival.closedUntil || 0) && rand() < RIVAL.chance) {
+    s.rival = { open: true, share: RIVAL.start }; note(s, `🥐 ${RIVAL.name} opened across the road, and some of your customers are trying it.`, 'bad', t);
+  }
+  if (di % 7 === AUCTION.day) startAuction(s, t);
+  if (s.goals.dayStart !== dayStart(t)) { s.goals.daily = makeGoals(s, 'daily'); s.goals.dayStart = dayStart(t); }
+  if (!s.goals.weekly.length || di % 7 === TAX.taxDay) s.goals.weekly = makeGoals(s, 'weekly');
+  if (rand() < 0.5) s.nextChoiceAt = t + (2 + rand() * 18) * HOUR;
   // File yesterday's report and open a new day
-  s.reports.push({ day: td.day, ledger: td, payment, tax, level: s.level });
+  s.reports.push({ day: td.day, ledger: td, payment, tax, level: s.level, areaHeat: { ...s.areaHeat }, evidence: Math.round(s.case.evidence) });
   if (s.reports.length > 10) s.reports.shift();
   s.today = freshLedger(s, t);
   scheduleNight(s, t);

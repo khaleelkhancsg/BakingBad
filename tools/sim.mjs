@@ -134,6 +134,7 @@ function checkIn(s, st, t, next) {
   }
   G.eachShop(s, () => { for (const type of Object.keys(LAB_MACHINES)) { const cash = G.machineCash(type, true); if (!G.machineBlock(s, type, true) && G.machinePrice(s, type, true) < (cash === 'dirty' ? s.dirty * 0.5 : spare() * 0.3)) G.buyMachine(s, type, true); } });
   if (s.heat >= st.bribeAt && s.dirty > CFG.bribeCost * 2) G.bribe(s);
+  if (s.case.evidence > 60 && s.dirty > G.caseBribeCost(s) * 2) G.bribeDetective(s, t);
   const cool = s.heat >= st.coolAt;
   G.eachShop(s, () => s.lab.forEach((m, i) => {
     if (m.job || m.broken || cool) return;
@@ -145,14 +146,15 @@ function checkIn(s, st, t, next) {
   while (s.vans.count < G.vanCap(s) && s.shops.length > 1 && 8000 * (1 + s.vans.count) < spare() * 0.1) G.buyVan(s);
   for (let i = 1; i < s.shops.length; i++) G.sendVan(s, i, t, true);
   if (G.deliveryOpen(s) && st.declare !== 'half') { G.setDelivery(s, true); while (s.delivery.riders < G.riderCap(s)) G.hireRider(s, 1); }
+  const bribeFund = s.case.evidence > 40 ? G.caseBribeCost(s) * 2 : 1500; // keep a bribe fund when the case is building
   // Spread the rest: fronts, smurfs, a money man, the casino; careful players stash some offshore
   for (const id of Object.keys(FRONTS)) if (!s.wash.fronts[id] && G.unlocked(s, FRONTS[id].level) && FRONTS[id].price < spare() * 0.25) G.buyFront(s, id);
   if (G.washOpen(s, 'smurf')) G.setSmurfing(s, G.washCap(s, 'smurf'));
   hireIf('moneyman', s.dirty > 20000);
-  if (G.washOpen(s, 'casino') && s.dirty > 5000) G.washVia(s, 'casino', Math.min(s.dirty - 3000, G.washLeft(s, 'casino')), t, true);
+  if (G.washOpen(s, 'casino') && s.dirty > 5000) G.washVia(s, 'casino', Math.min(s.dirty - Math.max(3000, bribeFund), G.washLeft(s, 'casino')), t, true);
   if (st.declare !== 'half' && G.washOpen(s, 'offshore') && s.dirty > 30000) G.stashOffshore(s, s.dirty - 20000);
   if (G.washOpen(s, 'offshore') && s.wash.offshore > 0) G.bringBack(s, Infinity, true);
-  const amount = Math.min(Math.floor(s.dirty - 1500), Math.round(G.launderLeft(s) * st.launder));
+  const amount = Math.min(Math.floor(s.dirty - bribeFund), Math.round(G.launderLeft(s) * st.launder));
   if (amount > 0) G.launder(s, amount, true);
 }
 
