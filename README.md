@@ -9,7 +9,7 @@ It's a 3D game: you look down into the shop at an angle. The bakery has ovens, m
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
 (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
-A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: Kitchen, Supplies, Upgrades, Crew, Orders, Marketing, Shops & property,
+A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Zoom right out to see the whole building from outside (walls, windows, the sign and awning, the roofs); zoom back in for the cut-away view. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: Kitchen, Supplies, Upgrades, Crew, Orders, Marketing, Shops & property,
 Bank & tax; in the back room only back-room sections: Lab, Supplies (kits, cutting, the auction), Upgrades, Crew,
 Deals (the back door, Dez's jobs, deliveries), Heat & police, Turf, Wash and Logistics), **🎨 Design** (in the back room: its benches, cellar and annex), and **🗺️ Map** to move between your shops and the back room.
 

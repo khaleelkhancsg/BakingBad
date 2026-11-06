@@ -202,6 +202,8 @@ export function buildWorld(scene) {
     [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
   const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
+  // Street trees on the pavement get a tree pit and a grate
+  for (const t of TREES) if (PAVEMENTS.some(p => inside(p, t.x, t.z))) { root.add(box(0.9, 0.02, 0.9, '#5a4632', t.x, -0.085, t.z, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z + 0.45, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z - 0.45, false)); }
   instanced(geo('trunk', () => new THREE.CylinderGeometry(0.1, 0.15, 1.3, 6).translate(0, 0.65, 0)), mat('#7a5534'), TREES.map(t => ({ ...t, y: -0.09 })), { shadow: true });
   const canopyGeo = geo('canopy', () => new THREE.IcosahedronGeometry(0.85, 0));
   const greens = ['#5f9e4f', '#4f8f48', '#6aab57', '#7bb661', '#4b8a52'];
