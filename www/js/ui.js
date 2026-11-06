@@ -148,24 +148,11 @@ function kitchenTab() {
       ? `<div class="lockline">${block.text}</div>`
       : `<button class="small" data-act="buymachine" data-id="${type}" ${s.clean < G.machinePrice(s, type) ? 'disabled' : ''}>+1 · ${money(G.machinePrice(s, type))}</button>`;
     return pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>${open ? `× ${n} · ${known}/${total} recipes${status ? `<br>${status}` : ''}` : 'not yet'}</small></div></div>
-      <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-kind="day" data-idx="${list[0][1]}">Menu</button>` : ''}${open || block ? buy : ''}</div>`,
+      <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-kind="day" data-idx="${list[0][1]}">Open</button>` : ''}${open || block ? buy : ''}</div>`,
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
   }).join('');
-  const spots = G.freeSpots(s).length;
-  return { cards, hint: `${s.machines.length} machines, room for ${spots} more. Tap a machine in the shop to cook; tap ✓ to collect.` };
-}
-
-function menuTab() {
-  const menu = G.menuOf(s), slots = G.menuSlots(s), nx = nextCap(CAPS.menu, s.level);
-  const ordered = [...menu, ...s.recipes.filter(id => !menu.includes(id))];
-  const cards = ordered.map(id => {
-    const r = ITEMS[id], lvl = s.priceLevel[id], on = menu.includes(id);
-    return pcard(`<div class="ptop"><span class="em">${r.emoji}</span><div><b>${r.name}</b><small>${money2(G.itemPrice(s, id))} · ${s.display[id] || 0} in the case</small></div></div>
-      <button class="small menutoggle ${on ? 'on' : ''}" data-act="menu-toggle" data-id="${id}">${on ? '✓ On sale' : '+ Sell'}</button>
-      <div class="seg">${Object.entries(PRICE_LEVELS).map(([k, L]) =>
-        `<button class="${lvl === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>`, ibtn('recipe', id), `wide ${on ? '' : 'off'}`);
-  }).join('');
-  return { cards, hint: `On sale: ${menu.length} of ${slots}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. More things on sale bring more customers.` };
+  const spots = G.freeSpots(s).length, nx = nextCap(CAPS.menu, s.level);
+  return { cards, hint: `${s.machines.length} machines, room for ${spots} more. On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
 function shopTab() {
@@ -551,7 +538,7 @@ function infoFor(kind, id) {
 
 // ---------- The dock ----------
 function tabsList() {
-  const tabs = [['kitchen', '🍳 Kitchen'], ['menu', '📋 Menu'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
+  const tabs = [['kitchen', '🍳 Kitchen'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['back', `💜 Back room${s.door.length ? ` (${s.door.length})` : ''}`]);
   if (s.labUnlocked && s.level >= 6) tabs.push(['turf', '🗺️ Turf']);
   tabs.push(['marketing', '📣 Marketing'], ['design', '🎨 Design']);
@@ -562,7 +549,7 @@ function tabsList() {
 function dockHTML() {
   const tabs = tabsList();
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'kitchen';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, menu: menuTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, empire: empireTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, empire: empireTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
@@ -592,7 +579,7 @@ function machineModal(m) {
   else if (busy) status = `<div class="card win">${G.recipeOf(v.item).emoji} <b>${G.recipeOf(v.item).name}</b> is ready.${lab ? '' : ` It ${M.spoil === 'burnt' ? 'burns' : 'spoils'} in ${secs(v.spoilIn)}.`}
       <button class="small primary" data-act="collect" data-kind="${m.kind}" data-idx="${m.idx}">Collect</button></div>`;
   else if (lab && G.sealed(s, s.clock)) status = `<div class="card alert">🚧 Police tape. Sealed for ${mins((s.sealedUntil - s.clock) / MIN)}.</div>`;
-  else status = `<p class="mute">Pick something to make.</p>`;
+  else status = lab ? `<p class="mute">Pick something to make.</p>` : `<p class="mute">Pick something to make. On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}.</p>`;
   const tier = mc.tier || 0, tcost = G.tierCost(mc.type, tier, lab), tcash = G.machineCash(mc.type, lab);
   const tierRow = `<div class="mrow tierrow"><span class="em">⬆️</span><div class="grow"><b>Tier ${tier}/${TIERS.max}</b>
       <small>${lab ? `-${pct(TIERS.labSpeed * tier)} time, +${pct(TIERS.labPurity * tier)} purity` : `-${pct(TIERS.speed * tier)} time, +${pct(TIERS.servings * tier)} servings`}</small></div>
@@ -986,19 +973,27 @@ document.getElementById('overlay').addEventListener('pointerdown', e => {
   e.preventDefault();
   act(el);
 });
-let pointerDown = false, lastPointer = 0;
+let pointerDown = false, lastPointer = 0, touching = false;
+// The browser cancels a touch once it starts scrolling, so touches and scrolling are tracked separately
+app.addEventListener('touchstart', () => { touching = true; lastPointer = performance.now(); }, { passive: true });
+window.addEventListener('touchend', () => { touching = false; lastPointer = performance.now(); }, { passive: true });
+window.addEventListener('touchcancel', () => { touching = false; lastPointer = performance.now(); }, { passive: true });
+app.addEventListener('scroll', () => { lastPointer = performance.now(); }, { capture: true, passive: true });
 let rowDrag = null, dragJustEnded = false;
 app.addEventListener('pointerdown', e => {
   pointerDown = true; lastPointer = performance.now();
   if (e.pointerType === 'touch' || e.button !== 0) return;
   const row = e.target.closest('.catalog, .dcats');
-  if (row && row.scrollWidth > row.clientWidth) rowDrag = { row, x: e.clientX, left: row.scrollLeft, moved: false };
+  if (row && row.scrollWidth > row.clientWidth) { rowDrag = { row, x: e.clientX, left: row.scrollLeft, moved: false }; return; }
+  // Mouse: drag a menu up and down like a finger would
+  const box = e.target.closest('.modal');
+  if (box && box.scrollHeight > box.clientHeight && e.target.type !== 'range') rowDrag = { row: box, y: e.clientY, top: box.scrollTop, moved: false, v: true };
 });
 window.addEventListener('pointermove', e => {
   if (!rowDrag) return;
-  const dx = e.clientX - rowDrag.x;
-  if (!rowDrag.moved && Math.abs(dx) > 6) { rowDrag.moved = true; rowDrag.row.classList.add('dragging'); }
-  if (rowDrag.moved) rowDrag.row.scrollLeft = rowDrag.left - dx;
+  const d = rowDrag.v ? e.clientY - rowDrag.y : e.clientX - rowDrag.x;
+  if (!rowDrag.moved && Math.abs(d) > 6) { rowDrag.moved = true; rowDrag.row.classList.add('dragging'); }
+  if (rowDrag.moved) { if (rowDrag.v) rowDrag.row.scrollTop = rowDrag.top - d; else rowDrag.row.scrollLeft = rowDrag.left - d; }
 });
 const pointerEnd = () => {
   pointerDown = false; lastPointer = performance.now();
@@ -1055,7 +1050,7 @@ function frame(now) {
   else G.advance(s, vt, { live: true });
   uiAcc += real; saveAcc += real;
   // Redraw the screens once a second (not while a finger is down, so taps never land on a redrawn button)
-  if (uiAcc >= 1 && !pointerDown && now - lastPointer > 350) { uiAcc = 0; render(); }
+  if (uiAcc >= 1 && !pointerDown && !touching && !rowDrag && now - lastPointer > 700) { uiAcc = 0; render(); }
   if (saveAcc >= 5) { saveAcc = 0; save(); }
   world.frame(s);
   requestAnimationFrame(frame);

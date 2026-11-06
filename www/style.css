@@ -389,3 +389,99 @@ button.chip { cursor: pointer; }
   .meter { width: 40px; } .meter.xp { width: 30px; }
   .hud-right { gap: 4px; }
 }
+
+/* =====================================================================
+   Calmer look: quieter colours, glassy see-through panels, smaller type,
+   gentler animation. (These override the rules above.)
+   ===================================================================== */
+:root {
+  --warm: #e9b277; --warm2: #d98d58; --violet: #a98be0; --violet2: #8466c9;
+  --good: #79c99a; --bad: #e57a83; --meh: #d6bd78;
+  --glass: rgba(20, 15, 30, .62); --glass2: rgba(255, 255, 255, .045); --edge: rgba(255, 255, 255, .08);
+}
+button { border-color: var(--edge); background: var(--glass2); }
+button.primary { background: linear-gradient(180deg, rgba(233, 178, 119, .92), rgba(217, 141, 88, .92)); color: #2a1709; font-weight: 600; }
+button.violet { background: linear-gradient(180deg, rgba(185, 158, 236, .9), rgba(132, 102, 201, .9)); color: #1c1030; font-weight: 600; }
+button.danger { border-color: rgba(229, 122, 131, .5); }
+button.on { border-color: rgba(233, 178, 119, .55); background: rgba(233, 178, 119, .12); }
+button.big { padding: 11px; font-size: 15px; }
+
+/* HUD: small glass chips */
+.badge { background: var(--glass); border: 1px solid var(--edge); box-shadow: none; font-size: 13px; padding: 4px 9px; gap: 5px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.badge.daybadge { background: rgba(28, 21, 40, .7); border-color: var(--edge); padding: 5px 12px 6px; }
+.badge.daybadge b { font-size: 16px; font-weight: 600; }
+.badge.daybadge small { font-size: 11px; }
+.badge.cash { font-weight: 600; }
+.badge.warn { border-color: rgba(229, 122, 131, .45); }
+.badge.ok { border-color: rgba(121, 201, 154, .45); }
+.meter { height: 5px; background: rgba(0, 0, 0, .35); }
+.hud-row.stats { margin-top: 5px; gap: 5px; }
+
+/* The dock */
+.designbar { background: rgba(16, 12, 24, .7); border: 1px solid var(--edge); box-shadow: 0 -4px 18px rgba(0, 0, 0, .25);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); padding: 6px; gap: 5px; width: min(500px, calc(100% - 12px)); border-radius: 14px; }
+.designbar.night { background: rgba(18, 12, 28, .74); border-color: rgba(169, 139, 224, .16); }
+.dcats { gap: 3px; }
+.dcats button { background: transparent; border-color: transparent; color: var(--mute); padding: 4px 8px; }
+.dcats button.on { background: rgba(255, 255, 255, .08); border-color: var(--edge); color: var(--text); }
+.dinfo { font-size: 12px; padding: 0 2px; }
+.pcard { width: 148px; padding: 8px; gap: 4px; background: var(--glass2); border: 1px solid var(--edge); border-radius: 11px; font-size: 12px; }
+.pcard.wide { width: 182px; }
+.pcard.night { background: rgba(169, 139, 224, .06); border-color: rgba(169, 139, 224, .14); }
+.pcard.hired { border-color: rgba(121, 201, 154, .4); }
+.pcard b { font-size: 13px; font-weight: 600; }
+.pcard small { font-size: 11px; }
+.pcard .ptop .em { font-size: 21px; }
+.pcard .pbtns button { padding: 5px 3px; font-size: 12px; }
+.pcard.locked, .ditem.locked { opacity: .45; }
+.lock { font-size: 11px; background: transparent; border-color: rgba(255, 255, 255, .12); padding: 3px 7px; }
+.lockline { font-size: 10.5px; color: var(--mute); background: transparent; border: 1px dashed rgba(255, 255, 255, .12); padding: 4px 6px; }
+.ibtn { width: 18px; height: 18px; font-size: 10px; background: transparent; border-color: rgba(255, 255, 255, .14); color: var(--mute); }
+.ditem { background: var(--glass2); border-color: var(--edge); }
+.ditem.on { border-color: rgba(233, 178, 119, .55); background: rgba(233, 178, 119, .1); }
+.dexp { background: var(--glass2); }
+.menutoggle.on { border-color: rgba(121, 201, 154, .45); background: rgba(121, 201, 154, .1); }
+.floatcard, .floatbanner { background: rgba(20, 15, 30, .78) !important; border: 1px solid var(--edge) !important;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 6px 20px rgba(0, 0, 0, .25) !important; }
+.floatcard h2 { font-size: 16px; } .floatcard p { font-size: 13px; }
+
+/* Bubbles over machines and people */
+.bub { min-width: 28px; height: 28px; font-size: 13px; border-width: 1.5px; background: rgba(25, 18, 36, .8); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
+.bub small { font-size: 10px; }
+.bub.add { font-size: 14px; animation: none; border-color: rgba(233, 178, 119, .6); opacity: .9; }
+.bub.add.mini { min-width: 16px; height: 16px; font-size: 9px; opacity: .7; }
+.bub.done { background: rgba(24, 52, 36, .85); border-color: rgba(121, 201, 154, .75); animation: bob 1.6s ease-in-out infinite; }
+.bub.burn { background: rgba(58, 20, 24, .85); border-color: rgba(229, 122, 131, .8); animation: shake .6s infinite; }
+.bub.buyer { width: 96px; font-size: 12px; border-color: rgba(169, 139, 224, .6); }
+.bub.react { font-size: 12px; padding: 3px 8px; background: rgba(25, 18, 36, .78); }
+.bub.think { min-width: 24px; height: 24px; font-size: 13px; border-width: 1.5px; opacity: .92; }
+.bub.think::after { width: 5px; height: 5px; bottom: -6px; border-width: 1.5px; }
+@keyframes bob { 50% { margin-top: -3px; } }
+@keyframes shake { 25% { margin-left: -1px; } 75% { margin-left: 1px; } }
+
+/* Pop-ups: glass sheets, no visible scrollbar, swipe to scroll */
+.modal-bg { background: rgba(0, 0, 0, .45); }
+.modal { background: rgba(24, 18, 34, .9); border-color: var(--edge); border-radius: 16px 16px 0 0; max-height: 74vh; padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+.modal::-webkit-scrollbar { display: none; }
+.modal.dragging { cursor: grabbing; } .modal.dragging * { pointer-events: none; }
+.modal.night { background: rgba(22, 15, 34, .92); }
+.modal h2 { font-size: 16px; font-weight: 600; }
+.card { background: var(--glass2); border-color: var(--edge); border-radius: 12px; padding: 10px; }
+.card.alert { border-color: rgba(229, 122, 131, .45); } .card.win { border-color: rgba(121, 201, 154, .45); }
+.mlist { gap: 5px; }
+.mrow { background: var(--glass2); border-color: var(--edge); border-radius: 11px; padding: 7px 30px 7px 8px; gap: 8px; }
+.mrow .em { font-size: 24px; width: 30px; }
+.mrow b { font-weight: 600; font-size: 14px; }
+.mrow small { font-size: 11px; }
+.mrow .seg button { font-size: 10.5px; padding: 3px 2px; }
+.quote { background: var(--glass2); }
+.lvlnum { box-shadow: none !important; }
+
+/* Toasts: small and out of the way */
+#toasts { top: calc(var(--hud-h, 70px) + 6px); width: min(360px, 88vw); gap: 4px; }
+.toast { background: rgba(24, 18, 34, .82); border-color: var(--edge); font-size: 12.5px; padding: 6px 10px; border-radius: 9px;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.toast.good { border-color: rgba(121, 201, 154, .45); } .toast.bad { border-color: rgba(229, 122, 131, .45); }
