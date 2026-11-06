@@ -583,3 +583,10 @@ button.big { padding: 11px; font-size: 15px; }
 .ptile.doorTile { flex-direction: row; justify-content: center; gap: 8px; grid-column: 1 / -1; padding: 9px; }
 .ptile.doorTile small { font-size: 12px; }
 .ptile.doorTile.night { background: #261c3a; border-color: rgba(169, 139, 224, .25); }
+/* "Other kitchens / back rooms": where the rest of the machines live */
+.pcard.xwide { width: 300px; }
+.elist { display: flex; flex-direction: column; gap: 5px; }
+.erow { display: grid; grid-template-columns: 92px 1fr auto; gap: 6px; align-items: center; font-size: 12px; }
+.erow small { color: var(--mute); font-size: 10.5px; line-height: 1.2; }
+.erow.locked { opacity: .55; }
+.erow .lock { margin: 0; font-size: 10px; padding: 2px 6px; }

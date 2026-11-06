@@ -160,7 +160,7 @@ function kitchenTab() {
     <div class="pbtns col"><button class="small primary" data-act="collectall" ${ready ? '' : 'disabled'}>Collect all (${ready})</button>
     <button class="small" data-act="restartall" ${idle ? '' : 'disabled'}>🔁 Cook again (${idle})</button></div>`, ibtn('quick', 'x'), 'wide');
   const here = G.shopDef(s).machines;
-  cards += Object.entries(MACHINES).filter(([type, M]) => here.includes(type) && M.level <= s.level + 8).map(([type, M]) => {
+  cards += here.map(type => [type, MACHINES[type]]).map(([type, M]) => {
     const list = s.machines.map((m, i) => [m, i]).filter(([m]) => m.type === type);
     const n = list.length, block = G.machineBlock(s, type), open = G.unlocked(s, M.level);
     const known = s.recipes.filter(id => ITEMS[id].machine === type).length, total = G.recipesFor(type).length;
@@ -173,6 +173,7 @@ function kitchenTab() {
       <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-kind="day" data-idx="${list[0][1]}">Open</button>` : ''}${open || block ? buy : ''}</div>`,
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
   }).join('');
+  cards += elsewhere(false);
   const spots = G.freeSpots(s).length, nx = nextCap(CAPS.menu, s.level);
   return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
 }
@@ -221,8 +222,8 @@ function backTab() {
     cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${G.shopDef(s).drive}h to the stall</small></div></div>
       <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button></div>`, ibtn('vans', 'x'), 'wide night');
   }
-  for (const [type, M] of Object.entries(LAB_MACHINES)) {
-    if (!labHere.includes(type) || M.level > s.level + 10) continue;
+  for (const type of labHere) {
+    const M = LAB_MACHINES[type];
     const list = s.lab.map((m, i) => [m, i]).filter(([m]) => m.type === type), block = G.machineBlock(s, type, true);
     const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
     cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
@@ -230,8 +231,24 @@ function backTab() {
       ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)}</button>`}</div>`,
       ibtn('labmachine', type), `wide night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
   }
+  cards += elsewhere(true);
   return { cards, hint: `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. ${labHint(t)}` };
 }
+// The machines that live in your other shops (or ones you haven't opened yet)
+function elsewhere(lab) {
+  const mine = G.shopDef(s)[lab ? 'lab' : 'machines'], seen = new Set(mine);
+  const rows = [];
+  Object.entries(SHOPS).forEach(([id, d], k) => {
+    const types = d[lab ? 'lab' : 'machines'].filter(x => !seen.has(x));
+    types.forEach(x => seen.add(x));
+    if (!types.length) return;
+    const owned = s.shops.findIndex(x => x.id === id);
+    const T = lab ? LAB_MACHINES : MACHINES;
+    rows.push(`<div class="erow ${owned >= 0 ? '' : 'locked'}"><span>${d.emoji} ${d.short}</span><small>${types.map(x => `${T[x].emoji} ${T[x].name}`).join(' · ')}</small>${owned >= 0 ? `<button class="small" data-act="${lab ? 'go-back' : 'map-go'}" data-id="${owned}">Go</button>` : `<span class="lock">${G.unlocked(s, d.level) ? 'Open in Shops' : `🔒 Lv ${d.level}`}</span>`}</div>`);
+  });
+  return rows.length ? pcard(`<b>${lab ? 'Other back rooms' : 'Other kitchens'}</b><div class="elist">${rows.join('')}</div>`, '', `xwide ${lab ? 'night' : ''}`) : '';
+}
+
 // 📦 Supplies: kits from Dez, cutting, the auction, selling leftovers to Dez
 function stashTab() {
   const t = s.clock;
