@@ -69,7 +69,9 @@ counter holds 4 batches of it. Every branch starts with 2 counters and can buy u
 £12,000); bare ones have a green card on them, tap one to buy it. Tap a stocked counter to see how many servings are
 left, its price and how many it holds; a full counter means finished food waits in the machine. Every recipe has its
 own little model on the counter, and the more of the counter is stocked the more customers come (variety, up to +40%
-with 7 stocked).
+with 7 stocked). Counters running low show an amber ⚠️, empty ones a red 🚫. The counter window has **Restock** (starts a
+free machine on it), **today's special** (one per shop: 20% dearer and twice as many people ask for it, with a gold star
+over the counter) and, from level 10, a **bigger cabinet** for that counter (+2 batches, £1,500).
 
 The same level caps go for how many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
@@ -205,6 +207,27 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
 - **Walking**: people walk around machines, counters and decor. If there's no way through they stop as close as they
   can get rather than walking through things.
 
+## A clean record
+
+Days in a row with nothing cooked, sold or washed after dark count as a clean record (Bank & tax shows it). Every 3
+clean days bring 1% more customers, up to +20%; after 14 days critics look on you kindly; and bakery awards come at 7,
+30, 90 and 180 days (Local favourite, Best bakery in town, Regional baker of the year, National treasure), with prize
+money that grows with your level. Any night trade starts the count again.
+
+## Settings, the guide and sound
+
+☰ Menu → ⚙️ Settings: sound on or off, phone notifications on or off, save backups, the first-day guide, and starting
+over. Settings stay the same through new games and prestige.
+- **Save backup**: Back up shows your whole game as a code (copy it, or save it as a file in the browser); Load a backup
+  pastes one back in, replacing the game you have.
+- **First-day guide**: new games get eight short steps in a card above the corner buttons (bake, collect, the counters,
+  supplies, buying a counter, design, the bank, and a hint about the back). Each moves on by itself once done.
+- **Sound**: all made in the browser: the till, the oven timer, the shop bell for orders, a knock at the back door, coins,
+  level-ups, a siren when heat gets high, and a low hum in the back room at night.
+- **Notifications** (phone app): when the app goes to the background it sets reminders for when the kitchen is done,
+  food is 10 minutes from spoiling, the back room's cooks are done, the back door opens, and a bank payment is due; they
+  clear when you come back.
+
 ## Prestige
 
 From level 25, Menu → Bank & tax → Prestige lets you hand the business on and start again from nothing: no shops,
@@ -307,7 +330,9 @@ Open **🎨 Design** any time:
 - **The building grows** when zoomed out: the front terrace gets a deeper awning (over the food carts) and
   planters, the storeroom a deeper back block, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
   back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the
-  flat upstairs adds a second storey to the stall.
+  flat upstairs adds a second storey to the stall (its windows light up in the evening and early morning). The OPEN sign
+  on the door turns to CLOSED when trade stops for the night, and with a revolving door people keep to one side going in
+  and the other coming out while the wings turn with them.
 - **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for more machines.
   You can see them: an island counter, striped food carts and stall canopies, steel benches, a cellar hatch and the annex.
 

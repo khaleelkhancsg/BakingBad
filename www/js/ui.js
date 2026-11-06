@@ -14,6 +14,12 @@ const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
+import * as SFX from './sound.js';
+import { SPECIAL, CABINET, CLEAN_RECORD } from './data.js';
+const SETTINGS_KEY = 'bakingbad.settings';
+const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
+const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
+SFX.setSound(settings.sound);
 let s = load() || G.newGame();
 
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
@@ -36,6 +42,8 @@ function load() {
     return d && d.v ? D.ensureDesign(G.migrate(d)) : null;
   } catch { return null; }
 }
+// A backup is the save, as text that survives being copied around
+const backupCode = () => { const snap = D.cartSnapshot(); const copy = JSON.parse(JSON.stringify(s)); if (snap) copy.shops[snap.shop].design = snap.design; return btoa(unescape(encodeURIComponent(JSON.stringify(copy)))); };
 function save() {
   try {
     const snap = D.cartSnapshot();
@@ -59,6 +67,7 @@ const pct = v => `${Math.round(v * 100)}%`;
 const nowPrice = id => Math.round(PRODUCTS[id].price * purityMult(s.purity[id] ?? 0.6));
 
 function showToast(text, kind = 'info') {
+  if (kind === 'bad') SFX.sfx.bad(); else if (kind === 'good') SFX.sfx.coin();
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = text;
@@ -522,6 +531,11 @@ function bankTab() {
     <div class="pbtns"><button class="small" data-act="perks">Perks</button>${s.level >= PRESTIGE.level ? `<button class="small primary" data-act="prestige-ask" ${pt ? '' : 'disabled'}>Start again</button>` : `<span class="lock">🔒 Lv ${PRESTIGE.level}</span>`}</div>`, ibtn('prestige', 'x'), 'wide hired');
   cards += pcard(`<b>Daily reports</b><small>${s.reports.length ? `Last: ${dateStr(s.reports.at(-1).day)}` : 'The first comes at 6am'}</small>
     <div class="pbtns"><button class="small" data-act="report" ${s.reports.length ? '' : 'disabled'}>📋 Read</button></div>`, '');
+  {
+    const h = s.honest || { days: 0, best: 0, awards: {} }, next = CLEAN_RECORD.awards.find(([d]) => !h.awards[d]);
+    cards += pcard(`<div class="ptop"><span class="em">🕊️</span><div><b>Clean record: ${h.days} day${h.days === 1 ? '' : 's'}</b><small>+${Math.round(G.cleanBonus(s) * 100)}% customers (up to +${CLEAN_RECORD.cap * 100}%)${h.days >= 14 ? ' · critics like you' : ''}${next ? `<br>Next award: ${next[1]} at ${next[0]} days` : '<br>Every award won'}${h.best > h.days ? ` · best ${h.best}` : ''}</small></div></div>`,
+      ibtn('clean', 'x'), 'wide');
+  }
   return { cards, hint: 'The bank takes its payment at 6am on payment day, automatically.' };
 }
 
@@ -800,6 +814,13 @@ function infoFor(kind, id) {
     return T(`${a.emoji} ${a.name}`, line('Price', money(a.price)) + line('Charm', `+${a.charm}`) + line('Sells back for', money(Math.round(a.price * D.SELL_BACK)))
       + '<p class="mute">One piece per wall panel. Not over the window, menu board or door.</p>');
   }
+  if (kind === 'clean') {
+    const h = s.honest || { days: 0, awards: {} };
+    return T('🕊️ A clean record', `<p>Every day with nothing cooked, sold or washed after dark adds a day. Any night trade starts it again from zero.</p>`
+      + line('Days', h.days) + line('Customers', `+${CLEAN_RECORD.step * 100}% every ${CLEAN_RECORD.perDays} days, up to +${CLEAN_RECORD.cap * 100}%`)
+      + line('Critics', 'look on you kindly after 14 days')
+      + CLEAN_RECORD.awards.map(([d, name, cash]) => line(`${h.awards[d] ? '🏅' : '⬜'} ${name}`, `${d} days · ${money(Math.round(cash * (1 + s.level / 20)))}`)).join(''));
+  }
   if (kind === 'tray') {
     const k = Number(id), menu = G.menuOf(s), item = menu[k], nc = G.nextCounter(s);
     const more = nc ? line('Another counter', G.unlocked(s, nc.level) ? money(nc.price) : `level ${nc.level}`) + '<p class="mute">Tap a bare counter by the till to buy it.</p>' : '<p class="mute">All 7 counters are yours.</p>';
@@ -811,7 +832,12 @@ function infoFor(kind, id) {
       + line('Servings left', `${have} of ${cap}`, have ? '' : 'bad') + line('Price', money2(G.itemPrice(s, item)))
       + line('Made in', MACHINES[it.machine].name.toLowerCase()) + line('A batch makes', `${G.servingsFor(s, item, G.maxTier(s, it.machine))} servings`)
       + `<p class="mute">The counter holds ${cap} servings (${CFG.trayBatches} batches); a full counter means finished food waits in the machine.</p>`
-      + line('Counters', `${G.countersOf(s.design)} of 7`) + more);
+      + line('Counters', `${G.countersOf(s.design)} of 7`)
+      + `<div class="pbtns col" style="margin-top:8px">
+        <button class="small primary" data-act="restock" data-id="${item}">🔁 Restock (${MACHINES[it.machine].name.toLowerCase()})</button>
+        <button class="small ${s.design.special === item ? 'on' : ''}" data-act="special" data-id="${item}">${s.design.special === item ? '⭐ Today\'s special (tap to stop)' : `⭐ Make it today's special (+${Math.round(SPECIAL.price * 100)}% price, more asks)`}</button>
+        ${G.cabinetOn(s, k) ? '<small class="good">🧊 Bigger cabinet fitted</small>' : G.unlocked(s, CABINET.level) ? `<button class="small" data-act="cabinet" data-id="${k}" ${s.clean < CABINET.price ? 'disabled' : ''}>🧊 Bigger cabinet: +${CABINET.batches} batches · ${money(CABINET.price)}</button>` : `<small class="mute">Bigger cabinets at level ${CABINET.level}</small>`}
+      </div>` + more);
   }
   if (kind === 'exp') {
     const e = D.EXPANSIONS[id];
@@ -835,15 +861,53 @@ const TABS = {
   turf: { label: 'Turf', emoji: '🗺️', fn: () => turfTab(), night: true },
   wash: { label: 'Wash', emoji: '🧼', fn: () => washTab(), night: true },
   logistics: { label: 'Logistics', emoji: '🚚', fn: () => logisticsTab(), night: true },
+  settings: { label: 'Settings', emoji: '⚙️', fn: () => settingsTab() },
 };
+const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+function settingsTab() {
+  const tog = (key, label, sub) => pcard(`<div class="ptop"><span class="em">${key === 'sound' ? (settings.sound ? '🔊' : '🔇') : (settings.notify ? '🔔' : '🔕')}</span><div><b>${label}</b><small>${sub}</small></div></div>
+    <div class="pbtns"><button class="small ${settings[key] ? 'primary' : ''}" data-act="setting" data-id="${key}">${settings[key] ? 'On' : 'Off'}</button></div>`);
+  let cards = tog('sound', 'Sound', 'The till, the oven timer, the shop bell, the back door, and a hum in the back room at night.')
+    + tog('notify', 'Notifications', NATIVE ? 'When the app is closed: food ready, food about to spoil, the back door opening, a bank payment due.' : 'Only in the phone app.');
+  cards += pcard(`<div class="ptop"><span class="em">💾</span><div><b>Save backup</b><small>Copy your whole game as a code (or a file) and load it back later, on this phone or another.</small></div></div>
+    <div class="pbtns"><button class="small primary" data-act="backup-out">Back up</button><button class="small" data-act="backup-in">Load a backup</button></div>`, '', 'wide');
+  cards += pcard(`<div class="ptop"><span class="em">🧭</span><div><b>First-day guide</b><small>${s.guide?.step < GUIDE.length ? `On step ${s.guide.step + 1} of ${GUIDE.length}` : 'Done'}</small></div></div>
+    <div class="pbtns"><button class="small" data-act="guide-restart">Show it again</button></div>`);
+  cards += pcard(`<div class="ptop"><span class="em">🆕</span><div><b>New game</b><small>Start over from the stall. This bakery is lost (back it up first).</small></div></div>
+    <div class="pbtns"><button class="small danger" data-act="restart">Start over</button></div>`);
+  return { cards, hint: 'Settings stay the same through new games and prestige.' };
+}
+
+// ---- First-day guide: a short card above the corner buttons, one step at a time; each moves on by itself once done
+const GUIDE = [
+  { text: '👋 Welcome to Rosa\'s! Tap an <b>oven</b> and pick something to bake.', done: s => s.machines.some(m => m.job) },
+  { text: '⏲️ Baking runs on the real clock. When the timer\'s done, tap the machine: the food goes on a <b>counter</b> by the till.', done: s => G.menuOf(s).some(id => s.display[id] > 0) },
+  { text: '🧺 Customers buy from the counters. Tap a <b>counter</b> to see how many servings are left.', done: s => s.guide.seen?.tray },
+  { text: '🛒 Ingredients run out. Open <b>☰ Menu → Supplies</b> to stock up.', done: s => s.guide.seen?.supplies },
+  { text: '➕ One counter = one thing on sale. Tap a <b>bare counter</b> (green card) to buy another once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
+  { text: '🎨 Make it yours: <b>Design</b> has floors, decor and expansions that bring more customers.', done: s => s.guide.seen?.design },
+  { text: '🏦 The stall came with a debt. <b>☰ Menu → Bank & tax</b> shows what\'s due and when.', done: s => s.guide.seen?.bank },
+  { text: '🌙 That\'s the basics. At level 3 a door at the back opens up... the rest you can find out yourself.', done: () => false, last: true },
+];
+const guideSeen = key => { s.guide ||= { step: 99 }; (s.guide.seen ||= {})[key] = true; };
+function guideHTML() {
+  const g = s.guide;
+  if (!g || g.step >= GUIDE.length || !s.introSeen || ui.design || ui.modal || ui.tab || ui.panel || ui.outside) return '';
+  while (g.step < GUIDE.length && GUIDE[g.step].done(s)) g.step++;
+  if (g.step >= GUIDE.length) return '';
+  const st = GUIDE[g.step];
+  return `<div class="guide"><span>${st.text}</span><div class="gbtns"><small class="mute">${g.step + 1}/${GUIDE.length}</small>
+    ${st.last ? '<button class="small primary" data-act="guide-next">Got it</button>' : '<button class="small" data-act="guide-skip">Skip guide</button><button class="small" data-act="guide-next">Next</button>'}</div></div>`;
+}
 function menuGroups() {
   if (ui.room === 'back' && s.labUnlocked) return [['The back room', ['back', 'stash', 'nightshop', 'nightcrew', 'deals']],
-    ['The operation', ['police', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]]];
-  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank']]];
+    ['The operation', ['police', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : []), 'settings']]];
+  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank', 'settings']]];
 }
 const tabBadge = id => (id === 'orders' && s.orders.filter(o => o.kind !== 'dez').length ? s.orders.filter(o => o.kind !== 'dez').length : id === 'deals' && (doorTotal() + s.orders.filter(o => o.kind === 'dez').length) ? doorTotal() + s.orders.filter(o => o.kind === 'dez').length : id === 'police' && s.case.evidence >= 60 ? '!' : id === 'bank' && s.hmrc > 1 ? '!' : '');
 function openTab(id) {
   ui.tab = id; ui.panel = null;
+  if (id === 'supplies' || id === 'bank') guideSeen(id);
   if (TABS[id].night) ui.room = 'back'; else if (ui.room === 'back') ui.room = 'shop';
 }
 
@@ -885,7 +949,7 @@ function dockHTML() {
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
-      <p>The game runs on the real clock and never closes. Tap a machine to start a batch, come back when it's done to put it in the case, and customers buy from the case all day, even while you're away. Long recipes are for when you go out; don't leave food sitting in a machine or it spoils.</p>
+      <p>The game runs on the real clock and never closes. Tap a machine to start a batch, come back when it's done to put it on a counter by the till, and customers buy from the counters all day, even while you're away. Long recipes are for when you go out; don't leave food sitting in a machine or it spoils.</p>
       <p class="mute">☰ Menu has everything else; 🗺️ Map takes you between your shops.</p>
       <button class="small" data-act="intro-ok">Got it</button></div>`
     : s.event && ui.tab === 'supplies' ? `<div class="floatbanner">${s.event.text}</div>` : '';
@@ -1030,6 +1094,12 @@ function modalHTML() {
   if (!m) return '';
   let inner = '';
   if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`; }
+  else if (m.type === 'backup') inner = `<h2>💾 Your backup</h2><p class="mute">This code is your whole game. Copy it somewhere safe; Settings → Load a backup puts it back.</p>
+    <textarea id="backup-code" class="code" readonly>${backupCode()}</textarea>
+    <div class="pbtns"><button class="small primary" data-act="backup-copy">Copy</button>${NATIVE ? '' : '<button class="small" data-act="backup-file">Save as a file</button>'}<button class="small" data-act="close">Close</button></div>`;
+  else if (m.type === 'restore') inner = `<h2>📥 Load a backup</h2><p class="mute">Paste a backup code. It replaces the game you have now.</p>
+    <textarea id="restore-code" class="code" placeholder="Paste the code here"></textarea>
+    <div class="pbtns"><button class="small primary" data-act="backup-load">Load it</button><button class="small" data-act="close">Cancel</button></div>`;
   else if (m.type === 'machine') inner = machineModal(m);
   else if (m.type === 'buyer') inner = buyerModal(m);
   else if (m.type === 'report') inner = reportModal(m);
@@ -1090,7 +1160,7 @@ function modalHTML() {
 
 // ---------- Design mode ----------
 const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null };
-const openDesign = () => { ui.design = ui.room === 'back' ? { cat: 'bdecor', item: 'crates', sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
+const openDesign = () => { guideSeen('design'); ui.design = ui.room === 'back' ? { cat: 'bdecor', item: 'crates', sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
 
 function swatch(id, f, on, kind) {
   const [a, b] = f.colors, open = D.levelOk(s, f);
@@ -1274,7 +1344,7 @@ function render(force = false) {
     else if (s.offerPending) ui.modal = { type: 'offer' };
     else if (s.decisions.length) ui.modal = { type: 'decision', id: s.decisions[0].id };
   }
-  const html = hudHTML() + (ui.design ? designScreen() : dockHTML()) + modalHTML();
+  const html = hudHTML() + (ui.design ? designScreen() : dockHTML()) + guideHTML() + modalHTML();
   if (!force && html === lastHTML) return;
   lastHTML = html;
   const oldCat = app.querySelector('.catalog');
@@ -1344,11 +1414,49 @@ function act(el) {
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
     case 'counter': {
       const k = Number(id);
-      if (k < G.countersOf(s.design)) ui.modal = { type: 'info', kind: 'tray', id: String(k) };
+      if (k < G.countersOf(s.design)) { ui.modal = { type: 'info', kind: 'tray', id: String(k) }; guideSeen('tray'); }
       else act({ dataset: { act: 'counter-buy' } });
       return render(true);
     }
     case 'counter-buy': G.buyCounter(s); break;
+    case 'restock': {
+      const type = ITEMS[id].machine;
+      let i = s.machines.findIndex(m => m.type === type && !m.job && !m.broken);
+      if (i < 0) { showToast(`Every ${MACHINES[type].name.toLowerCase()} is busy (or broken).`, 'bad'); break; }
+      if (G.startJob(s, i, id, t)) showToast(`${ITEMS[id].emoji} ${ITEMS[id].name} on the go.`, 'good');
+      ui.modal = null; break;
+    }
+    case 'special': G.setSpecial(s, id); break;
+    case 'cabinet': G.buyCabinet(s, Number(id)); break;
+    case 'setting': settings[id] = !settings[id]; saveSettings(); if (id === 'sound') { SFX.setSound(settings.sound); SFX.unlock(); } if (id === 'notify' && settings.notify) askNotify(); break;
+    case 'guide-next': s.guide.step++; break;
+    case 'guide-skip': s.guide.step = 99; break;
+    case 'guide-restart': s.guide = { step: 0, seen: {} }; ui.tab = null; break;
+    case 'backup-out': ui.modal = { type: 'backup' }; break;
+    case 'backup-in': ui.modal = { type: 'restore' }; break;
+    case 'backup-copy': {
+      const ta = document.getElementById('backup-code'); ta.select();
+      (navigator.clipboard?.writeText(ta.value) || Promise.reject()).then(() => showToast('Copied. Keep it somewhere safe (a note, an email to yourself).', 'good'))
+        .catch(() => { try { document.execCommand('copy'); showToast('Copied.', 'good'); } catch { showToast('Select the code and copy it by hand.', 'info'); } });
+      return;
+    }
+    case 'backup-file': {
+      const blob = new Blob([backupCode()], { type: 'text/plain' }), a2 = document.createElement('a');
+      a2.href = URL.createObjectURL(blob); a2.download = `baking-bad-${new Date().toISOString().slice(0, 10)}.txt`; a2.click();
+      setTimeout(() => URL.revokeObjectURL(a2.href), 2000); return;
+    }
+    case 'backup-load': {
+      const code = (document.getElementById('restore-code')?.value || '').trim();
+      try {
+        const d = JSON.parse(decodeURIComponent(escape(atob(code.replace(/\s+/g, '')))));
+        if (!d?.v) throw new Error('no save');
+        if (!confirm('Load this backup? The game you have now will be replaced.')) return;
+        s = D.ensureDesign(G.migrate(d)); vt = Math.max(Date.now(), s.last || 0); save();
+        ui.modal = null; ui.tab = null; ui.panel = null; ui.design = null; ui.room = 'shop';
+        showToast('Backup loaded.', 'good'); catchUp(vt);
+      } catch { showToast('That code isn\'t a Baking Bad backup (check it was copied whole).', 'bad'); }
+      return;
+    }
     case 'tab':
       if (id === 'design') { openDesign(); ui.tab = null; ui.panel = null; }
       else if (id === 'outside') { ui.design = { cat: 'outside', part: 'paint', item: null, sel: null, moving: null }; ui.tab = null; ui.panel = null; }
@@ -1598,6 +1706,23 @@ function catchUp(to) {
 }
 
 let lastFrame = performance.now(), uiAcc = 0, saveAcc = 0;
+let heard = null;
+function soundTick() {
+  const done = s.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
+  const now2 = { served: s.today.served, door: s.door.length, done, level: s.level, heat: s.heat, orders: s.orders.length };
+  if (heard) {
+    if (now2.served > heard.served) SFX.sfx.till();
+    if (now2.done > heard.done) SFX.sfx.timer();
+    if (now2.door > heard.door) SFX.sfx.knock();
+    if (now2.orders > heard.orders) SFX.sfx.bell();
+    if (now2.level > heard.level) SFX.sfx.level();
+    if (now2.heat >= 60 && heard.heat < 60) SFX.sfx.siren();
+  }
+  heard = now2;
+  SFX.setHum(ui.room === 'back' && G.isNight(s.clock) && !document.hidden);
+}
+document.addEventListener('pointerdown', () => SFX.unlock(), { passive: true });
+document.addEventListener('visibilitychange', () => { if (document.hidden) SFX.setHum(false); });
 function frame(now) {
   const real = Math.min(1, (now - lastFrame) / 1000);
   lastFrame = now;
@@ -1606,6 +1731,7 @@ function frame(now) {
   else G.advance(s, vt, { live: true });
   uiAcc += real; saveAcc += real;
   // Redraw the screens once a second (not while a finger is down, so taps never land on a redrawn button)
+  if (uiAcc >= 1) soundTick();
   if (uiAcc >= 1 && !pointerDown && !touching && !rowDrag && now - lastPointer > 700) { uiAcc = 0; render(); }
   if (saveAcc >= 5) { saveAcc = 0; save(); }
   world.frame(s);
@@ -1624,6 +1750,33 @@ requestAnimationFrame(frame);
 // and only then sends the app to the background (it keeps running; the game catches up when you return).
 // Leaving or backgrounding the app saves first.
 const NativeApp = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.App : null;
+const Notes = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.LocalNotifications : null;
+// Phone notifications, set when the app goes to the background and cleared when it comes back: the kitchen done,
+// food about to spoil, the back room's cooks done, the back door opening, a bank payment due.
+function askNotify() { Notes?.requestPermissions?.().catch(() => {}); }
+async function scheduleNotes() {
+  if (!Notes || !settings.notify) return;
+  try {
+    const perm = await Notes.checkPermissions(); if (perm.display !== 'granted') return;
+    const now = Date.now(), soon = now + 60 * 1000, list = [];
+    const at = (id, when, title, body) => { if (when > soon && when < now + 3 * DAY) list.push({ id, title, body, schedule: { at: new Date(when), allowWhileIdle: true } }); };
+    // The kitchen, in every shop
+    let lastDone = 0, firstSpoil = Infinity, n = 0;
+    G.eachShop(s, () => s.machines.forEach(m => { if (!m.job) return; n++; const done = m.job.start + m.job.dur; lastDone = Math.max(lastDone, done); if (!s.crew.baker) firstSpoil = Math.min(firstSpoil, done + G.spoilMs(s, m.job.item) - 10 * MIN); }));
+    if (n) at(1, lastDone, '🍞 The kitchen is done', `${n} batch${n === 1 ? ' is' : 'es are'} ready to go on the counters.`);
+    if (firstSpoil < Infinity) at(2, firstSpoil, '⚠️ Food is about to spoil', 'Something has been sitting done in a machine. Collect it in the next 10 minutes.');
+    if (s.labUnlocked) {
+      let labDone = 0; G.eachShop(s, () => s.lab.forEach(m => { if (m.job) labDone = Math.max(labDone, m.job.start + m.job.dur); }));
+      if (labDone && !s.crew.cook) at(3, labDone, '🧪 The back room is done', 'The cooks are finished. Bag them up before the door opens.');
+      const d = new Date(now); d.setHours(CFG.nightStart, 0, 0, 0); if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+      if (Object.values(s.bags).some(v => v > 0) || !s.crew.dealer) at(4, d.getTime(), '🚪 The back door opens', 'Buyers start coming round the back.');
+    }
+    if (s.balance > 0) at(5, G.nextPaymentAt(s) - 12 * HOUR, '🏦 A payment is due', `${money(G.nextDue(s))} goes to the bank at 6am.`);
+    const pending = await Notes.getPending(); if (pending.notifications?.length) await Notes.cancel({ notifications: pending.notifications.map(x => ({ id: x.id })) });
+    if (list.length) await Notes.schedule({ notifications: list });
+  } catch { /* notifications unavailable */ }
+}
+async function clearNotes() { try { const p = await Notes?.getPending(); if (p?.notifications?.length) await Notes.cancel({ notifications: p.notifications.map(x => ({ id: x.id })) }); } catch { /* ignore */ } }
 if (NativeApp) {
   document.documentElement.classList.add('native');
   NativeApp.addListener('backButton', () => {
@@ -1635,8 +1788,9 @@ if (NativeApp) {
     if (ui.room === 'back') return act({ dataset: { act: 'room' } });
     save(); NativeApp.minimizeApp();
   });
-  NativeApp.addListener('pause', () => save());
-  NativeApp.addListener('resume', () => { vt = Math.max(vt, Date.now()); });
+  NativeApp.addListener('pause', () => { save(); scheduleNotes(); });
+  NativeApp.addListener('resume', () => { vt = Math.max(vt, Date.now()); clearNotes(); });
+  if (settings.notify) setTimeout(askNotify, 4000); // ask once, a moment after the game opens
 }
 
 // Debug hooks for testing in the browser console: __game.skip(3) plays three hours forward.

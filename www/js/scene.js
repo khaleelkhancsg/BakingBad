@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, labSpotAt, BACK_DEPTH } from './data.js';
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
+import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { buildWorld } from './world.js';
 import { foodModel } from './food.js';
 import * as D from './design.js';
@@ -552,6 +553,30 @@ const BUILDERS = { tent: buildTent, rack: buildDryRack, still: buildStill, oven:
 // ---------- People ----------
 // Chunky, friendly figures. kind: 'customer', 'hood' (night buyers) or 'baker' (you).
 
+// People are built from many little shapes; each moving part (a leg, an arm, the body, the head) is baked into one
+// mesh with its colours stored per vertex, so a person is about 8 draws instead of 20. Eyes (they blink) and the
+// bag (it comes and goes) stay apart.
+const personMat = smat({ color: '#ffffff', vertexColors: true, roughness: 0.8 });
+function bakePart(part, skip = []) {
+  part.updateMatrixWorld(true);
+  const inv = part.matrixWorld.clone().invert(), m4 = new THREE.Matrix4(), geos = [], gone = [];
+  part.traverse(o => {
+    if (!o.isMesh || skip.includes(o) || Array.isArray(o.material)) return;
+    // only things that move with this part: stop at child pivots that animate on their own
+    for (let p = o.parent; p && p !== part; p = p.parent) if (p.userData.pivot) return;
+    const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(m4.multiplyMatrices(inv, o.matrixWorld));
+    for (const k of Object.keys(g.attributes)) if (!['position', 'normal'].includes(k)) g.deleteAttribute(k);
+    const c = o.material.color || new THREE.Color('#ffffff'), n = g.attributes.position.count, col = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geos.push(g); gone.push(o);
+  });
+  if (geos.length < 2) return;
+  for (const o of gone) o.parent.remove(o);
+  const merged = new THREE.Mesh(mergeGeometries(geos, false), personMat);
+  merged.castShadow = true; merged.receiveShadow = true;
+  part.add(merged);
+}
 function buildPerson(look, kind) {
   const g = new THREE.Group();
   const body = new THREE.Group(); g.add(body);
@@ -562,7 +587,7 @@ function buildPerson(look, kind) {
   const shoe = mat('#2a2230');
   const legGeo = geo('leg', () => new THREE.CapsuleGeometry(0.068, 0.26, 3, 8));
   const armGeo = geo('arm', () => new THREE.CapsuleGeometry(0.056, 0.22, 3, 8));
-  const pivot = (parent, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); parent.add(p); return p; };
+  const pivot = (parent, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.userData.pivot = true; parent.add(p); return p; };
   const legL = pivot(body, -0.09, 0.42), legR = pivot(body, 0.09, 0.42);
   for (const leg of [legL, legR]) {
     leg.add(mesh(legGeo, pants, 0, -0.19, 0));
@@ -576,7 +601,7 @@ function buildPerson(look, kind) {
     arm.add(mesh(armGeo, top, 0, -0.15, 0));
     arm.add(sphere(0.062, skin, 0, -0.32, 0));
   }
-  const head = new THREE.Group(); head.position.set(0, 1.17, 0); body.add(head);
+  const head = new THREE.Group(); head.position.set(0, 1.17, 0); head.userData.pivot = true; body.add(head);
   const skull = sphere(0.24, skin); skull.scale.set(1, 0.95, 0.95); head.add(skull);
   const eyeM = mat('#1a1420');
   const eyes = [-0.085, 0.085].map(x => { const e = sphere(0.032, eyeM, x, 0.03, 0.212, false); head.add(e); return e; });
@@ -602,6 +627,8 @@ function buildPerson(look, kind) {
   const bagM = smat({ color: '#c8a36a', roughness: 0.85 });
   const bag = rbox(0.17, 0.2, 0.11, bagM, 0, -0.5, 0.03, 0.02);
   bag.visible = false; armR.add(bag);
+  for (const part of [legL, legR, armL, armR]) bakePart(part, [bag]);
+  bakePart(head, eyes); bakePart(body);
   g.scale.setScalar(look.h || 1);
   return { group: g, body, legL, legR, armL, armR, head, eyes, bag, bagM };
 }
@@ -847,11 +874,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     scene.add(hit); pickables.push(hit);
     trays.push({ x, group: tg, sig: '' });
   }
-  let counterSig = -1;
+  let counterSig = '';
+  const starM = smat({ color: '#ffd447', emissive: '#ffb400', emissiveIntensity: 0.6, roughness: 0.4 });
   function syncCounters(s) {
-    const n = G.countersOf(s.design);
-    if (n === counterSig) return;
-    counterSig = n;
+    const n = G.countersOf(s.design), menu = G.menuOf(s), spk = menu.indexOf(s.design.special);
+    const sig = `${n}|${spk}|${(s.design.cabinets || []).map(Boolean).join('')}`;
+    if (sig === counterSig) return;
+    counterSig = sig;
+    for (const o of counterGroup.children) if (o.isMesh && !o.userData.keep) o.geometry.dispose(); // merged shapes are its own
     counterGroup.clear();
     const trayM = mat('#f6f1e6'), capM = mat('#efe6d8'), postM = mat('#5c3520'), bareM = mat('#d9c8ae'), tagM = mat('#2f6b4f');
     for (let k = 0; k < 7; k++) {
@@ -862,6 +892,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         // A glass top in a slim frame, so you can see the food from above
         for (const dz of [-0.45, 0.45]) counterGroup.add(box(0.74, 0.04, 0.04, capM, x, 1.54, 0.95 + dz));
         for (const dx of [-0.36, 0.36]) counterGroup.add(box(0.03, 0.55, 0.9, postM, x + dx, 0.99, 0.95, false));
+        if (G.cabinetOn(s, k)) { const ch = mat('#d9dde3', { metalness: 0.7, roughness: 0.25 }); counterGroup.add(box(0.74, 0.05, 0.05, ch, x, 0.96, 1.42, false), box(0.74, 0.05, 0.05, ch, x, 1.5, 1.42, false)); }
+        if (k === spk) { const st = mesh(geo('star', () => new THREE.OctahedronGeometry(0.07, 0)), starM, x, 1.72, 0.95, false); st.userData.spin = true; st.userData.keep = true; counterGroup.add(st); }
       } else {
         // Bare: just the wooden top, with a little green "for sale" card standing on it
         counterGroup.add(box(0.72, 0.02, 0.9, bareM, x, 0.99, 0.95, false));
@@ -870,6 +902,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         counterGroup.add(box(0.025, 0.08, 0.025, mat('#ffffff'), x, 1.04, 1.215, false));
       }
     }
+    mergeStatic(counterGroup);
   }
   statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
   statics.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
@@ -950,7 +983,18 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     c.fillStyle = '#fff4e0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#b8485e'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
     c.fillStyle = '#b8485e'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText('OPEN', w / 2, 44);
   });
-  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), smat({ map: openTex, side: THREE.DoubleSide }), 4.76, 0.78, 2.85, false); sign.rotation.y = PI / 2; statics.add(sign); }
+  const closedTex = canvasTex(128, 64, (c, w, h) => {
+    c.fillStyle = '#2b2d36'; c.fillRect(0, 0, w, h); c.strokeStyle = '#8d939c'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
+    c.fillStyle = '#e9d8b4'; c.font = 'bold 26px Georgia, serif'; c.textAlign = 'center'; c.fillText('CLOSED', w / 2, 34); c.font = '13px Georgia, serif'; c.fillText('back at 6am', w / 2, 52);
+  });
+  const openSignM = smat({ map: openTex, side: THREE.DoubleSide });
+  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), openSignM, 4.76, 0.78, 2.85, false); sign.rotation.y = PI / 2; scene.add(sign); }
+  let signOpen = true;
+  function syncOpenSign(s) {
+    const open = G.customersPerHour(s, s.clock) >= 3;
+    if (open === signOpen) return;
+    signOpen = open; openSignM.map = open ? openTex : closedTex; openSignM.needsUpdate = true;
+  }
   // A chalkboard A-board on the pavement by the door
   const boardTex = canvasTex(96, 128, (c, w, h) => {
     c.fillStyle = '#2b3a34'; c.fillRect(0, 0, w, h); c.strokeStyle = '#a07a52'; c.lineWidth = 8; c.strokeRect(4, 4, w - 8, h - 8);
@@ -1385,7 +1429,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     c.beginPath(); c.arc(w / 2, h / 2, h / 3, 0, 7); c.stroke();
   };
 
-  let shellK = 0, shellSig = '', zoomedOut = false, revolver = null;
+  let shellK = 0, shellSig = '', zoomedOut = false, revolver = null, flatGlass = null;
   function buildShell(s) {
     const o = { ...D.outOf(s) }, ex = s.design.expansions || {}, text = G.shopDef(s).sign;
     const flat = s.cur === 0 && !!s.property?.flat;
@@ -1412,6 +1456,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const goldM = sm('#d4af37', { metalness: 0.7, roughness: 0.3 });
     const glass = (extra = {}) => { const m = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.6, roughness: 0.2, ...extra }); if (!shellGlassMats.includes(m)) { shellGlassMats.push(m); windows.push(m); } return m; };
     const glassM = glass();
+    flatGlass = sm('#bfe6ff', { emissive: '#ffd59a', emissiveIntensity: 0, roughness: 0.2 });
     const stainedM = WS === 'stained' ? (() => { const t = canvasTex(96, 64, stainedCanvas); return glass({ color: '#ffffff', map: t, emissiveMap: t }); })() : null;
     const frameM = WS === 'neon' ? sm('#ff4fa3', { emissive: '#ff4fa3', emissiveIntensity: 1.4 }) : WS === 'gold' ? goldM : trimM;
     const add = m => { m.castShadow = true; shellGroup.add(m); return m; };
@@ -1421,11 +1466,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const awnM = awnTex ? sm('#ffffff', { map: awnTex }) : null;
 
     // A window facing +z (rot 0) or +x (rot PI/2); (x, z) is the wall's outer face, y its sill
-    function win(x, y, z, w, h, rot) {
+    function win(x, y, z, w, h, rot, glassOver = null) {
       const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rot;
       const arch = WS === 'arched' || (WS === 'stained' && w < 2);
       const ah = arch ? Math.min(0.35, w / 2) : 0, hh = h - ah;
-      const gm = stainedM || glassM;
+      const gm = glassOver || stainedM || glassM;
       g.add(box(w, hh, 0.05, gm, 0, 0, 0));
       if (arch) { const a = mesh(sg(new THREE.CircleGeometry(w / 2, 20, 0, PI)), gm, 0, hh, 0.03, false); a.scale.y = ah / (w / 2); g.add(a);
         const t = mesh(sg(new THREE.TorusGeometry(w / 2, 0.045, 6, 20, PI)), frameM, 0, hh, 0.05, false); t.scale.y = ah / (w / 2); g.add(t); }
@@ -1516,6 +1561,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
       if (o.door === 'gold' || o.door === 'victorian') add(box(0.3, 0.04, 0.6, sm('#7a1f2e'), 5.0, 0, 3.7)); // a mat
     }
+    { const sg2 = mesh(new THREE.PlaneGeometry(0.5, 0.25), openSignM, 4.86, 1.25, o.door === 'revolving' ? 4.75 : 3.3, false); sg2.rotation.y = PI / 2; sg2.userData.keep = true; shellGroup.add(sg2); }
     // Door hood: striped to match the awning, or a little painted canopy on brackets
     if (o.door !== 'revolving') {
       const hood = mesh(sg(new THREE.BoxGeometry(0.75, 0.06, 2.0)), awnM || trimM, 5.12, 2.5, 3.7); hood.rotation.z = -0.25; add(hood);
@@ -1526,8 +1572,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (flat) {
       wall(9.5, 2.55, 0.22, 0, 3.05, 4.66); wall(9.5, 2.55, 0.22, 0, 3.05, -4.66);
       wall(0.22, 2.55, 9.5, 4.66, 3.05, 0); wall(0.22, 2.55, 9.5, -4.66, 3.05, 0);
-      for (const x of [-3.0, 0, 3.0]) win(x, 3.6, 4.79, 1.2, 1.4, 0);
-      for (const z of [-2.6, 0.2, 3.0]) win(4.79, 3.6, z, 1.2, 1.4, PI / 2);
+      for (const x of [-3.0, 0, 3.0]) win(x, 3.6, 4.79, 1.2, 1.4, 0, flatGlass);
+      for (const z of [-2.6, 0.2, 3.0]) win(4.79, 3.6, z, 1.2, 1.4, PI / 2, flatGlass);
       if (o.extras?.boxes) for (const x of [-3.0, 0, 3.0]) { sb(1.1, 0.18, 0.26, sm('#7a4a2e'), x, 3.42, 4.92); for (let k = 0; k < 4; k++) add(sphere(0.07, sm(['#ff7eb6', '#ffd447', '#ffffff', '#b58cff'][k]), x - 0.36 + k * 0.24, 3.66, 4.92)); }
       sb(9.7, 0.14, 0.3, trimM, 0, 5.5, 4.68); sb(0.3, 0.14, 9.7, trimM, 4.68, 5.5, 0);
     }
@@ -1671,7 +1717,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       m.opacity = shellK;
       if (m.transparent === solid) { m.transparent = !solid; m.depthWrite = solid; m.needsUpdate = true; }
     }
-    if (revolver && shellK > 0.01) revolver.rotation.y += dt * 0.5;
+    if (flatGlass) { const h = G.localHour(s.clock), lit = (h >= 17.5 && h < 23.5) || (h >= 6 && h < 8); flatGlass.emissiveIntensity += ((lit ? 0.9 : 0.05) - flatGlass.emissiveIntensity) * Math.min(1, dt * 2); }
+    if (revolver && shellK > 0.01) revolver.rotation.y += dt * (drumBusy ? 2.2 : 0.4);
     overlayEl.style.opacity = String(1 - shellK);
     overlayEl.style.pointerEvents = shellK > 0.5 ? 'none' : '';
   }
@@ -1978,6 +2025,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
   // ---------- People from state ----------
   const OUTSIDE = V3(6.4, 0, 3.7), GAP = V3(4.2, 0, 3.7);
+  const OUT_IN = V3(6.4, 0, 3.97), GAP_IN = V3(4.2, 0, 3.97), OUT_OUT = V3(6.4, 0, 3.43), GAP_OUT = V3(4.2, 0, 3.43);
+  let revolving = false, drumBusy = false;
+  const doorIn = () => (revolving ? GAP_IN : GAP), doorOut = () => (revolving ? GAP_OUT : GAP);
+  const streetIn = () => (revolving ? OUT_IN : OUTSIDE), streetOut = () => (revolving ? OUT_OUT : OUTSIDE);
   const DOOR_OUT = V3(-13.0, 0, 2.2), DOOR_IN = V3(-11.0, 0, 2.2);
   const BUYER_SPOTS = [V3(-10.1, 0, 2.9), V3(-10.1, 0, 1.5), V3(-9.0, 0, 3.4), V3(-9.0, 0, 2.1), V3(-7.9, 0, 3.0), V3(-7.9, 0, 1.7)];
   const TILL = V3(3.1, 1.3, 0.85);
@@ -2157,6 +2208,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (bakerIdle > 6 && baker.group.position.distanceTo(BAKER_HOME[bakerZone]) > 0.1 && !baker.path?.length) { walkTo(baker, BAKER_HOME[bakerZone]); baker.face = PI / 4; }
     }
 
+    revolving = s.design.outside?.door === 'revolving';
+    if (revolving) { drumBusy = false; for (const [, e] of customers) if (Math.hypot(e.agent.group.position.x - 4.9, e.agent.group.position.z - 3.7) < 0.8) drumBusy = true; for (const w of browsers) if (Math.hypot(w.agent.group.position.x - 4.9, w.agent.group.position.z - 3.7) < 0.8) drumBusy = true; }
     // Customers: in through the doorway, queue at the tray they want, out again (all from the live engine)
     const WALK = 3.2, BROWSE = 1.4;
     const nowMs = Date.now();
@@ -2165,7 +2218,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const crowd = G.live.customers.slice(-14);
     for (const c of crowd) {
       if ((nowMs - c.at) / 1000 > WALK + BROWSE) continue;
-      const ti = Math.min(13, Math.max(0, menu.indexOf(c.want)));
+      const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want)));
       if (!lines.has(ti)) lines.set(ti, []);
       lines.get(ti).push(c.id);
     }
@@ -2173,12 +2226,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       const age = (nowMs - c.at) / 1000;
       live.add(c.id);
       let e = customers.get(c.id);
-      if (!e) { e = { agent: new Agent(scene, c.look, 'customer', OUTSIDE.clone()), shown: false, inside: false, leaving: false, c }; customers.set(c.id, e); }
+      if (!e) { e = { agent: new Agent(scene, c.look, 'customer', streetIn().clone()), shown: false, inside: false, leaving: false, c }; customers.set(c.id, e); }
       if (age > WALK + BROWSE) e.leaving = true;
       if (!e.leaving) {
-        if (!e.inside) { e.agent.target.copy(GAP); e.agent.face = null; if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = true; }
+        if (!e.inside) { e.agent.target.copy(doorIn()); e.agent.face = null; if (e.agent.group.position.distanceTo(doorIn()) < 0.15) e.inside = true; }
         else {
-          const ti = Math.min(13, Math.max(0, menu.indexOf(c.want)));
+          const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want)));
           const k = lines.get(ti)?.indexOf(c.id) ?? 0;
           e.agent.target.set(trays[ti].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
           e.agent.face = PI;
@@ -2196,8 +2249,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (!live.has(id)) e.leaving = true;
       if (e.leaving) {
         e.agent.face = null;
-        if (e.inside) { e.agent.target.copy(GAP); if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = false; }
-        else e.agent.target.copy(OUTSIDE);
+        if (e.inside) { e.agent.target.copy(doorOut()); if (e.agent.group.position.distanceTo(doorOut()) < 0.15) e.inside = false; }
+        else e.agent.target.copy(streetOut());
       }
       const arrived = e.agent.update(dt);
       if (e.leaving && !e.inside && arrived) { scene.remove(e.agent.group); customers.delete(id); }
@@ -2207,16 +2260,16 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (view.zone === 'shop' && !view.design && browsers.length < 4 && Math.random() < dt * Math.min(0.25, G.customersPerHour(s, s.clock) / 3600 * 6)) {
       const look = { skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 };
       const tray = trays[Math.floor(Math.random() * trays.length)];
-      browsers.push({ agent: new Agent(scene, look, 'customer', OUTSIDE.clone()), stage: 0, tray, until: 0, id: 'w' + (browserId++) });
+      browsers.push({ agent: new Agent(scene, look, 'customer', streetIn().clone()), stage: 0, tray, until: 0, id: 'w' + (browserId++) });
     }
     for (let i = browsers.length - 1; i >= 0; i--) {
       const w = browsers[i], a = w.agent;
-      if (w.stage === 0) { a.target.copy(GAP); a.face = null; if (a.group.position.distanceTo(GAP) < 0.15) w.stage = 1; }
+      if (w.stage === 0) { a.target.copy(doorIn()); a.face = null; if (a.group.position.distanceTo(doorIn()) < 0.15) w.stage = 1; }
       else if (w.stage === 1) { a.target.set(w.tray.x + (Math.random() - 0.5) * 0.2, 0, 2.6 + Math.random() * 0.5); a.face = PI; w.stage = 2; }
       else if (w.stage === 2 && a.group.position.distanceTo(a.target) < 0.1) { w.stage = 3; w.until = now + 3 + Math.random() * 4; if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 2, id: 'r' + w.id }); }
       else if (w.stage === 3 && now > w.until) { w.stage = 4; a.face = null; }
-      else if (w.stage === 4) { a.target.copy(GAP); if (a.group.position.distanceTo(GAP) < 0.15) w.stage = 5; }
-      else if (w.stage === 5) a.target.copy(OUTSIDE);
+      else if (w.stage === 4) { a.target.copy(doorOut()); if (a.group.position.distanceTo(doorOut()) < 0.15) w.stage = 5; }
+      else if (w.stage === 5) a.target.copy(streetOut());
       const arrived = a.update(dt);
       if ((w.stage === 5 && arrived) || (view.zone !== 'shop' && w.stage < 2)) { scene.remove(a.group); browsers.splice(i, 1); }
     }
@@ -2295,6 +2348,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         if (!c || e.shown || !e.inside || !ITEMS[c.want]) continue;
         want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
       }
+      // Counters running low (amber) or empty (red): tap one to see it and restock
+      if (view.zone === 'shop') G.menuOf(s).forEach((id, k) => {
+        const have = s.display[id] || 0, cap = G.trayCap(s, id);
+        if (have >= cap * 0.25) return;
+        want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k].x, 1.85, 0.95) });
+      });
       // The door between the shop and the back room
       if (s.labUnlocked) want.set('door', { html: view.zone === 'shop' ? '<span>🚪</span><small>Back</small>' : '<span>☀️</span><small>Shop</small>', cls: 'bub door', at: 'data-act="room"', pos: DOOR_BUB });
       if (view.zone === 'back') {
@@ -2363,7 +2422,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
     }
     // Display case
-    syncCounters(s);
+    syncCounters(s); syncOpenSign(s);
+    for (const o of counterGroup.children) if (o.userData.spin) o.rotation.y += dt * 1.5;
     const menu = G.menuOf(s);
     const fill = id => Math.min(6, Math.ceil((s.display[id] || 0) / ITEMS[id].servings * 3));
     const tsig = menu.map(id => id + fill(id)).join(',');
@@ -2375,6 +2435,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         const tsg = id + n;
         if (t.sig === tsg) return;
         t.sig = tsg;
+        for (const o of t.group.children) if (o.isMesh) o.geometry.dispose();
         t.group.clear();
         for (let j = 0; j < n; j++) {
           const m = itemModel(id);
@@ -2383,6 +2444,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
           m.rotation.y = (j * 1.7) % PI;
           t.group.add(m);
         }
+        if (n) mergeStatic(t.group); // a counter's food: one mesh per material
       });
     }
     // Back room props

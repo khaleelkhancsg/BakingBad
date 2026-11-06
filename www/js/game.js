@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -371,7 +371,8 @@ export const unlocked = (s, level) => (s.level || 1) >= (level || 1);
 export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.level);
 export const recipeOf = id => ITEMS[id] || PRODUCTS[id];
 export const ingPrice = (s, ing) => { const c = s.contracts && supplierFor(s, ing); return round2(INGREDIENTS[ing].base * (s.market[ing] || 1) * (c ? 1 - SUPPLIERS[c].disc : 1)); };
-export const itemPrice = (s, id) => round2(ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
+const specialMult = (s, id) => (s.design?.special === id ? 1 + SPECIAL.price : 1);
+export const itemPrice = (s, id) => round2(specialMult(s, id) * ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
 export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + q * ingPrice(s, k), 0));
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
@@ -381,7 +382,27 @@ export const cookMs = (s, id, tier = 0) => Math.round(ITEMS[id].minutes * MIN * 
 export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1));
 export const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
 export const spoilMs = (s, id) => Math.max(CFG.spoilMin, ITEMS[id].minutes) * MIN * (1 + eff(s, 'keep'));
-export const trayCap = (s, id) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray')));
+// Which counter an item is on (or -1), and how much that counter holds
+export const counterOf = (s, id) => menuOf(s).indexOf(id);
+export const cabinetOn = (s, k) => !!s.design?.cabinets?.[k];
+export const trayCap = (s, id) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray') + (cabinetOn(s, counterOf(s, id)) ? CABINET.batches : 0)));
+export function setSpecial(s, id) {
+  if (!menuOf(s).includes(id)) return;
+  s.design.special = s.design.special === id ? null : id;
+  say(s.design.special ? `${ITEMS[id].emoji} ${ITEMS[id].name} is today's special: ${Math.round(SPECIAL.price * 100)}% dearer, and more people ask for it.` : 'No special today.', 'good');
+}
+export function buyCabinet(s, k) {
+  if (k < 0 || k >= countersOf(s.design)) return;
+  if (cabinetOn(s, k)) return say('That counter already has the bigger cabinet.', 'bad');
+  if (!unlocked(s, CABINET.level)) return say(`Bigger cabinets come at level ${CABINET.level}.`, 'bad');
+  if (s.clean < CABINET.price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - CABINET.price); s.today.capex += CABINET.price;
+  (s.design.cabinets ||= [])[k] = true;
+  say(`Bigger cabinet fitted: that counter holds ${CABINET.batches} more batches.`, 'good');
+  return true;
+}
+// The clean record
+export const cleanBonus = s => Math.min(CLEAN_RECORD.cap, CLEAN_RECORD.step * Math.floor((s.honest?.days || 0) / CLEAN_RECORD.perDays));
 export const launderRatio = s => CFG.launderRatio + eff(s, 'launder');
 export const sealed = (s, t) => (s.sealedUntil || 0) > t;
 export const scandal = (s, t) => (s.scandalUntil || 0) > t;
@@ -757,7 +778,7 @@ export function customersPerHour(s, t) {
   const inStock = menuOf(s).filter(id => s.display[id] > 0).length;
   const variety = 1 + Math.min(CFG.varietyCap, CFG.varietyBonus * Math.max(0, inStock - 1));
   return (CFG.custBase + s.rep * CFG.custPerPop) * HOUR_TRADE[h] * nightApp * (1 + eff(s, 'cust')) * (s.event?.cust || 1)
-    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t) * (1 - rivalShare(s)) * shopRush(s, t);
+    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t) * (1 - rivalShare(s)) * shopRush(s, t) * (1 + cleanBonus(s));
 }
 const tasteAt = t => { const h = localHour(t); return HOUR_TASTE.find(b => h < b.until).w; };
 const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
@@ -775,6 +796,7 @@ function customerVisit(s, t, showIt) {
   if (s.event?.sweet) { w.sweet *= s.event.sweet; w.cold *= 3; }
   const byItem = {};
   for (const id of stock) byItem[id] = (w[ITEMS[id].group] || 0.05) + 0.02;
+  if (s.design?.special && byItem[s.design.special]) byItem[s.design.special] *= SPECIAL.pull;
   const id = weighted(byItem);
   const lvl = PRICE_LEVELS[s.priceLevel[id] || 'normal'];
   const buy = s.crew.cashier ? lvl.buy + (1 - lvl.buy) / 2 : lvl.buy;
@@ -1346,7 +1368,7 @@ function checkMilestones(s, t) {
 export const reviewBoost = (s, t = s.clock) => ((s.review && s.review.until > t) ? CRITIC.boost[s.review.stars - 1] : 1);
 function criticVisits(s, t) {
   const stocked = menuOf(s).filter(id => s.display[id] > 0).length, slots = menuSlots(s);
-  const score = 0.4 * (stocked / Math.max(1, slots)) + 0.3 * Math.min(1, (charmBonus(s) - 1) / 0.3) + 0.3 * (s.rep / 100) + (rand() - 0.5) * 0.2;
+  const score = 0.4 * (stocked / Math.max(1, slots)) + 0.3 * Math.min(1, (charmBonus(s) - 1) / 0.3) + 0.3 * (s.rep / 100) + (rand() - 0.5) * 0.2 + ((s.honest?.days || 0) >= 14 ? 0.1 : 0); // critics like a straight bakery
   const stars = clamp(Math.round(score * 5 + 0.5), 1, 5);
   s.review = { stars, until: t + CRITIC.boostHours * HOUR, by: pick(CRITIC.names) };
   s.rep = clamp(s.rep + CRITIC.pop[stars - 1], 0, 100);
@@ -1446,7 +1468,7 @@ export function newGame(t = Date.now(), prestige = null) {
   const s = {
     v: SAVE_VERSION, created: t, clock: t, last: t, startDay: dayStart(t), nextId: 1,
     clean: CFG.startClean, dirty: 0, heat: 0, rep: 50,
-    balance: CFG.debtTotal, arrears: 0, strikes: 0, behind: 0, paymentsMade: 0, won: false,
+    balance: CFG.debtTotal, arrears: 0, strikes: 0, behind: 0, paymentsMade: 0, won: false, guide: { step: 0 }, honest: { days: 0, best: 0, awards: {} },
     inv: Object.assign(Object.fromEntries(Object.keys(INGREDIENTS).map(k => [k, 0])), { flour: 30, butter: 12, sugar: 12, eggs: 10, chocolate: 6, milk: 10 }),
     market: {}, event: null,
     level: 1, xp: 0, levelUps: [],
@@ -1474,6 +1496,8 @@ export function newGame(t = Date.now(), prestige = null) {
 }
 // Saves from before the real-time clock keep their progress; the clock starts now.
 export function migrate(s, t = Date.now()) {
+  if (!s.guide) s.guide = { step: 99 };
+  s.honest ||= { days: 0, best: 0, awards: {} };
   if (s.v === 3) {
     // One shop becomes a list of shops
     s.shops = [{ id: 'stall', machines: s.machines, display: s.display, onMenu: s.onMenu, design: s.design, custAcc: s.custAcc || 0 }];
@@ -1849,6 +1873,17 @@ function rollover(s, t) {
   if (!s.goals.weekly.length || di % 7 === TAX.taxDay) s.goals.weekly = makeGoals(s, 'weekly');
   if (rand() < 0.5) s.nextChoiceAt = t + (2 + rand() * 18) * HOUR;
   // File yesterday's report and open a new day
+  // A clean day: nothing cooked, sold or washed after dark
+  s.honest ||= { days: 0, best: 0, awards: {} };
+  if (td.bagsSold || td.labBatches || td.laundered) s.honest.days = 0;
+  else {
+    s.honest.days++; s.honest.best = Math.max(s.honest.best, s.honest.days);
+    for (const [days, name, cash] of CLEAN_RECORD.awards) if (s.honest.days >= days && !s.honest.awards[days]) {
+      s.honest.awards[days] = true; const prize = Math.round(cash * (1 + s.level / 20));
+      s.clean = round2(s.clean + prize); s.rep = clamp(s.rep + 5, 0, 100);
+      note(s, `🏅 Bakery award: ${name}! ${days} days with a clean record. +£${prize.toLocaleString('en-GB')} and a little fame.`, 'good', t);
+    }
+  }
   s.reports.push({ day: td.day, ledger: td, payment, tax, level: s.level, areaHeat: { ...s.areaHeat }, evidence: Math.round(s.case.evidence) });
   if (s.reports.length > 10) s.reports.shift();
   s.today = freshLedger(s, t);

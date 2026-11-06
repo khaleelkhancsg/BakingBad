@@ -831,6 +831,12 @@ export const COUNTERS = [
   { level: 2, price: 250 }, { level: 4, price: 800 }, { level: 8, price: 2000 }, { level: 14, price: 5000 }, { level: 22, price: 12000 },
 ];
 export const PER_COUNTER = 1;
+// Counter extras: today's special sells for more and draws more customers to it; a bigger cabinet holds more batches
+export const SPECIAL = { price: 0.2, pull: 2 };
+export const CABINET = { level: 10, price: 1500, batches: 2 };
+// A clean record: days in a row with no night trade at all. Customers trust a straight bakery a little more each few
+// days, and bakery awards come at milestones.
+export const CLEAN_RECORD = { perDays: 3, step: 0.01, cap: 0.2, awards: [[7, 'Local favourite', 500], [30, 'Best bakery in town', 3000], [90, 'Regional baker of the year', 15000], [180, 'National treasure', 60000]] };
 
 export const EVENTS = [
   { id: 'rain',      p: 0.15, text: '🌧️ Rain today. Fewer people out.',                  cust: 0.7 },
