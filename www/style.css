@@ -353,3 +353,19 @@ button.chip { cursor: pointer; }
 .heat.pop.warm .meter i { background: var(--meh); }
 .heat.pop.hot .meter i { background: var(--bad); }
 .lock.good { color: var(--good); border-color: #5fd38d66; }
+
+/* ---------- Live screen (real clock) ---------- */
+.hud-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+.badge.daybadge { cursor: pointer; }
+.badge.roombtn { cursor: pointer; font: inherit; color: inherit; font-size: 14px; }
+.badge.roombtn.night { border-color: #6a5285; }
+.badge .dot { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: var(--violet); color: #1a0838; font-size: 12px; }
+.designbar.night { border-color: #5a3f80; background: rgba(20, 13, 32, .95); }
+.designbar.min { gap: 0; }
+.pcard.flagged { border-color: var(--meh); }
+.modal .prog { display: block; height: 8px; margin-top: 8px; background: #0008; border-radius: 4px; overflow: hidden; }
+.modal .prog i { display: block; height: 100%; background: linear-gradient(90deg, var(--warm), var(--warm2)); }
+.modal.night .prog i { background: linear-gradient(90deg, #6a49b8, var(--violet)); }
+.modal .card .small { margin-left: 6px; }
+.modal input[type=range] { width: 100%; margin: 10px 0 4px; }

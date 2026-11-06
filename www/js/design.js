@@ -1,4 +1,4 @@
-import { CAPS, capAt, nextCap } from './data.js';
+import { CAPS, capAt, nextCap, SPOTS } from './data.js';
 
 // Designing the bakery: floor tiles per square, wallpaper per wall panel, decorations on free squares,
 // wall art on panels, and terrace expansions. No DOM here; actions return { ok, msg }.
@@ -15,6 +15,15 @@ export const FLOORS = {
   marble:     { level: 11, name: 'Marble',         price: 30, colors: ['#f4f1ec', '#c9c1b8'] },
   cracked:    { level: 1, name: 'Cracked tiles',  price: 0,  colors: ['#d8ccb8', '#6f6456'], hidden: true },
   stone:      { level: 1, name: 'Patio stone',    price: 10, colors: ['#c9c2b6', '#ada595'] },
+  monochrome: { level: 14, name: 'Black & white',  price: 35, colors: ['#f4f1ec', '#2b2d36'], pattern: 'checker' },
+  parquet:    { level: 18, name: 'Parquet',        price: 40, colors: ['#a8723f', '#7a5230'], pattern: 'herring' },
+  terrazzo:   { level: 25, name: 'Terrazzo',       price: 50, colors: ['#ece6dc', '#b9a99a'], pattern: 'marble' },
+  slate:      { level: 31, name: 'Slate',          price: 55, colors: ['#5b6270', '#454b57'] },
+  goldmosaic: { level: 44, name: 'Gold mosaic',    price: 70, colors: ['#2b2d36', '#d4af37'], pattern: 'navy' },
+  cobalt:     { level: 52, name: 'Cobalt tile',    price: 80, colors: ['#2a4fa0', '#e9e4d8'], pattern: 'lemon' },
+  rosegold:   { level: 63, name: 'Rose gold',      price: 95, colors: ['#e8b9a6', '#c98d7a'], pattern: 'marble' },
+  blackmarble:{ level: 75, name: 'Black marble',   price: 120, colors: ['#1f2026', '#8a8f9a'], pattern: 'marble' },
+  goldtile:   { level: 88, name: 'Gold tile',      price: 160, colors: ['#e6c35c', '#b8902a'] },
 };
 export const WALLS = {
   plaster: { level: 1, name: 'Peach plaster', price: 0,  colors: ['#f6d2b0', '#f0c49d'] },
@@ -27,6 +36,16 @@ export const WALLS = {
   sky:     { level: 10, name: 'Sky & clouds',  price: 35, colors: ['#bfe6ff', '#ffffff'] },
   torn:    { level: 1, name: 'Torn wallpaper', price: 0,  colors: ['#e9d3bd', '#8d8478'], hidden: true },
   damask:  { level: 12, name: 'Plum damask',   price: 40, colors: ['#6b3a5a', '#8e5479'] },
+  gingham: { level: 15, name: 'Red gingham',   price: 45, colors: ['#ffffff', '#e85d75'], pattern: 'lemon' },
+  teal:    { level: 19, name: 'Deep teal',     price: 50, colors: ['#1f5f62', '#24706f'], pattern: 'plaster' },
+  goldstripe: { level: 27, name: 'Gold stripes', price: 60, colors: ['#2b2d36', '#d4af37'], pattern: 'stripes' },
+  marblewall: { level: 33, name: 'Marble wall', price: 70, colors: ['#f4f1ec', '#c9c1b8'], pattern: 'plaster' },
+  tropical:{ level: 41, name: 'Tropical leaves', price: 80, colors: ['#2f6f4f', '#7bb661'], pattern: 'mintdot' },
+  velvetwall: { level: 49, name: 'Velvet flock', price: 95, colors: ['#4a1f3a', '#6b2f55'], pattern: 'damask' },
+  mural:   { level: 56, name: 'Hand-painted mural', price: 110, colors: ['#9fd4ff', '#fff4e0'], pattern: 'sky' },
+  artdeco: { level: 69, name: 'Art deco',      price: 130, colors: ['#1c1f2b', '#d4af37'], pattern: 'stripes' },
+  silk:    { level: 77, name: 'Silk panels',   price: 150, colors: ['#e9d6ef', '#c8a6d6'], pattern: 'damask' },
+  golden:  { level: 91, name: 'Gilded walls',  price: 200, colors: ['#e6c35c', '#fff1b8'], pattern: 'tiles' },
 };
 // outdoor: terrace only. indoor: inside only. Otherwise either.
 export const DECOR = {
@@ -44,16 +63,43 @@ export const DECOR = {
   cat:       { level: 10, name: 'Shop cat',          emoji: '🐈', price: 300, charm: 4 },
   fountain:  { level: 12, name: 'Fountain',          emoji: '⛲', price: 400, charm: 5, outdoor: true },
   sacks:     { level: 1, name: 'Flour sacks',       emoji: '🌾', price: 20,  charm: 0, indoor: true },
+  piano:     { level: 14, name: 'Old piano',         emoji: '🎹', price: 600,  charm: 5, indoor: true },
+  jukebox:   { level: 17, name: 'Jukebox',           emoji: '🎵', price: 800,  charm: 6, indoor: true },
+  aquarium:  { level: 22, name: 'Aquarium',          emoji: '🐠', price: 1200, charm: 7, indoor: true },
+  bookcase:  { level: 26, name: 'Bookcase',          emoji: '📚', price: 1400, charm: 7, indoor: true },
+  arcade:    { level: 31, name: 'Arcade machine',    emoji: '🕹️', price: 2000, charm: 8, indoor: true },
+  palm:      { level: 36, name: 'Palm tree',         emoji: '🌴', price: 2400, charm: 9, outdoor: true },
+  statue:    { level: 42, name: 'Stone statue',      emoji: '🗿', price: 3200, charm: 10, outdoor: true },
+  teddy:     { level: 47, name: 'Giant teddy',       emoji: '🧸', price: 3800, charm: 10 },
+  neonheart: { level: 52, name: 'Neon heart',        emoji: '💗', price: 4500, charm: 11, indoor: true },
+  koi:       { level: 58, name: 'Koi pond',          emoji: '🐟', price: 6000, charm: 12, outdoor: true },
+  carousel:  { level: 66, name: 'Mini carousel',     emoji: '🎠', price: 8000, charm: 14, outdoor: true },
+  trophy:    { level: 75, name: 'Golden trophy',     emoji: '🏆', price: 11000, charm: 15, indoor: true },
+  photobooth:{ level: 82, name: 'Photo booth',       emoji: '📸', price: 14000, charm: 16, indoor: true },
+  gazebo:    { level: 90, name: 'Gazebo',            emoji: '⛩️', price: 20000, charm: 18, outdoor: true },
+  rosastatue:{ level: 99, name: 'Statue of Aunt Rosa', emoji: '👵', price: 50000, charm: 25, outdoor: true },
 };
 export const ART = {
   painting: { level: 2, name: 'Painting',   emoji: '🖼️', price: 60, charm: 1 },
   clock:    { level: 3, name: 'Wall clock', emoji: '🕒', price: 50, charm: 1 },
   shelf:    { level: 5, name: 'Jar shelf',  emoji: '🫙', price: 80, charm: 1 },
   plates:   { level: 6, name: 'Plate rack', emoji: '🍽️', price: 70, charm: 1 },
+  neon:     { level: 16, name: 'Neon word', emoji: '🔤', price: 400, charm: 3 },
+  mirror:   { level: 24, name: 'Gilt mirror', emoji: '🪞', price: 900, charm: 4 },
+  records:  { level: 33, name: 'Gold records', emoji: '💿', price: 1500, charm: 5 },
+  tapestry: { level: 45, name: 'Tapestry', emoji: '🧶', price: 2500, charm: 6 },
+  portrait: { level: 60, name: 'Portrait of Rosa', emoji: '🖼️', price: 5000, charm: 8 },
+  goldframe:{ level: 85, name: 'Golden frame', emoji: '🌟', price: 12000, charm: 12 },
 };
 export const EXPANSIONS = {
-  front: { level: 5, name: 'Front terrace', desc: 'Two rows of pavement in front of the shop become yours, for tiles, tables and plants.', price: 1200, cells: 18 },
-  side:  { level: 9, name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
+  front:   { level: 5,  name: 'Front terrace', desc: 'Two rows of pavement in front of the shop become yours, for tiles, tables and plants.', price: 1200, cells: 18 },
+  side:    { level: 9,  name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
+  island:  { level: 12, name: 'Kitchen island', desc: 'An island in the middle of the kitchen: room for 2 more machines.', price: 3000, spots: 2 },
+  carts:   { level: 18, name: 'Food carts',    desc: 'Room for 5 machines on carts along the front terrace.', price: 6000, spots: 5, needs: 'front' },
+  bench:   { level: 25, name: 'Back-room benches', desc: 'Room for 2 more machines in the back room.', price: 8000, labSpots: 2 },
+  island2: { level: 30, name: 'Bigger island', desc: 'The island grows: room for 2 more machines.', price: 9000, spots: 2, needs: 'island' },
+  stalls:  { level: 36, name: 'Side stalls',   desc: 'Room for 5 machines on stalls down the side terrace.', price: 12000, spots: 5, needs: 'side' },
+  bench2:  { level: 50, name: 'The cellar',    desc: 'A cellar under the back room: room for 1 more machine.', price: 25000, labSpots: 1 },
 };
 export const SELL_BACK = 0.5;
 export const REPAIR_TILE = 8, REPAIR_PANEL = 12; // fixing damage costs at least this, even with a free style
@@ -111,13 +157,13 @@ export function defaultDesign() {
       { type: 'sacks', cx: 7, cz: 0, rot: 0 },
       { type: 'plant', cx: 8, cz: 4, rot: 0 },
     ],
-    expansions: { front: false, side: false },
+    expansions: {},
   };
 }
 // Older saves don't have a design yet.
 export function ensureDesign(s) {
   if (!s.design) s.design = defaultDesign();
-  s.design.expansions ||= { front: false, side: false };
+  s.design.expansions ||= {};
   s.design.art ||= {};
   // Decorations left on squares the kitchen now needs are moved to a free square (or sold back if there's none)
   s.design.decor.forEach((it, idx) => {
@@ -147,6 +193,7 @@ export function canPlace(s, type, cx, cz, ignore = -1) {
   if (zone === 'inside' && keptClear(cx, cz)) return 'That square has to stay clear for the kitchen, counter or customers.';
   if (cx === 8 && cz === 1 && s.upgrades?.catering) return 'The catering boxes are there.';
   if (decorAt(s, cx, cz, ignore) >= 0) return 'Something is already there.';
+  if ((s.machines || []).some(m => SPOTS[m.spot]?.cell && SPOTS[m.spot].cell[0] === cx && SPOTS[m.spot].cell[1] === cz)) return 'A machine stands there.';
   const d = DECOR[type];
   if (d?.outdoor && zone === 'inside') return `${d.name} only goes outside, on a terrace.`;
   if (d?.indoor && zone !== 'inside') return `${d.name} only goes inside.`;
@@ -271,6 +318,7 @@ export function buyExpansion(s, id) {
   const e = EXPANSIONS[id];
   if (!e || s.design.expansions[id]) return { msg: 'Already yours.' };
   if (!levelOk(s, e)) return lockMsg(e);
+  if (e.needs && !s.design.expansions[e.needs]) return { msg: `Buy the ${EXPANSIONS[e.needs].name.toLowerCase()} first.` };
   if (!pay(s, e.price)) return { msg: 'Not enough clean cash.' };
   s.design.expansions[id] = true;
   return { ok: true, msg: `The ${e.name.toLowerCase()} is yours.` };

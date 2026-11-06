@@ -1,141 +1,160 @@
-// Balance check: bots play full runs with different strategies.
-// node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs]
+// Balance check for the real-time game: bots check in a few times a day over many days.
+// node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs] [days]
 import * as G from '../www/js/game.js';
-import { ITEMS, CFG, UPGRADES, LINES, MACHINES } from '../www/js/data.js';
+import * as D from '../www/js/design.js';
+import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS } from '../www/js/data.js';
 G.onToast(() => {});
 
-const RUNS = Number(process.argv[2]) || 40;
-const MAX_DAYS = 120;
+const RUNS = Number(process.argv[2]) || 6;
+const TRACE = process.env.TRACE; // TRACE=careful: one run of that strategy, day by day
+const DAYS = Number(process.argv[3]) || 120;
+const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 
+// When the bot looks at the game (local hours). Everything else happens while it's away.
+const CHECKINS = [8, 12.5, 17.5, 21.5];
 const STRATS = {
-  honest:  { crook: false, react: 1.5, upgrades: ['sign'], baker: 8 },
-  careful: { crook: true, react: 1.5, launder: 1.0, kits: 3, bribeAt: 35, lieLowAt: 50, dirtyReserve: 900,
-             upgrades: ['catering', 'glass', 'sign', 'burner2', 'camera'], baker: 10 },
-  greedy:  { crook: true, react: 1.5, launder: 1.6, kits: 4, serveAll: true, bribeAt: 60, dirtyReserve: 600,
-             upgrades: ['catering', 'glass', 'burner2', 'sign'], baker: 10 },
+  honest:  { crook: false },
+  careful: { crook: true, coolAt: 40, bribeAt: 45, serveHinted: false, launder: 1.0 },
+  greedy:  { crook: true, coolAt: 75, bribeAt: 65, serveHinted: true, launder: 1.3 },
 };
 
-function inPipeline(s, id) {
-  let n = 0;
-  for (const st in s.shift.slots) for (const sl of s.shift.slots[st]) if (sl.item === id) n += ITEMS[id].yield;
-  return n;
-}
-function bestRecipe(s, machine) {
-  let best = null, bestScore = Infinity;
+function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+const profit = (s, id) => ITEMS[id].servings * G.itemPrice(s, id) - G.batchCost(s, id);
+// Pick what to cook on a machine so it's ready (and not spoiled) by the next check-in
+function chooseRecipe(s, m, t, next) {
+  const gap = next - t;
+  let best = null, bestScore = -Infinity;
   for (const id of G.menuOf(s)) {
-    if (ITEMS[id].machine !== machine || !G.canMake(s, id)) continue;
-    const d = s.display[id];
-    const score = (d.fresh + d.stale * 0.5 + inPipeline(s, id)) / (ITEMS[id].group === 'bread' ? 0.8 : 1);
-    if (score < bestScore) { bestScore = score; best = id; }
+    const r = ITEMS[id];
+    if (r.machine !== m.type) continue;
+    if ((s.display[id] || 0) >= G.trayCap(s, id) - r.servings) continue;
+    const cook = G.cookMs(s, id), keep = G.spoilMs(s, id);
+    const auto = s.crew.baker; // Priya collects as soon as it's done
+    let score;
+    if (auto) score = s.crew.chef ? profit(s, id) / cook : profit(s, id) * Math.min(1, gap / cook);
+    else if (cook <= gap && gap <= cook + keep) score = profit(s, id);
+    else if (cook > gap) score = -1e6 + profit(s, id) / cook; // won't be done; still better than nothing
+    else score = -2e6; // would spoil before we're back
+    score -= (s.display[id] || 0) * G.itemPrice(s, id) * 0.3;
+    if (score > bestScore) { bestScore = score; best = id; }
   }
-  return best;
+  return bestScore > -1.5e6 ? best : null;
 }
 
-function plan(s, st) {
+function placeSomeDecor(s) {
+  const options = Object.entries(D.DECOR).filter(([, d]) => D.levelOk(s, d) && d.price < s.clean * 0.04 && d.charm > 0).sort((a, b) => b[1].charm / b[1].price - a[1].charm / a[1].price);
+  if (!options.length || s.design.decor.length >= D.decorCap(s)) return;
+  const cells = ['inside', 'front', 'side'].flatMap(z => D.allCells(z));
+  for (const [type] of options) {
+    for (const [cx, cz] of cells) {
+      if (s.design.decor.length >= D.decorCap(s)) return;
+      if (!D.canPlace(s, type, cx, cz)) { D.placeDecor(s, type, cx, cz); break; }
+    }
+  }
+}
+
+function checkIn(s, st, t, next) {
   if (s.offerPending) G.answerOffer(s, st.crook);
   s.levelUps.length = 0;
-  const reserve = G.daysToPayment(s) <= 3 ? G.nextDue(s) : 300;
-  for (const id of st.upgrades) {
-    const u = UPGRADES.find(x => x.id === id);
-    if (!G.upgradeAvailable(s, u)) continue;
-    if (u.cash === 'clean' && s.clean - u.cost < reserve + 200) continue;
-    if (u.cash === 'dirty' && s.dirty - u.cost < st.dirtyReserve) continue;
-    G.buyUpgrade(s, id);
-  }
-  // Kitchen: buy machines when the level allows, learn recipes, keep the menu full of the best sellers
-  for (const type of ['oven', 'fryer', 'drinks', 'mixer', 'icecream', 'grill']) {
-    if (!G.machineBlock(s, type) && s.clean - G.machinePrice(s, type) > reserve + 400) G.buyMachine(s, type);
-  }
-  for (const id of Object.keys(ITEMS)) {
-    const r = ITEMS[id];
-    if (!s.recipes.includes(id) && r.cost && G.unlocked(s, r.level) && G.machineCount(s, r.machine) && s.clean - r.cost > reserve + 400) G.buyRecipe(s, id);
-  }
-  const best = [...s.recipes].sort((a, b) => ITEMS[b].price - ITEMS[a].price); // customers are the limit, so sell what's dearest
-  // keep at least one item for every machine, then fill with the best earners
-  const pickMenu = [];
-  for (const type of Object.keys(MACHINES)) { const id = best.find(x => ITEMS[x].machine === type); if (id && G.machineCount(s, type)) pickMenu.push(id); }
-  for (const id of best) if (!pickMenu.includes(id)) pickMenu.push(id);
-  s.onMenu = pickMenu.slice(0, G.menuSlots(s));
-  if (st.baker && s.day >= st.baker && !s.crew.baker) G.hire(s, 'baker');
+  const reserve = G.daysToPayment(s) <= 2 ? G.nextDue(s) + 200 : 300;
+  const spare = () => s.clean - reserve;
+  // Collect everything that's done
+  s.machines.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) G.collectJob(s, i, t, { quiet: true }); });
+  // Repairs
+  s.machines.forEach((m, i) => { if (m.broken && spare() > G.repairCost(m.type)) G.repairMachine(s, i); });
+  // Menu: the best-paying things we know, with variety across machines
+  const known = s.recipes.filter(id => s.machines.some(m => m.type === ITEMS[id].machine && !m.broken));
+  known.sort((a, b) => ITEMS[b].price * ITEMS[b].servings - ITEMS[a].price * ITEMS[a].servings);
+  const byMachine = {};
+  const picked = [];
+  for (const id of known) { const k = ITEMS[id].machine; if ((byMachine[k] || 0) < 2) { picked.push(id); byMachine[k] = (byMachine[k] || 0) + 1; } }
+  for (const id of known) if (!picked.includes(id)) picked.push(id);
+  s.onMenu = picked.slice(0, G.menuSlots(s));
+  // Growth: machines, recipes, expansions, upgrades, property, crew, marketing, decor
+  for (const type of Object.keys(MACHINES)) if (!G.machineBlock(s, type) && G.machinePrice(s, type) < spare() * 0.35) G.buyMachine(s, type);
+  for (const [id, e] of Object.entries(D.EXPANSIONS)) if (!s.design.expansions[id] && D.levelOk(s, e) && (!e.needs || s.design.expansions[e.needs]) && e.price < spare() * 0.3 && (e.cells || e.spots || (e.labSpots && st.crook))) D.buyExpansion(s, id);
+  for (const id of Object.keys(ITEMS)) { const r = ITEMS[id]; if (!s.recipes.includes(id) && G.unlocked(s, r.level) && G.machineCount(s, r.machine) && r.cost < spare() * 0.25) G.buyRecipe(s, id); }
+  for (const u of UPGRADES) if (G.upgradeAvailable(s, u) && G.unlocked(s, u.level) && (u.cash === 'clean' ? u.cost < spare() * 0.3 : st.crook && u.cost < s.dirty * 0.5)) G.buyUpgrade(s, u.id);
+  for (const [id, p] of Object.entries(PROPERTY)) if (!s.property[id] && G.unlocked(s, p.level) && p.price < spare() * 0.4) G.buyProperty(s, id);
+  const hireIf = (r, ok) => { if (!s.crew[r] && G.unlocked(s, CREW[r].level) && ok) G.hire(s, r); };
+  hireIf('baker', spare() > 100);
+  hireIf('cashier', spare() > 1500);
+  hireIf('pr', s.rep < 40 && spare() > 1500);
+  hireIf('cleaner', spare() > 3000);
+  hireIf('chef', spare() > 4000);
+  hireIf('manager', spare() > 6000);
+  for (const [id, c] of Object.entries(CAMPAIGNS)) if (!G.campaignBlock(s, id, t) && c.price < spare() * 0.05) G.startCampaign(s, id, t);
+  placeSomeDecor(s);
+  // Pay down the debt with anything well beyond what we need
+  if (!s.won && spare() > 6000) G.payBank(s, spare() - 4000);
   if (G.restructureReady(s)) G.restructure(s);
-  if (G.unlocked(s, 3) && !s.crew.pr && s.clean > 2500) G.hire(s, 'pr');
-  if (s.rep < 60 && s.clean > reserve + 500 && !G.campaignBlock(s, 'flyers')) G.startCampaign(s, 'flyers');
-  if (s.rep < 45 && s.clean > reserve + 800 && !G.campaignBlock(s, 'charity')) G.startCampaign(s, 'charity');
-  for (const [type, list] of Object.entries({ oven: 1, mixer: 1, fryer: 1, drinks: 1, icecream: 1, grill: 1 })) {
-    G.machinesOf(s, type).forEach((m, i) => { if (m.broken && s.clean > G.repairCost(type) + reserve) G.repairMachine(s, type, i); });
+  // Cook
+  s.machines.forEach((m, i) => { if (!m.job && !m.broken) { const id = chooseRecipe(s, m, t, next); if (id) G.startJob(s, i, id, t, { quiet: true }); } });
+
+  if (!st.crook || !s.labUnlocked) return;
+  // The back room
+  s.lab.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) G.collectLab(s, i, t, { quiet: true }); });
+  for (const b of [...s.door]) {
+    if (b.hint && !st.serveHinted) G.turnAway(s, b.id);
+    else if ((s.bags[b.product] || 0) >= (b.courier ? b.want : 1)) G.serveBuyer(s, b.id, false, t);
   }
-  const cust = G.customersExpected(s);
-  const need = {};
-  const menu = G.menuOf(s);
-  for (const id of menu) {
-    const batches = Math.ceil(cust * 1.7 / menu.length / ITEMS[id].yield) + 1;
-    for (const [k, q] of Object.entries(ITEMS[id].ing)) need[k] = (need[k] || 0) + q * batches;
-  }
-  for (const k in need) { const d = need[k] - s.inv[k]; if (d > 0) G.buyIngredient(s, k, d); }
-  if (s.labUnlocked && st.crook) {
-    if (st.bribeAt && s.heat >= st.bribeAt && s.dirty >= CFG.bribeCost) G.bribe(s);
-    while (s.kits < st.kits && s.dirty >= CFG.kitCost) G.buyKit(s, 'dirty');
-    if (s.kits < 1 && s.clean >= CFG.kitCost + 100) G.buyKit(s, 'clean');
-  }
+  hireIf('dealer', true);
+  hireIf('cook', s.dirty > 500);
+  hireIf('lookout', s.dirty > 800);
+  hireIf('muscle', s.dirty > 1500);
+  hireIf('chemist', s.dirty > 4000);
+  hireIf('driver', s.dirty > 4000);
+  hireIf('lawyer', s.dirty > 8000);
+  hireIf('accountant', spare() > 6000);
+  for (const type of Object.keys(LAB_MACHINES)) { const cash = G.machineCash(type, true); if (!G.machineBlock(s, type, true) && G.machinePrice(s, type, true) < (cash === 'dirty' ? s.dirty * 0.5 : spare() * 0.3)) G.buyMachine(s, type, true); }
+  if (s.heat >= st.bribeAt && s.dirty > CFG.bribeCost * 2) G.bribe(s);
+  const cool = s.heat >= st.coolAt;
+  s.lab.forEach((m, i) => {
+    if (m.job || m.broken || cool) return;
+    const options = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)).sort((a, b) => PRODUCTS[b].level - PRODUCTS[a].level);
+    for (const id of options) if (G.startLab(s, i, id, t, { quiet: true })) break;
+  });
+  const amount = Math.min(Math.floor(s.dirty - 1500), Math.round(G.launderLeft(s) * st.launder));
+  if (amount > 0) G.launder(s, amount, true);
 }
 
-function runShift(s, st) {
-  const dt = 0.25;
-  while (s.shift) {
-    const sh = s.shift;
-    for (const stage of Object.keys(sh.slots).reverse())
-      sh.slots[stage].forEach((sl, i) => { if (sl.item && sl.done && sl.over >= st.react) G.tapSlot(s, stage, i); });
-    if (sh.kind === 'day') {
-      for (const stage of Object.keys(sh.slots)) sh.slots[stage].forEach((sl, i) => {
-        if (!sl.item && sh.t < sh.len - 22) { const id = bestRecipe(s, stage); if (id) G.startRecipe(s, id, stage, i); }
-      });
-    } else {
-      sh.slots.prep.forEach((sl, i) => { if (!sl.item && s.kits > 0 && sh.t < sh.len - 36) G.tapSlot(s, 'prep', i); });
-      for (const b of [...sh.buyers]) {
-        if (sh.t - b.t0 < st.react || s.bags < 1) continue;
-        const sus = LINES.off.includes(b.line) || b.hint;
-        if (st.serveAll || !sus) G.sellToBuyer(s, b.id); else G.turnAway(s, b.id);
-      }
-    }
-    G.tick(s, dt);
-  }
-}
-
-let name0 = "";
-// The game never ends, so a run is a fixed number of days and we look at how far the bakery got.
-function playOne(st) {
-  const s = G.newGame();
-  const weekly = [];
+function run(st, seed) {
+  G.setRandom(mulberry32(seed));
+  const start = new Date(2026, 0, 5, 7, 0).getTime();
+  const s = G.newGame(start);
+  s.introSeen = true;
+  const marks = {};
   let clearedDay = null;
-  while (s.day <= MAX_DAYS) {
-    plan(s, st);
-    G.startShift(s, 'day'); runShift(s, st);
-    if (s.dirty > 0) G.launder(s, Math.min(s.dirty, s.today.launderCap * (st.launder || 1)));
-    else G.launder(s, 0);
-    if (s.labUnlocked && st.crook && !s.sealedNights && (s.kits > 0 || s.bags > 0) && !(st.lieLowAt && s.heat >= st.lieLowAt)) {
-      G.startShift(s, 'night'); if (s.shift) runShift(s, st);
+  for (let d = 0; d < DAYS; d++) {
+    for (let k = 0; k < CHECKINS.length; k++) {
+      const h = CHECKINS[k];
+      const t = start + d * DAY + (h - 7) * HOUR;
+      const next = k + 1 < CHECKINS.length ? start + d * DAY + (CHECKINS[k + 1] - 7) * HOUR : start + (d + 1) * DAY + (CHECKINS[0] - 7) * HOUR;
+      G.advance(s, t);
+      checkIn(s, st, t, next);
     }
-    G.goHome(s);
-    if (s.won && clearedDay == null) clearedDay = s.day;
-    if (process.env.TRACE === name0) { const t = s.report.ledger; console.log(`d${s.report.day} L${s.level} sales ${Math.round(t.sales)} served ${t.served} missed ${t.missed} | launder ${t.laundered}/${t.launderCap} | bags ${t.bagsMade}/${t.bagsSold} night £${t.nightSales} | clean ${Math.round(s.clean)} dirty ${Math.round(s.dirty)} heat ${Math.round(s.heat)} pop ${Math.round(s.rep)} owe ${Math.round(s.balance)} behind ${Math.round(s.arrears)} ${s.report.payment ? (s.report.payment.paid ? "PAID" : "MISSED") : ""} ${s.report.lines.filter(l => /Busted|heavies/.test(l.text)).map(l => l.text.slice(0, 30)).join(' ')}`); }
-    if ((s.day - 1) % 14 === 0) weekly.push({ day: s.day, level: s.level, clean: Math.round(s.clean), owe: Math.round(s.balance), pop: Math.round(s.rep) });
-    G.toPlan(s);
+    if (s.won && clearedDay == null) clearedDay = d + 1;
+    if (TRACE) { const r = s.reports.at(-1)?.ledger; if (r) console.log(`d${d + 1} Lv${s.level} £${Math.round(s.clean)} 💜${Math.round(s.dirty)} heat ${Math.round(s.heat)} pop ${Math.round(s.rep)} | sales £${Math.round(r.sales)} served ${r.served} missed ${r.missed} batches ${r.batches} burnt ${r.burnt} | lab ${r.labBatches} bags ${r.bagsSold} (crew ${r.crewSales}) cops ${r.copsServed} lost ${r.buyersLost} xp ${Math.round(r.xp)}${r.events.length ? ' | ' + r.events.map(e => e.text.slice(0, 40)).join(' / ') : ''}`); }
+    if ([7, 30, 60, 90, 120, 180, 365].includes(d + 1)) marks[d + 1] = s.level;
   }
-  return { s, weekly, clearedDay };
+  return { level: s.level, clearedDay, busts: s.stats.busts, visits: s.stats.visits, clean: s.clean, dirty: s.dirty, rep: s.rep,
+    bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.machines.length, lab: s.lab.length, recipes: s.recipes.length, marks,
+    served: s.stats.served, missed: s.stats.missed, strikes: s.strikes };
 }
 
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const med = a => { const b = [...a].sort((x, y) => x - y); return b[Math.floor(b.length / 2)]; };
+const t0 = Date.now();
 for (const [name, st] of Object.entries(STRATS)) {
-  name0 = name;
-  const res = { cleared: [], level: [], busts: [], visits: [], missed: [], worth: [], owe: [] };
-  let example = null;
-  for (let r = 0; r < RUNS; r++) {
-    const { s, weekly, clearedDay } = playOne(st);
-    if (clearedDay) res.cleared.push(clearedDay);
-    res.level.push(s.level); res.busts.push(s.stats.busts); res.visits.push(s.stats.visits); res.missed.push(s.strikes);
-    res.worth.push(Math.round(s.clean + s.dirty)); res.owe.push(Math.round(s.balance));
-    if (!example) example = weekly;
-  }
-  const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : '-';
-  console.log(`\n== ${name} (${MAX_DAYS} days): debt cleared in ${res.cleared.length}/${RUNS} runs (avg day ${avg(res.cleared)}), level ${avg(res.level)}, busts ${avg(res.busts)}, collector visits ${avg(res.visits)}, missed payments ${avg(res.missed)}, cash £${avg(res.worth)}, still owed £${avg(res.owe)}`);
-  console.log('   first run every 2 weeks:', example.map(w => `d${w.day} L${w.level} £${w.clean} owe£${w.owe} pop${w.pop}`).join(' | '));
+  if (TRACE && TRACE !== name) continue;
+  const res = [...Array(TRACE ? 1 : RUNS)].map((_, i) => run(st, 1000 + i * 7));
+  const cleared = res.filter(r => r.clearedDay != null).map(r => r.clearedDay);
+  const marks = Object.keys(res[0].marks).map(d => `d${d}: Lv ${avg(res.map(r => r.marks[d])).toFixed(1)}`).join(' · ');
+  console.log(`\n${name.toUpperCase()} (${RUNS} runs, ${DAYS} days)`);
+  console.log(`  level ${avg(res.map(r => r.level)).toFixed(1)} (${Math.min(...res.map(r => r.level))}–${Math.max(...res.map(r => r.level))})   ${marks}`);
+  console.log(`  debt cleared ${cleared.length}/${RUNS}${cleared.length ? `, median day ${med(cleared)}` : ''} · missed payments ${avg(res.map(r => r.strikes)).toFixed(1)} · heavies ${avg(res.map(r => r.visits)).toFixed(1)} · busts ${avg(res.map(r => r.busts)).toFixed(1)}`);
+  console.log(`  clean £${Math.round(avg(res.map(r => r.clean))).toLocaleString('en-GB')} · dirty £${Math.round(avg(res.map(r => r.dirty))).toLocaleString('en-GB')} · popularity ${avg(res.map(r => r.rep)).toFixed(0)} · takings £${Math.round(avg(res.map(r => r.sales))).toLocaleString('en-GB')} · bags ${Math.round(avg(res.map(r => r.bags)))}`);
+  console.log(`  served ${Math.round(avg(res.map(r => r.served)))} / missed ${Math.round(avg(res.map(r => r.missed)))} · machines ${avg(res.map(r => r.machines)).toFixed(1)} + lab ${avg(res.map(r => r.lab)).toFixed(1)} · recipes ${avg(res.map(r => r.recipes)).toFixed(0)}`);
 }
+console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)} s)`);

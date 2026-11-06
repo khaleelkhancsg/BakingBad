@@ -1,7 +1,7 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
 import * as THREE from 'three';
-import { CFG, ITEMS, STAGES, MACHINES } from './data.js';
+import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS } from './data.js';
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 import { buildWorld } from './world.js';
@@ -100,10 +100,21 @@ function itemModel(id) {
   } else if (id === 'bagel') {
     const b = mesh(geo('bagel', () => new THREE.TorusGeometry(0.06, 0.035, 8, 16)), mat('#c98a4b'));
     b.rotation.x = -PI / 2; b.position.y = 0.035; g.add(b);
-  } else if (id === 'layercake') {
+  } else if (id === 'layercake' || id === 'weddingcake') {
     g.add(cyl(0.11, 0.11, 0.06, '#f6e7c4', 0, 0, 0, 16)); g.add(cyl(0.112, 0.112, 0.015, '#ff9fb2', 0, 0.06, 0, 16));
     g.add(cyl(0.11, 0.11, 0.05, '#f6e7c4', 0, 0.075, 0, 16)); g.add(cyl(0.115, 0.115, 0.02, '#ffffff', 0, 0.125, 0, 16));
     g.add(sphere(0.025, '#e2394b', 0, 0.16, 0));
+  }
+  if (!g.children.length) {
+    // Anything else: a simple shape for its kind of food, in a colour of its own
+    let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    const c = new THREE.Color().setHSL((h % 360) / 360, 0.55, 0.6).getStyle();
+    const grp = ITEMS[id]?.group;
+    if (grp === 'drink') { g.add(cyl(0.05, 0.042, 0.13, mat('#ffffff'), 0, 0, 0, 12, false)); g.add(cyl(0.046, 0.046, 0.012, c, 0, 0.12, 0, 12, false)); }
+    else if (grp === 'cold') { g.add(cyl(0.065, 0.04, 0.07, mat('#f4f0e8'), 0, 0, 0, 12, false)); g.add(sphere(0.06, c, 0, 0.1, 0)); }
+    else if (grp === 'savory') { g.add(cyl(0.12, 0.12, 0.015, '#f4f0e8', 0, 0, 0, 16, false)); const b = sphere(0.07, c, 0, 0.05, 0); b.scale.set(1.4, 0.6, 1); g.add(b); }
+    else if (grp === 'bread') { const b = sphere(0.1, c, 0, 0.06, 0); b.scale.set(1.4, 0.65, 0.9); g.add(b); }
+    else { g.add(cyl(0.09, 0.1, 0.07, c, 0, 0, 0, 16)); g.add(sphere(0.03, '#ffffff', 0, 0.09, 0)); }
   }
   return g;
 }
@@ -115,9 +126,9 @@ function emissiveMat(color, emissive) {
   return smat({ color, emissive, emissiveIntensity: 0, roughness: 0.35 });
 }
 
-function buildOven() {
+function buildOven(tint) {
   const g = new THREE.Group();
-  const steel = mat('#c7cad1', { metalness: 0.45, roughness: 0.4 });
+  const steel = mat(tint || '#c7cad1', { metalness: 0.45, roughness: 0.4 });
   g.add(box(1.05, 1.45, 0.85, steel, 0, 0.08, 0));
   for (const x of [-0.42, 0.42]) for (const z of [-0.32, 0.32]) g.add(box(0.08, 0.08, 0.08, '#3b3e45', x, 0, z));
   g.add(box(1.07, 0.06, 0.87, '#3b3e45', 0, 1.53, 0));
@@ -134,21 +145,21 @@ function buildOven() {
       let i = 0, col = '#ff7a1a', l = 0;
       if (slot.item && !slot.done) { i = 0.5 + 0.9 * (slot.t / slot.dur) + Math.sin(now * 9) * 0.08; }
       else if (slot.item && slot.done) {
-        const burning = CFG.burnAfter - slot.over <= 5;
+        const burning = slot.spoilIn <= 120;
         col = burning ? '#ff2a2a' : '#ffa040';
         i = burning ? 1.2 + Math.sin(now * 14) * 0.8 : 1.3 + Math.sin(now * 5) * 0.3;
         l = 1;
       }
       doorMat.emissive.set(col); doorMat.emissiveIntensity = Math.max(0, i);
       lamp.emissiveIntensity = l * 2;
-      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'steam') : null;
+      return slot.item && slot.done ? (slot.spoilIn <= 120 ? 'smoke' : 'steam') : null;
     },
   };
 }
 
-function buildMixer() {
+function buildMixer(tint) {
   const g = new THREE.Group();
-  g.add(box(1.0, 0.9, 0.8, '#a8714a', 0, 0, 0));
+  g.add(box(1.0, 0.9, 0.8, tint || '#a8714a', 0, 0, 0));
   g.add(box(1.04, 0.06, 0.84, '#efe6d8', 0, 0.9, 0));
   const body = mat('#ff9fb2', { roughness: 0.45 });
   g.add(box(0.36, 0.1, 0.42, body, 0, 0.96, -0.05));
@@ -237,12 +248,12 @@ function buildBurner() {
       let i = 0;
       if (slot.item && !slot.done) i = 0.3 + 1.2 * slot.t / slot.dur;
       if (slot.item && slot.done) {
-        const burning = CFG.burnAfter - slot.over <= 5;
+        const burning = slot.spoilIn <= 120;
         liquid.emissive.set(burning ? '#ff3a3a' : '#c79bff');
         i = 1.6 + Math.sin(now * (burning ? 14 : 5)) * 0.5;
       } else liquid.emissive.set('#b58cff');
       liquid.emissiveIntensity = i;
-      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'vapour') : null;
+      return slot.item && slot.done ? (slot.spoilIn <= 120 ? 'smoke' : 'vapour') : null;
     },
   };
 }
@@ -292,13 +303,13 @@ function buildFryer() {
       const cooking = slot.item && !slot.done;
       basket.position.y += ((cooking ? 0.93 : 1.08) - basket.position.y) * Math.min(1, dt * 6);
       oil.emissiveIntensity = slot.item ? (slot.done ? 0.9 + Math.sin(now * 8) * 0.3 : 0.4 + Math.sin(now * 20) * 0.15) : 0.05;
-      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'steam') : null;
+      return slot.item && slot.done ? (slot.spoilIn <= 120 ? 'smoke' : 'steam') : null;
     },
   };
 }
-function buildDrinks() {
+function buildDrinks(tint) {
   const g = new THREE.Group();
-  counterBase(g, '#efe6d8', '#5a6475');
+  counterBase(g, '#efe6d8', tint || '#5a6475');
   g.add(box(0.72, 0.62, 0.42, '#2f3a4a', 0, 0.96, -0.12));
   g.add(box(0.74, 0.08, 0.44, '#c7cad1', 0, 1.58, -0.12));
   const screen = smat({ color: '#0a1a2a', emissive: '#7fd3ff', emissiveIntensity: 0.4 });
@@ -325,9 +336,9 @@ function buildDrinks() {
     },
   };
 }
-function buildIcecream() {
+function buildIcecream(tint) {
   const g = new THREE.Group();
-  counterBase(g, '#ffffff', '#ffd6de');
+  counterBase(g, '#ffffff', tint || '#ffd6de');
   g.add(box(0.7, 0.55, 0.45, '#fff4f6', 0, 0.96, -0.12));
   g.add(box(0.72, 0.08, 0.47, '#ff9fb2', 0, 1.51, -0.12));
   const panel = smat({ color: '#d9f3ff', emissive: '#9fe1ff', emissiveIntensity: 0.2 });
@@ -353,9 +364,9 @@ function buildIcecream() {
     },
   };
 }
-function buildGrill() {
+function buildGrill(tint) {
   const g = new THREE.Group();
-  counterBase(g, '#efe6d8', '#6a5a48');
+  counterBase(g, '#efe6d8', tint || '#6a5a48');
   g.add(box(0.7, 0.08, 0.5, '#2b2d36', 0, 0.96, 0));
   const plateM = smat({ color: '#3b3e45', emissive: '#ff5a1a', emissiveIntensity: 0, roughness: 0.4 });
   g.add(box(0.62, 0.02, 0.42, plateM, 0, 1.04, 0, false));
@@ -371,19 +382,103 @@ function buildGrill() {
       lid.rotation.x += ((cooking ? 0 : -1.0) - lid.rotation.x) * Math.min(1, dt * 6);
       food.visible = !!slot.item;
       plateM.emissiveIntensity = slot.item ? (slot.done ? 0.6 + Math.sin(now * 8) * 0.3 : 0.5) : 0;
-      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'steam') : null;
+      return slot.item && slot.done ? (slot.spoilIn <= 120 ? 'smoke' : 'steam') : null;
     },
   };
 }
 
+// A dome oven on a stand: pizza oven, smoker, rotisserie
+function buildPizza(tint) {
+  const g = new THREE.Group();
+  g.add(box(1.05, 0.7, 0.85, '#8a5235', 0, 0, 0));
+  g.add(box(1.08, 0.05, 0.88, '#5c3520', 0, 0.7, 0));
+  const dome = mesh(geo('dome', () => new THREE.SphereGeometry(0.5, 18, 10, 0, PI * 2, 0, PI / 2)), mat(tint || '#b0604c'), 0, 0.75, 0);
+  dome.scale.set(1, 0.85, 0.82); g.add(dome);
+  const mouthM = emissiveMat('#1a0d08', '#ff7a1a');
+  const mouth = mesh(geo('mouth', () => new THREE.CircleGeometry(0.2, 16, 0, PI)), mouthM, 0, 0.76, 0.42, false); g.add(mouth);
+  g.add(cyl(0.06, 0.07, 0.5, '#4a4d54', 0.22, 1.05, -0.12, 8));
+  return {
+    group: g, anchor: V3(0, 1.85, 0.1), smoke: V3(0.22, 1.6, -0.12),
+    update(slot, dt, now) {
+      let i = 0.15;
+      if (slot.item && !slot.done) i = 0.8 + Math.sin(now * 7) * 0.2;
+      else if (slot.item && slot.done) i = slot.spoilIn <= 120 ? 1.4 + Math.sin(now * 14) * 0.8 : 1.2;
+      mouthM.emissive.set(slot.item && slot.done && slot.spoilIn <= 120 ? '#ff2a2a' : '#ff7a1a'); mouthM.emissiveIntensity = i;
+      return slot.item ? (slot.done && slot.spoilIn <= 120 ? 'smoke' : 'steam') : null;
+    },
+  };
+}
+// Stacked baskets on a counter: dim sum steamer, noodle bar, sushi counter
+function buildSteamer(tint) {
+  const g = new THREE.Group();
+  counterBase(g, '#efe6d8', tint || '#a8714a');
+  const baskets = [];
+  for (let k = 0; k < 3; k++) { const b = cyl(0.27, 0.27, 0.12, '#d9b07a', -0.15, 0.96 + k * 0.13, 0.02, 16); g.add(b); baskets.push(b); }
+  const lid = mesh(geo('blid', () => new THREE.ConeGeometry(0.29, 0.12, 16)), mat('#c49a62'), -0.15, 1.42, 0.02); g.add(lid);
+  g.add(cyl(0.13, 0.13, 0.18, mat('#9aa0aa', { metalness: 0.5, roughness: 0.35 }), 0.3, 0.96, 0.05, 14));
+  return {
+    group: g, anchor: V3(0, 1.85, 0), smoke: V3(-0.15, 1.5, 0.02),
+    update(slot, dt, now) {
+      lid.position.y = 1.42 + (slot.item && !slot.done ? Math.abs(Math.sin(now * 6)) * 0.02 : 0);
+      return slot.item ? (slot.done && slot.spoilIn <= 120 ? 'smoke' : 'steam') : null;
+    },
+  };
+}
+// Back room: a press, a kiln and a chamber (all made up)
+function buildPress() {
+  const g = new THREE.Group();
+  g.add(box(1.0, 0.85, 0.8, '#4a4d54', 0, 0, 0));
+  for (const x of [-0.38, 0.38]) g.add(box(0.08, 0.9, 0.08, '#2b2d36', x, 0.85, 0));
+  g.add(box(0.9, 0.1, 0.4, '#2b2d36', 0, 1.72, 0));
+  const plateM = emissiveMat('#3a2a55', '#b58cff');
+  const plate = box(0.6, 0.08, 0.36, plateM, 0, 1.2, 0); g.add(plate);
+  g.add(box(0.6, 0.04, 0.36, '#8d939c', 0, 0.86, 0));
+  return {
+    group: g, anchor: V3(0, 2.1, 0), smoke: V3(0, 1.0, 0.2),
+    update(slot, dt, now) {
+      const y = slot.item && !slot.done ? 0.92 + Math.abs(Math.sin(now * 2)) * 0.25 : 1.2;
+      plate.position.y += (y - plate.position.y) * Math.min(1, dt * 6);
+      plateM.emissiveIntensity = slot.item ? (slot.done ? 1.4 + Math.sin(now * 5) * 0.4 : 0.6) : 0;
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
+function buildKiln() {
+  const g = new THREE.Group();
+  g.add(box(1.05, 0.5, 0.85, '#3d424a', 0, 0, 0));
+  const dome = mesh(geo('kdome', () => new THREE.SphereGeometry(0.52, 16, 10, 0, PI * 2, 0, PI / 2)), mat('#5b4a6a'), 0, 0.5, 0);
+  dome.scale.set(1, 1.1, 0.85); g.add(dome);
+  const mouthM = emissiveMat('#1a0d20', '#c07bff');
+  g.add(mesh(geo('kmouth', () => new THREE.CircleGeometry(0.2, 16, 0, PI)), mouthM, 0, 0.52, 0.44, false));
+  return {
+    group: g, anchor: V3(0, 1.8, 0.1), smoke: V3(0, 1.2, 0),
+    update(slot, dt, now) {
+      mouthM.emissiveIntensity = slot.item ? (slot.done ? 1.6 + Math.sin(now * 5) * 0.4 : 0.8 + Math.sin(now * 3) * 0.3) : 0.1;
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
+function buildChamber() {
+  const g = new THREE.Group();
+  g.add(cyl(0.42, 0.46, 0.25, '#2b2d36', 0, 0, 0, 20));
+  const glassM = smat({ color: '#cfa8ff', transparent: true, opacity: 0.35, roughness: 0.1 });
+  g.add(cyl(0.36, 0.36, 1.1, glassM, 0, 0.25, 0, 20, false));
+  const coreM = emissiveMat('#2a1840', '#b58cff');
+  const core = sphere(0.18, coreM, 0, 0.8, 0, false); g.add(core);
+  g.add(cyl(0.4, 0.4, 0.12, '#2b2d36', 0, 1.35, 0, 20));
+  return {
+    group: g, anchor: V3(0, 1.95, 0), smoke: V3(0, 1.5, 0),
+    update(slot, dt, now) {
+      const on = !!slot.item;
+      coreM.emissiveIntensity = on ? 1 + Math.sin(now * (slot.done ? 6 : 2)) * 0.6 : 0.05;
+      core.scale.setScalar(on ? 0.6 + 0.4 * (slot.done ? 1 : slot.t / slot.dur) : 0.4);
+      core.rotation.y += dt * 2;
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
 const BUILDERS = { oven: buildOven, mixer: buildMixer, fryer: buildFryer, drinks: buildDrinks, icecream: buildIcecream, grill: buildGrill,
-  prep: buildPrep, cook: buildBurner, bag: buildBagger };
-// Day machines stand wherever the game put them (see SPOTS in data.js); the back room keeps fixed places.
-const PLACES = {
-  prep:  [{ x: -10.25, z: -3.95, ry: 0 }],
-  cook:  [{ x: -8.95, z: -3.95, ry: 0 }, { x: -7.8, z: -3.95, ry: 0 }],
-  bag:   [{ x: -6.5, z: -3.95, ry: 0 }],
-};
+  pizza: buildPizza, steamer: buildSteamer, burner: buildBurner, press: buildPress, kiln: buildKiln, chamber: buildChamber };
 
 // ---------- People ----------
 // Chunky, friendly figures. kind: 'customer', 'hood' (night buyers) or 'baker' (you).
@@ -647,10 +742,10 @@ export function createScene(canvas, overlayEl, { onPick }) {
   statics.add(box(5.1, 0.55, 0.9, glass, 0, 0.99, 0.95, false));
   statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 1.54, 0.95));
   const trays = [];
-  for (let k = 0; k < 8; k++) {
-    const x = -2.17 + k * 0.62;
-    statics.add(box(0.56, 0.03, 0.62, '#f6f1e6', x, 0.99, 0.95));
-    const tg = new THREE.Group(); tg.position.set(x, 1.02, 0.95); scene.add(tg);
+  for (let k = 0; k < 14; k++) {
+    const x = -2.22 + (k % 7) * 0.74, z = k < 7 ? 1.16 : 0.74;
+    statics.add(box(0.66, 0.03, 0.34, '#f6f1e6', x, 0.99, z));
+    const tg = new THREE.Group(); tg.position.set(x, 1.02, z); scene.add(tg);
     trays.push({ x, group: tg, sig: '' });
   }
   statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
@@ -1093,32 +1188,30 @@ export function createScene(canvas, overlayEl, { onPick }) {
 
   // ---------- Stations from state ----------
   let stationSig = '';
-  let stations = { };
+  let stations = [];
+  const stationAt = (kind, idx) => stations.find(st => st.kind === kind && st.idx === idx);
   function rebuildStations(s) {
-    for (const st of Object.values(stations).flat()) { scene.remove(st.group); const i = pickables.indexOf(st.group); if (i >= 0) pickables.splice(i, 1); }
-    stations = {};
-    const dayPlaces = {};
-    for (const m of G.machineLayout(s)) (dayPlaces[m.type] ||= [])[m.i] = m.spot;
-    for (const kind of ['day', 'night']) {
-      for (const { stage, n } of G.stationLayout(s, kind)) {
-        stations[stage] = [];
-        for (let i = 0; i < n; i++) {
-          const pl = kind === 'day' ? dayPlaces[stage][i] : PLACES[stage][i];
-          const st = BUILDERS[stage]();
-          st.group.position.set(pl.x, 0, pl.z);
-          st.group.rotation.y = pl.ry;
-          st.group.userData = { act: 'slot', stage, i, kind };
-          st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-          scene.add(st.group);
-          st.group.updateMatrixWorld(true);
-          st.anchorW = st.group.localToWorld(st.anchor.clone());
-          if (st.smoke) st.smokeW = st.group.localToWorld(st.smoke.clone());
-          st.kind = kind; st.stage = stage; st.i = i;
-          pickables.push(st.group);
-          stations[stage].push(st);
-        }
-      }
-    }
+    for (const st of stations) { scene.remove(st.group); const i = pickables.indexOf(st.group); if (i >= 0) pickables.splice(i, 1); }
+    stations = [];
+    const add = (m, idx, kind) => {
+      const M = kind === 'day' ? MACHINES[m.type] : LAB_MACHINES[m.type];
+      const pl = (kind === 'day' ? SPOTS : LAB_SPOTS)[m.spot];
+      if (!M || !pl) return;
+      const st = (BUILDERS[M.model] || buildOven)(M.tint);
+      st.group.position.set(pl.x, 0, pl.z);
+      st.group.rotation.y = pl.ry;
+      st.group.userData = { act: 'machine', kind, idx };
+      st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      scene.add(st.group);
+      st.group.updateMatrixWorld(true);
+      st.anchorW = st.group.localToWorld(st.anchor.clone());
+      if (st.smoke) st.smokeW = st.group.localToWorld(st.smoke.clone());
+      Object.assign(st, { kind, idx, type: m.type });
+      pickables.push(st.group);
+      stations.push(st);
+    };
+    s.machines.forEach((m, i) => add(m, i, 'day'));
+    s.lab.forEach((m, i) => add(m, i, 'night'));
   }
 
   // ---------- Particles (steam, smoke, vapour) ----------
@@ -1184,24 +1277,21 @@ export function createScene(canvas, overlayEl, { onPick }) {
     launch(g, at, at.clone().add(V3(0, 0.9, 0)), { dur: 0.8, arc: 0, pop: true });
   }
 
-  function poke(s, stage, i, before) {
-    const st = stations[stage]?.[i];
+  function poke(s, kind, idx, collected) {
+    const st = stationAt(kind, idx);
     if (!st) return;
     st.bounce = 1;
     const ry = st.group.rotation.y;
     const front = st.group.position.clone().add(V3(Math.sin(ry), 0, Math.cos(ry)).multiplyScalar(0.8));
     baker.target.copy(front); baker.face = ry + PI;
     bakerJob = true; bakerIdle = 0;
-    if (before?.item && before.done) {
-      const r = G.recipeOf(before.item);
-      if (r.stages.at(-1) !== stage) return;
-      const from = st.anchorW.clone().add(V3(0, -0.5, 0));
-      if (before.item === 'velvet') {
-        for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
-      } else {
-        const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(before.item)));
-        for (let k = 0; k < 3; k++) launch(itemModel(before.item), from, V3(trays[idx].x, 1.08, 0.95), { delay: k * 0.09 });
-      }
+    if (!collected) return;
+    const from = st.anchorW.clone().add(V3(0, -0.5, 0));
+    if (PRODUCTS[collected]) {
+      for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
+    } else {
+      const ti = Math.min(13, Math.max(0, G.menuOf(s).indexOf(collected)));
+      for (let k = 0; k < 3; k++) launch(itemModel(collected), from, V3(trays[ti].x, 1.08, 0.95), { delay: k * 0.09 });
     }
   }
   function sold(id) {
@@ -1214,7 +1304,6 @@ export function createScene(canvas, overlayEl, { onPick }) {
   }
 
   function syncPeople(s, dt, now) {
-    const sh = s.shift;
     // The baker follows the camera between rooms, works at each tapped station, then wanders home.
     if (view.zone !== bakerZone) {
       bakerZone = view.zone;
@@ -1227,37 +1316,39 @@ export function createScene(canvas, overlayEl, { onPick }) {
       if (bakerIdle > 6 && baker.target.distanceTo(BAKER_HOME[bakerZone]) > 0.05) { baker.target.copy(BAKER_HOME[bakerZone]); baker.face = PI / 4; }
     }
 
-    // Day customers: in through the doorway, queue at the tray they want, out again.
-    const live = new Set();
-    if (sh?.kind === 'day') {
-      const lines = new Map();
-      for (const c of [...sh.customers].sort((a, b) => a.t0 - b.t0)) {
-        if (c.res && sh.t - c.t0 > CFG.walkIn + CFG.browse) continue;
-        const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(c.want)));
-        if (!lines.has(idx)) lines.set(idx, []);
-        lines.get(idx).push(c.id);
+    // Customers: in through the doorway, queue at the tray they want, out again (all from the live engine)
+    const WALK = 3.2, BROWSE = 1.4;
+    const nowMs = Date.now();
+    G.live.customers = G.live.customers.filter(c => nowMs - c.at < 12000);
+    const menu = G.menuOf(s), live = new Set(), lines = new Map();
+    const crowd = G.live.customers.slice(-14);
+    for (const c of crowd) {
+      if ((nowMs - c.at) / 1000 > WALK + BROWSE) continue;
+      const ti = Math.min(13, Math.max(0, menu.indexOf(c.want)));
+      if (!lines.has(ti)) lines.set(ti, []);
+      lines.get(ti).push(c.id);
+    }
+    for (const c of crowd) {
+      const age = (nowMs - c.at) / 1000;
+      live.add(c.id);
+      let e = customers.get(c.id);
+      if (!e) { e = { agent: new Agent(scene, c.look, 'customer', OUTSIDE.clone()), shown: false, inside: false, leaving: false, c }; customers.set(c.id, e); }
+      if (age > WALK + BROWSE) e.leaving = true;
+      if (!e.leaving) {
+        if (!e.inside) { e.agent.target.copy(GAP); e.agent.face = null; if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = true; }
+        else {
+          const ti = Math.min(13, Math.max(0, menu.indexOf(c.want)));
+          const k = lines.get(ti)?.indexOf(c.id) ?? 0;
+          e.agent.target.set(trays[ti].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
+          e.agent.face = PI;
+        }
       }
-      for (const c of sh.customers) {
-        live.add(c.id);
-        let e = customers.get(c.id);
-        if (!e) { e = { agent: new Agent(scene, c.look, 'customer', OUTSIDE.clone()), shown: false, inside: false, leaving: false }; customers.set(c.id, e); }
-        if (c.res && sh.t - c.t0 > CFG.walkIn + CFG.browse) e.leaving = true;
-        if (!e.leaving) {
-          if (!e.inside) { e.agent.target.copy(GAP); e.agent.face = null; if (e.agent.group.position.distanceTo(GAP) < 0.15) e.inside = true; }
-          else {
-            const idx = Math.min(7, Math.max(0, G.menuOf(s).indexOf(c.want)));
-            const k = lines.get(idx)?.indexOf(c.id) ?? 0;
-            e.agent.target.set(trays[idx].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
-            e.agent.face = PI;
-          }
-        }
-        if (c.res && !e.shown) {
-          e.shown = true;
-          e.agent.p.bag.visible = c.res.kind === 'good';
-          if (c.res.kind === 'good') coin(TILL);
-          const face = c.res.kind === 'good' ? '😊' : c.res.kind === 'bad' ? '😞' : '😒';
-          reactions.push({ agent: e.agent, text: `${face} ${c.res.text}`, kind: c.res.kind, until: now + 2.2, id: 'r' + c.id });
-        }
+      if (age >= WALK && !e.shown) {
+        e.shown = true;
+        e.agent.p.bag.visible = c.res.kind === 'good';
+        if (c.res.kind === 'good') coin(TILL);
+        const face = c.res.kind === 'good' ? '😊' : c.res.kind === 'bad' ? '😞' : '😒';
+        reactions.push({ agent: e.agent, text: `${face} ${c.res.text}`, kind: c.res.kind, until: now + 2.2, id: 'r' + c.id });
       }
     }
     for (const [id, e] of customers) {
@@ -1273,22 +1364,20 @@ export function createScene(canvas, overlayEl, { onPick }) {
 
     // Night buyers: in through the back door, wait, leave the same way.
     const liveB = new Set();
-    if (sh?.kind === 'night') {
-      sh.buyers.forEach((b, k) => {
-        liveB.add(b.id);
-        let e = buyers.get(b.id);
-        if (!e) {
-          e = { agent: new Agent(scene, b.look || { skin: b.id % 5, shirt: b.id % 5, hair: 0, pants: b.id % 5, h: 1 }, 'hood', DOOR_OUT.clone()), via: true };
-          e.agent.group.userData = { act: 'buyer', id: b.id };
-          pickables.push(e.agent.group);
-          buyers.set(b.id, e);
-        }
-        const spot = BUYER_SPOTS[k % BUYER_SPOTS.length];
-        if (e.via) { e.agent.target.copy(DOOR_IN); if (e.agent.group.position.distanceTo(DOOR_IN) < 0.1) e.via = false; }
-        else e.agent.target.copy(spot);
-        e.agent.face = PI / 2 + 0.3;
-      });
-    }
+    s.door.forEach((b, k) => {
+      liveB.add(b.id);
+      let e = buyers.get(b.id);
+      if (!e) {
+        e = { agent: new Agent(scene, b.look || { skin: b.id % 5, shirt: b.id % 5, hair: 0, pants: b.id % 5, h: 1 }, 'hood', DOOR_OUT.clone()), via: true };
+        e.agent.group.userData = { act: 'buyer', id: b.id };
+        pickables.push(e.agent.group);
+        buyers.set(b.id, e);
+      }
+      const spot = BUYER_SPOTS[k % BUYER_SPOTS.length];
+      if (e.via) { e.agent.target.copy(DOOR_IN); if (e.agent.group.position.distanceTo(DOOR_IN) < 0.1) e.via = false; }
+      else e.agent.target.copy(spot);
+      e.agent.face = PI / 2 + 0.3;
+    });
     for (const [id, e] of buyers) {
       if (!liveB.has(id) && !e.agent.leaving) {
         e.agent.leaving = true; e.agent.face = null; e.stage = 0;
@@ -1315,49 +1404,40 @@ export function createScene(canvas, overlayEl, { onPick }) {
     tmp.copy(v).project(camera);
     return [(tmp.x + 1) / 2 * W, (1 - tmp.y) / 2 * H];
   }
-  function slotBubble(st, slot, s) {
-    const first = st.kind === 'day' || st.stage === 'prep';
-    const at = `data-act="slot" data-stage="${st.stage}" data-i="${st.i}"`;
-    if (!slot.item && st.kind === 'day' && G.isBroken(s, st.stage, st.i)) return { html: '<span>🔧</span>', cls: 'bub burn', at };
-    if (!slot.item) return first ? { html: `<b>＋</b>`, cls: 'bub add', at } : null;
+  const fmtLeft = sec => sec < 60 ? `${Math.ceil(sec)}s` : sec < 3600 ? `${Math.ceil(sec / 60)}m` : `${Math.floor(sec / 3600)}h${String(Math.floor(sec % 3600 / 60)).padStart(2, '0')}`;
+  function slotBubble(st, slot, s, m) {
+    const at = `data-act="machine" data-kind="${st.kind}" data-idx="${st.idx}"`;
+    if (m.broken) return { html: '<span>🔧</span>', cls: 'bub burn', at };
+    if (st.kind === 'night' && G.sealed(s, s.clock)) return { html: '<span>🚧</span>', cls: 'bub burn', at };
+    if (!slot.item) return { html: `<b>＋</b>`, cls: 'bub add', at };
     const r = G.recipeOf(slot.item);
-    if (!slot.done) return { html: `<span>${r.emoji}</span><small>${Math.ceil(slot.dur - slot.t)}</small>`, cls: 'bub run', at, p: slot.t / slot.dur };
-    const burnIn = Math.max(0, Math.ceil(CFG.burnAfter - slot.over));
-    if (STAGES[st.stage].burns && burnIn <= 5) return { html: `<span>🔥</span><small>${burnIn}</small>`, cls: 'bub burn', at };
+    if (!slot.done) return { html: `<span>${r.emoji}</span><small>${fmtLeft(slot.left)}</small>`, cls: 'bub run', at, p: slot.t / slot.dur };
+    if (slot.spoilIn <= 600) return { html: `<span>${r.emoji}</span><small>${fmtLeft(slot.spoilIn)}</small>`, cls: 'bub burn', at };
     return { html: `<span>${r.emoji}</span><b>✓</b>`, cls: 'bub done', at };
   }
   function updateOverlay(s, now) {
     const want = new Map();
-    const sh = s.shift;
-    if (!sh && s.phase === 'plan' && !view.design) {
-      for (const st of Object.values(stations).flat()) {
-        if (st.kind !== 'day') continue;
-        const broken = G.isBroken(s, st.stage, st.i);
-        want.set(`m-${st.stage}-${st.i}`, { html: `<span>${broken ? '🔧' : MACHINES[st.stage].emoji}</span>`, cls: `bub mach ${broken ? 'burn' : ''}`, at: `data-act="machine" data-stage="${st.stage}" data-i="${st.i}"`, pos: st.anchorW });
+    if (!view.design) {
+      for (const st of stations) {
+        if ((st.kind === 'day') !== (view.zone === 'shop')) continue;
+        const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];
+        if (!m) continue;
+        const b = slotBubble(st, G.jobView(s, m, s.clock, st.kind === 'night'), s, m);
+        if (b) want.set(`s-${st.kind}-${st.idx}`, { ...b, pos: st.anchorW });
       }
-    }
-    if (sh) {
-      for (const list of Object.values(stations)) for (const st of list) {
-        if (st.kind !== sh.kind) continue;
-        const slot = sh.slots[st.stage]?.[st.i];
-        if (!slot) continue;
-        const b = slotBubble(st, slot, s);
-        if (b) want.set(`s-${st.stage}-${st.i}`, { ...b, pos: st.anchorW });
+      const nowMs = Date.now();
+      for (const [, e] of customers) {
+        const c = e.c;
+        if (!c || e.shown || !e.inside || !ITEMS[c.want]) continue;
+        want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
       }
-      if (sh.kind === 'day') {
-        for (const c of sh.customers) {
-          const e = customers.get(c.id);
-          if (!e || c.res || !e.inside) continue;
-          want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
-        }
-      }
-      if (sh.kind === 'night') {
-        for (const b of sh.buyers) {
+      if (view.zone === 'back') {
+        for (const b of s.door) {
           const e = buyers.get(b.id);
           if (!e || e.via) continue;
-          const pct = Math.max(0, 100 - (sh.t - b.t0) / CFG.buyerPatience * 100);
+          const pct = Math.max(0, 100 - (s.clock - b.arrive) / b.patience * 100);
           want.set(`b-${b.id}`, {
-            html: `<span>${b.name} ×${b.want}${b.hint ? ' 📷' : ''}</span><i style="width:${pct.toFixed(0)}%"></i>`,
+            html: `<span>${b.courier ? '📦' : PRODUCTS[b.product].emoji} ${b.name} ×${b.want}${b.hint ? ' 📷' : ''}</span><i style="width:${pct.toFixed(0)}%"></i>`,
             cls: `bub buyer ${b.hint ? 'flag' : ''}`, at: `data-act="buyer" data-id="${b.id}"`,
             pos: e.agent.group.position.clone().setY(e.agent.height + 0.35),
           });
@@ -1391,13 +1471,14 @@ export function createScene(canvas, overlayEl, { onPick }) {
   let traySig = '';
   function syncState(s, dt, now) {
     syncDesign(s, now);
-    const sig = JSON.stringify([s.machines, G.stationLayout(s, 'night')]);
+    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot]), s.lab.map(m => [m.type, m.spot])]);
     if (sig !== stationSig) { stationSig = sig; rebuildStations(s); }
-    const sh = s.shift;
-    for (const list of Object.values(stations)) for (const st of list) {
-      const slot = (sh && sh.kind === st.kind && sh.slots[st.stage]?.[st.i]) || { item: null };
+    for (const st of stations) {
+      const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];
+      if (!m) continue;
+      const slot = G.jobView(s, m, s.clock, st.kind === 'night');
       let fx = st.update(slot, dt, now);
-      const broken = st.kind === 'day' && G.isBroken(s, st.stage, st.i);
+      const broken = !!m.broken;
       if (broken) fx = 'smoke';
       st.group.rotation.z = broken ? 0.06 : 0;
       if (st.bounce > 0) {
@@ -1407,7 +1488,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
       }
       if (fx && !st.smokeW) st.smokeW = st.anchorW.clone().add(V3(0, -0.4, 0));
       if (fx && st.smokeW) {
-        const key = st.stage + st.i;
+        const key = st.kind + st.idx;
         const acc = (emitAcc.get(key) || 0) + dt;
         const every = broken ? 0.5 : fx === 'smoke' ? 0.08 : 0.25;
         if (acc > every) { emit(st.smokeW, fx); emitAcc.set(key, 0); } else emitAcc.set(key, acc);
@@ -1415,20 +1496,21 @@ export function createScene(canvas, overlayEl, { onPick }) {
     }
     // Display case
     const menu = G.menuOf(s);
-    const tsig = menu.map(id => id + (s.display[id].fresh + s.display[id].stale)).join(',');
+    const fill = id => Math.min(6, Math.ceil((s.display[id] || 0) / ITEMS[id].servings * 3));
+    const tsig = menu.map(id => id + fill(id)).join(',');
     if (tsig !== traySig) {
       traySig = tsig;
       trays.forEach((t, k) => {
         const id = menu[k];
-        const n = id ? Math.min(6, s.display[id].fresh + s.display[id].stale) : 0;
+        const n = id ? fill(id) : 0;
         const tsg = id + n;
         if (t.sig === tsg) return;
         t.sig = tsg;
         t.group.clear();
         for (let j = 0; j < n; j++) {
           const m = itemModel(id);
-          m.position.set(((j % 3) - 1) * 0.16, 0, (Math.floor(j / 3) - 0.5) * 0.24);
-          m.scale.setScalar(0.85);
+          m.position.set(((j % 3) - 1) * 0.19, 0, (Math.floor(j / 3) - 0.5) * 0.15);
+          m.scale.setScalar(0.72);
           m.rotation.y = (j * 1.7) % PI;
           t.group.add(m);
         }
@@ -1436,9 +1518,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
     }
     // Back room props
     cash.forEach((c, k) => { c.visible = k < Math.min(12, Math.ceil(s.dirty / 150)); });
-    kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, s.kits); });
-    bagPile.forEach((b, k) => { b.visible = k < Math.min(24, s.bags + (s.gold || 0)); });
-    kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, s.kits + (s.goldKits || 0)); });
+    const bagsN = Object.values(s.bags).reduce((a, b) => a + b, 0), kitsN = Object.values(s.kits).reduce((a, b) => a + b, 0);
+    bagPile.forEach((b, k) => { b.visible = k < Math.min(24, bagsN); });
+    kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, kitsN); });
     camGroup.visible = G.has(s, 'camera');
     camLed.color.set(Math.sin(now * 4) > 0 ? '#ff3a3a' : '#551111');
     catering.visible = G.has(s, 'catering');
@@ -1571,7 +1653,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
         p.mesh.scale.setScalar(0.6 + f * 1.6);
         p.mesh.material.opacity = 0.55 * (1 - f);
       }
-      const frac = s.shift?.kind === 'day' ? s.shift.t / s.shift.len : s.phase === 'evening' ? 1 : s.phase === 'plan' || s.phase === 'report' ? 0.08 : 0.5;
+      const hr = G.localHour(s.clock);
+      view.light = hr >= 7 && hr < 17 ? 'day' : hr >= 17 && hr < 20.5 ? 'evening' : 'night';
+      const frac = Math.max(0, Math.min(1, (hr - 7) / 10));
       applyLights(dt, now, frac);
       hood.update(dt, now, cur.nightK);
       updateCamera(dt);
