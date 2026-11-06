@@ -493,6 +493,27 @@ const F = {
   saffroncake: g => roundCake(g, [[C.saffron, 0.04], [C.cream, 0.01], [C.saffron, 0.04]], { top: C.lemon, deco: C.white }),
   truffletart: g => tart(g, C.crust, '#4a3a2a', { tops: [[C.choc, 6, 0.012], [C.gold, 2, 0.008]] }),
   goldcroq: g => tower(g, shiny(C.gold), { rows: 6, accent: C.white, base: C.gold }),
+  // Seasonal
+  heartcookies: g => { for (let k = 0; k < 3; k++) { const x = -0.05 + k * 0.05, z = (k % 2) * 0.03; for (const dx of [-0.012, 0.012]) Cy(g, 0.018, 0.018, 0.012, C.pale, x + dx, 0, z, 10); Cone(g, 0.026, 0.03, C.pale, x, 0, z - 0.02, 4).rotation.x = PI / 2; S(g, 0.012, C.pink, x, 0.016, z, 1.4, 0.3, 1); } },
+  lovelatte: g => cup(g, C.pink, { foam: '#ffd1e8', art: C.white, cupC: C.white }),
+  chochearts: g => { plate(g); for (let k = 0; k < 3; k++) { const x = -0.05 + k * 0.05; for (const dx of [-0.01, 0.01]) S(g, 0.016, k % 2 ? C.berry : C.choc, x + dx, 0.03, 0); Cone(g, 0.022, 0.025, k % 2 ? C.berry : C.choc, x, 0.012, 0.012, 6).rotation.x = PI / 2; } },
+  hotcross: g => { roll(g, C.golden, { n: 3 }); for (const [x, z] of [[-0.05, -0.03], [0.05, -0.03], [0, 0.05]]) { B(g, 0.07, 0.006, 0.01, C.white, x, 0.074, z); B(g, 0.01, 0.006, 0.07, C.white, x, 0.074, z); } },
+  simnel: g => { roundCake(g, [['#c8802e', 0.06]], { top: '#f2d98a', deco: C.lemon, n: 11 }); },
+  easteregg: g => { for (let k = 0; k < 3; k++) { const e = S(g, 0.035, [C.choc, C.pink, C.lemon][k], -0.05 + k * 0.05, 0.04, (k % 2) * 0.03, 0.8, 1.15, 0.8); B(g, 0.07, 0.008, 0.008, C.white, -0.05 + k * 0.05, 0.04, (k % 2) * 0.03 + 0.027); } },
+  icelolly: g => { for (let k = 0; k < 3; k++) { const x = -0.05 + k * 0.05; B(g, 0.035, 0.08, 0.02, [C.straw, C.lemon, C.lime][k], x, 0.04, 0); B(g, 0.008, 0.04, 0.006, C.pale, x, 0, 0); } },
+  strawcream: g => { Cy(g, 0.06, 0.045, 0.04, C.white, 0, 0, 0); for (let k = 0; k < 6; k++) S(g, 0.018, C.berry, Math.cos(k) * 0.03, 0.05, Math.sin(k) * 0.03, 1, 1.2, 1); S(g, 0.03, C.cream, 0, 0.065, 0, 1, 0.5, 1); },
+  summercooler: g => glassDrink(g, null, { layers: [[C.orange, 0.35], [C.straw, 0.3], [C.lemon, 0.2]], garnish: C.lime, straw: C.blue }),
+  pumpkinpie: g => tart(g, C.crust, C.orange, { r: 0.09, tops: [[C.cream, 3, 0.016]] }),
+  spookycake: g => { for (let k = 0; k < 2; k++) { const x = (k - 0.5) * 0.07; Cy(g, 0.03, 0.025, 0.035, '#6b3a8a', x, 0, 0); S(g, 0.032, C.white, x, 0.05, 0, 1, 1.2, 1); for (const dx of [-0.01, 0.01]) S(g, 0.006, '#2b2d36', x + dx, 0.06, 0.028); } },
+  witchbrew: g => { Cy(g, 0.05, 0.04, 0.07, '#2b2d36', 0, 0, 0, 12); S(g, 0.045, '#8fe05a', 0, 0.07, 0, 1, 0.35, 1); dots(g, 3, 0.01, '#c8f0a0', 0.025, 0.085); },
+  parkin: g => { for (let k = 0; k < 4; k++) B(g, 0.05, 0.035, 0.05, '#8a5a2e', -0.03 + (k % 2) * 0.06, 0, -0.03 + Math.floor(k / 2) * 0.06); },
+  bonfiretoffee: g => { for (let k = 0; k < 5; k++) { const m = B(g, 0.045, 0.012, 0.035, shiny('#5a2016'), Math.cos(k) * 0.04, k * 0.008, Math.sin(k) * 0.04); m.rotation.set(0.2 * k, k, 0.1); } },
+  hotapple: g => cup(g, '#c8802e', { cupC: '#a8322a', dust: '#8a5a2e', straw: '#7a4a2e' }),
+  mincepies: g => { for (const [x, z] of [[-0.04, -0.02], [0.04, -0.02], [0, 0.04]]) { Cy(g, 0.032, 0.028, 0.022, C.golden, x, 0, z, 10); Cone(g, 0.018, 0.006, C.white, x, 0.024, z, 5); } },
+  yulelog: g => { plate(g); const m = mesh(geo('fyule', () => new THREE.CylinderGeometry(0.035, 0.035, 0.17, 12)), M(C.choc), 0, 0.047, 0, false); m.rotation.z = PI / 2; g.add(m); for (let k = -1; k <= 1; k++) B(g, 0.004, 0.072, 0.072, C.milkchoc, k * 0.05, 0.012, 0); S(g, 0.01, C.berry, 0.02, 0.085, 0); S(g, 0.012, C.green, 0.035, 0.083, 0.01, 1.4, 0.4, 1); },
+  gingerbread: g => { for (let k = 0; k < 2; k++) { const x = (k - 0.5) * 0.07; B(g, 0.04, 0.012, 0.06, '#a86a2a', x, 0, 0); S(g, 0.016, '#a86a2a', x, 0.006, -0.04, 1, 0.4, 1); for (const dz of [-0.01, 0.01]) S(g, 0.004, C.white, x, 0.014, dz); } },
+  mulled: g => { cup(g, '#8a1f3a', { cupC: '#c9ccd3', handle: true, h: 0.08 }); S(g, 0.012, C.orange, 0.02, 0.085, 0, 1, 0.3, 1); },
+  xmaspud: g => { S(g, 0.06, '#5a2016', 0, 0.05, 0, 1, 0.85, 1); S(g, 0.045, C.white, 0, 0.09, 0, 1, 0.25, 1); for (const dx of [-0.01, 0.01]) S(g, 0.008, C.berry, dx, 0.105, 0); S(g, 0.012, C.leaf, 0.02, 0.104, 0, 1.4, 0.3, 1); },
 };
 
 const cache = new Map();

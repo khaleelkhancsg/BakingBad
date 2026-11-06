@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -51,7 +51,7 @@ export const dayIndex = (s, t) => Math.round((dayStart(t) - s.startDay) / DAY);
 // ---------- Shops ----------
 // Each shop has its own machines, case, menu and design. s.cur says which one the rules (and the screen) are
 // looking at; s.machines, s.display, s.onMenu, s.design and s.custAcc always mean that shop's.
-const SHOP_FIELDS = ['machines', 'display', 'onMenu', 'design', 'custAcc', 'lab', 'door', 'buyAcc', 'stock'];
+const SHOP_FIELDS = ['machines', 'display', 'onMenu', 'design', 'custAcc', 'lab', 'door', 'buyAcc', 'stock', 'manager'];
 export function bindShops(s) {
   for (const f of SHOP_FIELDS) Object.defineProperty(s, f, { configurable: true, enumerable: false,
     get() { return this.shops[this.cur || 0][f]; }, set(v) { this.shops[this.cur || 0][f] = v; } });
@@ -148,7 +148,14 @@ function applyPerks(s) {
 }
 
 // ---------- Crew loyalty, decisions and the detective ----------
-export function newStaff() { return { loyalty: Math.round(LOYALTY.start[0] + rand() * (LOYALTY.start[1] - LOYALTY.start[0])), greed: round2(0.9 + rand() * 0.3) }; }
+const TRAIT_POOL = ['steady', 'steady', 'loyal', 'greedy', 'nervous', 'chatty', 'sharp'];
+export function newStaff() {
+  const trait = pick(TRAIT_POOL), st = { loyalty: Math.round(LOYALTY.start[0] + rand() * (LOYALTY.start[1] - LOYALTY.start[0])), greed: round2(0.9 + rand() * 0.3), trait };
+  if (trait === 'greedy') st.greed = round2(st.greed + 0.2);
+  return st;
+}
+export const traitOf = (s, role) => staffOf(s, role).trait || 'steady';
+const chattyDayCrew = s => Object.keys(CREW).filter(r => s.crew[r] && CREW[r].shift !== 'night' && s.staff?.[r]?.trait === 'chatty').length;
 export const staffOf = (s, role) => (s.staff[role] ||= newStaff());
 export function payBonus(s, role) {
   const c = CREW[role], st = staffOf(s, role), cost = Math.round(c.wage * st.greed) || 100, cash = c.cash;
@@ -177,6 +184,19 @@ function resolveDecision(s, d, yes, t, auto) {
     return note(s, `⚖️ You cut ${d.who} loose${auto ? ' (no answer in time)' : ''}. Heat -5, but the crew don't like it.`, 'meh', t);
   }
   const c = d.kind;
+  if (c === 'poach') {
+    const st = staffOf(s, d.role);
+    if (yes && s.crew[d.role]) { st.greed = round2(st.greed + RIVAL_MOVES.poachRaise); st.loyalty = Math.min(100, st.loyalty + 10); return note(s, `🤝 You matched ${RIVAL.name}'s offer. ${CREW[d.role].name} stays, on a bit more pay.`, 'good', t); }
+    if (s.crew[d.role]) { fire(s, d.role); return note(s, `👋 ${CREW[d.role].name} took the job at ${RIVAL.name}${auto ? ' (no answer in time)' : ''}.`, 'bad', t); }
+    return;
+  }
+  if (c === 'lean') {
+    if (!yes) return;
+    if (s.dirty < RIVAL_MOVES.leanCost || !s.rival?.open) return note(s, '🧢 The crew needed paying first. Nothing happened.', 'meh', t);
+    s.dirty -= RIVAL_MOVES.leanCost; s.rival.share = Math.max(0, s.rival.share - RIVAL_MOVES.leanShare);
+    s.heat = clamp(s.heat + RIVAL_MOVES.leanHeat, 0, 100); addEvidence(s, RIVAL_MOVES.leanEvidence, t, 'Crumbs & Co reported threats.');
+    return note(s, `🧢 The crew had a word with ${RIVAL.name}'s suppliers. Their deliveries keep going missing. Heat +${RIVAL_MOVES.leanHeat}.`, 'meh', t);
+  }
   if (c === 'bulk') {
     if (yes) {
       const have = s.bags[d.product] || 0, n = Math.min(have, d.qty);
@@ -207,6 +227,25 @@ function resolveDecision(s, d, yes, t, auto) {
   if (c === 'charity') {
     if (yes && s.clean >= d.cost) { s.clean = round2(s.clean - d.cost); s.rep = clamp(s.rep + 6, 0, 100); s.heat = clamp(s.heat - 3, 0, 100); return note(s, `❤️ You gave £${d.cost.toLocaleString('en-GB')}. Popularity +6.`, 'good', t); }
   }
+}
+// Crumbs & Co fights back: a price war on your best seller, poaching your staff, a critic on a bad day, or (if you
+// have a back room) the chance to lean on them
+function rivalMove(s, t) {
+  const moves = ['pricewar', 'poach', 'critic', ...(s.labUnlocked ? ['lean'] : [])], mv = pick(moves);
+  if (mv === 'pricewar') {
+    const best = [...menuOf(s)].sort((a, b) => itemPrice(s, b) * servingsFor(s, b) - itemPrice(s, a) * servingsFor(s, a))[0];
+    if (!best) return;
+    s.rival.war = { item: best, until: t + RIVAL_MOVES.priceWarDays * DAY };
+    return note(s, `🏷️ ${RIVAL.name} is undercutting your ${ITEMS[best].name.toLowerCase()} for ${RIVAL_MOVES.priceWarDays} days: fewer people will pay your price. Make it today's special or drop its price to fight back.`, 'bad', t);
+  }
+  if (mv === 'poach') {
+    const roles = Object.keys(CREW).filter(r => s.crew[r] && CREW[r].shift !== 'night');
+    if (!roles.length) return;
+    const role = pick(roles), C = CREW[role];
+    return pushDecision(s, { kind: 'poach', role, title: `${RIVAL.name} wants ${C.name}`, text: `${RIVAL.name} has offered ${C.name} (${C.role.toLowerCase()}) a job across the road. Match the offer and they stay, on ${Math.round(RIVAL_MOVES.poachRaise * 100)}% more pay.`, yes: 'Match the offer', no: 'Let them go' }, t);
+  }
+  if (mv === 'critic') { s.criticAt = t + (2 + rand() * 6) * HOUR; return note(s, `📝 Word is ${RIVAL.name} has tipped off a critic, and they're coming today. Keep your counters stocked.`, 'bad', t); }
+  if (mv === 'lean') return pushDecision(s, { kind: 'lean', title: `Deal with ${RIVAL.name}?`, text: `Jay says the crew could "have a word" with ${RIVAL.name}'s suppliers. It would cost 💜 £${RIVAL_MOVES.leanCost.toLocaleString('en-GB')} and get noticed, but they would lose customers fast.`, yes: 'Do it', no: 'Leave it' }, t);
 }
 function randomChoice(s, t) {
   const pool = Object.keys(CHOICES).filter(k => !CHOICES[k].night || s.labUnlocked);
@@ -372,20 +411,79 @@ export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.l
 export const recipeOf = id => ITEMS[id] || PRODUCTS[id];
 export const ingPrice = (s, ing) => { const c = s.contracts && supplierFor(s, ing); return round2(INGREDIENTS[ing].base * (s.market[ing] || 1) * (c ? 1 - SUPPLIERS[c].disc : 1)); };
 const specialMult = (s, id) => (s.design?.special === id ? 1 + SPECIAL.price : 1);
-export const itemPrice = (s, id) => round2(specialMult(s, id) * ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
+export const itemPrice = (s, id) => round2(specialMult(s, id) * (1 + MASTERY.price * starsOf(s, id)) * ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
 export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + q * ingPrice(s, k), 0));
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
 export const missingCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + Math.max(0, q - s.inv[k]) * ingPrice(s, k), 0));
 export const cookMs = (s, id, tier = 0) => Math.round(ITEMS[id].minutes * MIN * Math.max(0.5, 1 - eff(s, 'speed')) * (1 - TIERS.speed * tier));
 // How many servings a batch makes on a machine (its tier and the sous chef add more)
-export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1));
+// Mastery: every batch of a recipe counts
+export const masteryOf = (s, id) => s.mastery?.[id] || 0;
+export const starsOf = (s, id) => MASTERY.stars.filter(n => masteryOf(s, id) >= n).length;
+export const nextStarAt = (s, id) => MASTERY.stars.find(n => masteryOf(s, id) < n) || null;
+export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1) * (1 + MASTERY.servings * starsOf(s, id)));
 export const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
 export const spoilMs = (s, id) => Math.max(CFG.spoilMin, ITEMS[id].minutes) * MIN * (1 + eff(s, 'keep'));
 // Which counter an item is on (or -1), and how much that counter holds
 export const counterOf = (s, id) => menuOf(s).indexOf(id);
 export const cabinetOn = (s, k) => !!s.design?.cabinets?.[k];
 export const trayCap = (s, id) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray') + (cabinetOn(s, counterOf(s, id)) ? CABINET.batches : 0)));
+// Throw what's on a counter away; with free, take it off the counter too so something else can go there
+export function throwAway(s, id, free = false) {
+  const n = Math.floor(s.display[id] || 0);
+  s.display[id] = 0;
+  if (free) { s.onMenu = s.onMenu.filter(x => x !== id); if (s.design.special === id) s.design.special = null; }
+  say(`🗑️ ${n ? `${n} ${ITEMS[id].name.toLowerCase()} thrown away` : `${ITEMS[id].name} taken off`}${free ? ': that counter is free for something else.' : '.'}`, 'info');
+}
+// A manager runs the shop they're in when you're elsewhere: collects, and keeps the counters stocked
+export const managerWages = s => s.shops.reduce((a, x) => a + (x.manager ? MANAGER.skills[x.manager.skill].wage : 0), 0);
+export function hireManager(s, skill) {
+  if (!unlocked(s, MANAGER.level)) return say(`Managers come at level ${MANAGER.level}.`, 'bad');
+  const M = MANAGER.skills[skill]; if (!M) return;
+  s.manager = { skill, acc: 0 };
+  say(`A ${M.name.toLowerCase()} manager runs ${shopDef(s).short} now (${'£' + M.wage}/day). They restock every ${M.every} minutes.`, 'good');
+}
+export function fireManager(s) { s.manager = null; say('The manager has gone.', 'info'); }
+function manage(s, t) {
+  s.machines.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) collectJob(s, i, t, { quiet: true, crew: true }); });
+  const menu = menuOf(s);
+  s.machines.forEach((m, i) => {
+    if (m.job || m.broken) return;
+    const pickId = menu.filter(id => ITEMS[id].machine === m.type && (s.display[id] || 0) + servingsFor(s, id, m.tier || 0) <= trayCap(s, id))
+      .sort((a, b) => (s.display[a] || 0) / trayCap(s, a) - (s.display[b] || 0) / trayCap(s, b))[0];
+    if (pickId) startJob(s, i, pickId, t, { quiet: true });
+  });
+}
+// Chapters that turn up as you go; one at a time, shown by the UI
+function storyCheck(s) {
+  s.story ||= { seen: [], queue: [] };
+  for (const c of STORY) {
+    if (s.story.seen.includes(c.id) || s.story.queue.includes(c.id)) continue;
+    if (c.lab && !s.labUnlocked) continue;
+    if (c.level && s.level < c.level) continue;
+    if (c.evidence && (s.case?.evidence || 0) < c.evidence) continue;
+    s.story.queue.push(c.id);
+  }
+}
+export function readChapter(s) { const id = s.story?.queue?.shift(); if (id) s.story.seen.push(id); }
+export function collectionCount(s, cat) {
+  if (cat === 'baked') return Object.keys(s.mastery || {}).length;
+  if (cat === 'master') return Object.keys(s.mastery || {}).filter(id => starsOf(s, id) >= MASTERY.stars.length).length;
+  if (cat === 'perfect') return s.stats.perfect || 0;
+  if (cat === 'seasonal') return Object.keys(s.collect?.seasonal || {}).length;
+  if (cat === 'products') return Object.keys(s.collect?.products || {}).length;
+  if (cat === 'story') return s.story?.seen?.length || 0;
+  if (cat === 'awards') return Object.keys(s.honest?.awards || {}).length;
+  return 0;
+}
+export function claimSet(s, id) {
+  const c = COLLECTION.find(x => x.id === id);
+  if (!c || s.collect?.claimed?.[id] || collectionCount(s, c.cat) < c.n) return;
+  const prize = Math.round(c.reward * (1 + s.level / 25));
+  s.clean = round2(s.clean + prize); ((s.collect ||= {}).claimed ||= {})[id] = true;
+  say(`📖 ${c.name}: +£${prize.toLocaleString('en-GB')}.`, 'good');
+}
 export function setSpecial(s, id) {
   if (!menuOf(s).includes(id)) return;
   s.design.special = s.design.special === id ? null : id;
@@ -493,7 +591,27 @@ export function buyMachine(s, type, lab = false) {
   learnFree(s);
   say(`New ${M.name.toLowerCase()} installed.`, 'good');
 }
-export const recipesFor = type => Object.keys(ITEMS).filter(id => ITEMS[id].machine === type);
+// ---------- Seasons ----------
+let curSeason = null; // the season at the game's clock, kept up to date by advance()
+export function seasonAt(t) {
+  const d = new Date(t), md = (d.getMonth() + 1) * 100 + d.getDate();
+  for (const [id, z] of Object.entries(SEASONS)) if (md >= z.from[0] * 100 + z.from[1] && md <= z.to[0] * 100 + z.to[1]) return id;
+  return null;
+}
+export const currentSeason = () => curSeason;
+export const inSeason = id => !ITEMS[id]?.season || ITEMS[id].season === curSeason;
+function seasonCheck(s, t) {
+  curSeason = seasonAt(t);
+  if (!curSeason) return;
+  const key = `${curSeason}-${new Date(t).getFullYear()}`;
+  if (s.seasonOn === key) return;
+  s.seasonOn = key;
+  const Z = SEASONS[curSeason], ids = Object.keys(ITEMS).filter(id => ITEMS[id].season === curSeason);
+  for (const id of ids) if (!s.recipes.includes(id)) s.recipes.push(id);
+  const end = new Date(new Date(t).getFullYear(), Z.to[0] - 1, Z.to[1]).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  note(s, `${Z.emoji} ${Z.name} is here! ${ids.map(id => ITEMS[id].emoji).join(' ')} ${ids.length} limited recipes to bake until ${end}, and people want different things.`, 'good', t);
+}
+export const recipesFor = type => Object.keys(ITEMS).filter(id => ITEMS[id].machine === type && inSeason(id));
 export const productsFor = type => Object.keys(PRODUCTS).filter(id => PRODUCTS[id].machine === type);
 const ownedAnywhere = (s, type) => s.shops.some(x => x.machines.some(m => m.type === type));
 function addToMenus(s, id) {
@@ -532,7 +650,7 @@ export function jobView(s, m, t, lab = false) {
 }
 export function startJob(s, idx, id, t, { autobuy = true, quiet = false } = {}) {
   const m = s.machines[idx], r = ITEMS[id];
-  if (!m || !r || m.job || m.broken || r.machine !== m.type || !s.recipes.includes(id)) return false;
+  if (!m || !r || m.job || m.broken || r.machine !== m.type || !s.recipes.includes(id) || !inSeason(id)) return false;
   if (!canMake(s, id)) {
     const cost = missingCost(s, id);
     if (!autobuy || s.clean < cost) { if (!quiet) say(`Not enough ingredients${autobuy ? ` (and £${cost.toFixed(2)} to buy them)` : ''}.`, 'bad'); return false; }
@@ -543,15 +661,30 @@ export function startJob(s, idx, id, t, { autobuy = true, quiet = false } = {}) 
   m.last = id;
   return true;
 }
-export function collectJob(s, idx, t, { quiet = false } = {}) {
+// A perfect bake: collected within a short window of being done
+export const perfectWindow = (s, id) => clamp(ITEMS[id].minutes * PERFECT.windowShare, PERFECT.minMin, PERFECT.maxMin) * MIN;
+export function collectJob(s, idx, t, { quiet = false, byYou = false, crew = false } = {}) {
   const m = s.machines[idx];
   if (!m?.job || t < m.job.start + m.job.dur) return false;
-  const id = m.job.item, r = ITEMS[id], n = servingsFor(s, id, m.tier || 0);
+  const id = m.job.item, r = ITEMS[id], doneAt = m.job.start + m.job.dur;
+  // Nowhere to put it: every counter is taken by something else
+  if (!menuOf(s).includes(id) && menuOf(s).length >= menuSlots(s)) {
+    if (!quiet) say(`Every counter is full. Tap a counter and throw something away to make room for the ${r.name.toLowerCase()}.`, 'bad');
+    return false;
+  }
+  const sharp = crew && s.crew.baker && staffOf(s, 'baker').trait === 'sharp' && rand() < 0.5;
+  const perfect = (byYou || sharp) && t - doneAt <= perfectWindow(s, id);
+  const n = Math.round(servingsFor(s, id, m.tier || 0) * (perfect ? 1 + PERFECT.servings : 1));
   if ((s.display[id] || 0) > 0 && (s.display[id] || 0) + n > trayCap(s, id)) {
-    if (!quiet) say(`The ${r.name.toLowerCase()} tray is full. Sell some first.`, 'bad');
+    if (!quiet) say(`The ${r.name.toLowerCase()} counter is full. Sell some first, or throw some away.`, 'bad');
     return false;
   }
   s.display[id] = (s.display[id] || 0) + n;
+  const starsBefore = starsOf(s, id);
+  (s.mastery ||= {})[id] = (s.mastery[id] || 0) + 1;
+  if (r.season) (s.collect ||= {}).seasonal = { ...(s.collect?.seasonal || {}), [id]: 1 };
+  if (perfect) { s.stats.perfect = (s.stats.perfect || 0) + 1; addXp(s, batchXp(id) * PERFECT.xp); if (!quiet) say(`✨ Perfect bake! ${r.emoji} ${n} servings (+${Math.round(PERFECT.servings * 100)}%).`, 'good'); }
+  if (starsOf(s, id) > starsBefore) note(s, `⭐ ${r.emoji} ${r.name}: ${'★'.repeat(starsOf(s, id))}${starsOf(s, id) === MASTERY.stars.length ? ' (a signature dish!)' : ''} More servings and a better price.`, 'good', t);
   if (!s.onMenu.includes(id) && menuOf(s).length < menuSlots(s)) s.onMenu.push(id);
   m.job = null;
   addXp(s, batchXp(id));
@@ -619,6 +752,7 @@ export function collectLab(s, idx, t, { quiet = false } = {}) {
   const m = s.lab[idx];
   if (!m?.job || t < m.job.start + m.job.dur) return false;
   const id = m.job.item, p = PRODUCTS[id], cut = CUTS[s.cut[id] || 'none'];
+  (s.collect ||= {}).products = { ...(s.collect?.products || {}), [id]: 1 };
   const n = Math.round(p.bags * (1 + eff(s, 'bags')) * cut.bags);
   const pur = clamp(labPurity(s, m) * cut.purity * (0.96 + rand() * 0.08), 0.2, 0.99);
   if (s.cur) {
@@ -717,7 +851,7 @@ export function buyCounter(s) {
   say(`New display counter: room for ${menuSlots(s)} things on sale.`, 'good');
   return true;
 }
-export const menuOf = s => s.onMenu.filter(id => s.recipes.includes(id) && shopDef(s).machines.includes(ITEMS[id].machine)).slice(0, menuSlots(s));
+export const menuOf = s => s.onMenu.filter(id => s.recipes.includes(id) && inSeason(id) && shopDef(s).machines.includes(ITEMS[id].machine)).slice(0, menuSlots(s));
 export function toggleMenu(s, id) {
   if (!s.recipes.includes(id)) return;
   if (s.onMenu.includes(id)) { s.onMenu = s.onMenu.filter(x => x !== id); return; }
@@ -768,7 +902,7 @@ export function hire(s, role) {
   if (!s.staff[role]) s.staff[role] = newStaff();
   say(`${c.name} (${c.role.toLowerCase()}) starts now.`, 'good');
 }
-export function fire(s, role) { s.crew[role] = false; }
+export function fire(s, role) { s.crew[role] = false; if (s.staff?.[role]) { s.staff[role].informant = false; delete s.staff[role]; } }
 export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [r, c]) => a + Math.round(c.wage * (s.staff?.[r]?.greed || 1)), 0);
 
 // ---------- Customers ----------
@@ -778,7 +912,7 @@ export function customersPerHour(s, t) {
   const inStock = menuOf(s).filter(id => s.display[id] > 0).length;
   const variety = 1 + Math.min(CFG.varietyCap, CFG.varietyBonus * Math.max(0, inStock - 1));
   return (CFG.custBase + s.rep * CFG.custPerPop) * HOUR_TRADE[h] * nightApp * (1 + eff(s, 'cust')) * (s.event?.cust || 1)
-    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t) * (1 - rivalShare(s)) * shopRush(s, t) * (1 + cleanBonus(s));
+    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t) * (1 - rivalShare(s)) * shopRush(s, t) * (1 + cleanBonus(s)) * (1 + 0.05 * chattyDayCrew(s));
 }
 const tasteAt = t => { const h = localHour(t); return HOUR_TASTE.find(b => h < b.until).w; };
 const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
@@ -797,9 +931,13 @@ function customerVisit(s, t, showIt) {
   const byItem = {};
   for (const id of stock) byItem[id] = (w[ITEMS[id].group] || 0.05) + 0.02;
   if (s.design?.special && byItem[s.design.special]) byItem[s.design.special] *= SPECIAL.pull;
+  const taste = TASTES[shopDef(s).id || s.shops[s.cur || 0].id], want = curSeason ? SEASONS[curSeason].want : null;
+  for (const k in byItem) { const g = ITEMS[k].group; byItem[k] *= (taste?.like[g] || 1) * (want?.[g] || 1); }
   const id = weighted(byItem);
   const lvl = PRICE_LEVELS[s.priceLevel[id] || 'normal'];
-  const buy = s.crew.cashier ? lvl.buy + (1 - lvl.buy) / 2 : lvl.buy;
+  let buy = s.crew.cashier ? lvl.buy + (1 - lvl.buy) / 2 : lvl.buy;
+  const tz = TASTES[s.shops[s.cur || 0].id]; if (tz) buy = clamp(1 - (1 - buy) * tz.price, 0, 1); // some locals mind prices more
+  const war = s.rival?.war; if (war && war.item === id && war.until > t && s.design?.special !== id && s.priceLevel[id] !== 'low') buy *= 1 - RIVAL_MOVES.priceWarHit;
   if (rand() > buy) {
     td.pricedOut++;
     s.rep = clamp(s.rep + CFG.popUnserved / 2, 0, 100);
@@ -829,7 +967,15 @@ function customerVisit(s, t, showIt) {
 }
 
 // ---------- Night trade ----------
-export const copChance = (s, product = 'homegrown') => CFG.copBase + s.heat * CFG.copPerHeat + (PRODUCTS[product]?.cop || 0);
+export const copChance = (s, product = 'homegrown') => (CFG.copBase + s.heat * CFG.copPerHeat + (PRODUCTS[product]?.cop || 0)) * patrolAt(s, s.clock);
+// Tonight's patrols, forecast at 6am for three parts of the night
+export function forecastPatrols(s, t) {
+  const heavy = 0.15 + s.heat / 200, quiet = Math.max(0.05, 0.35 - s.heat / 300);
+  s.patrol = { day: dayStart(t), lv: PATROL.bands.map(() => { const r = rand(); return r < quiet ? 0 : r < 1 - heavy ? 1 : 2; }) };
+}
+export function patrolBand(t) { const h = localHour(t); return PATROL.bands.findIndex(([a, b]) => (a < b ? h >= a && h < b : h >= a || h < b)); }
+export const patrolAt = (s, t) => { const b = patrolBand(t); return b < 0 || !s.patrol ? 1 : PATROL.levels[s.patrol.lv[b]][1]; };
+const patrolNight = s => (s.patrol ? s.patrol.lv.reduce((a, l) => a + PATROL.levels[l][1], 0) / s.patrol.lv.length : 1);
 export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel * (s.level || 1), CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers')) * (0.5 + (s.street ?? CFG.streetStart) / 100);
 export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level) && (!PRODUCTS[id].rare || (s.bags[id] || 0) > 0));
 function buyerArrives(s, t) {
@@ -916,11 +1062,11 @@ function unattended(s, b, t) {
   } else if (s.crew.host && have > 0 && !b.hint) {
     // Lena reads people well and keeps less
     const qty = Math.min(b.want, have);
-    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * (1 - CFG.hostCut)), t, true);
+    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * (1 - CFG.hostCut) * (traitOf(s, 'host') === 'sharp' ? 1.1 : 1)), t, true);
   } else if (s.crew.dealer && have > 0 && !(b.hint && s.crew.lookout)) {
     const qty = Math.min(b.want, have);
     s.today.jayWorked = true;
-    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * CFG.streetMult * (1 - CFG.dealerCut)), t, true);
+    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * CFG.streetMult * (1 - CFG.dealerCut) * (traitOf(s, 'dealer') === 'sharp' ? 1.1 : 1)), t, true);
   }
   s.door = s.door.filter(x => x !== b);
   s.today.buyersLost++;
@@ -1468,7 +1614,7 @@ export function newGame(t = Date.now(), prestige = null) {
   const s = {
     v: SAVE_VERSION, created: t, clock: t, last: t, startDay: dayStart(t), nextId: 1,
     clean: CFG.startClean, dirty: 0, heat: 0, rep: 50,
-    balance: CFG.debtTotal, arrears: 0, strikes: 0, behind: 0, paymentsMade: 0, won: false, guide: { step: 0 }, honest: { days: 0, best: 0, awards: {} },
+    balance: CFG.debtTotal, arrears: 0, strikes: 0, behind: 0, paymentsMade: 0, won: false, guide: { step: 0 }, honest: { days: 0, best: 0, awards: {} }, mastery: {}, collect: {}, story: { seen: [], queue: [] },
     inv: Object.assign(Object.fromEntries(Object.keys(INGREDIENTS).map(k => [k, 0])), { flour: 30, butter: 12, sugar: 12, eggs: 10, chocolate: 6, milk: 10 }),
     market: {}, event: null,
     level: 1, xp: 0, levelUps: [],
@@ -1491,12 +1637,17 @@ export function newGame(t = Date.now(), prestige = null) {
   s.prestige = prestige || { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
   if (prestige) { applyPerks(s); learnFree(s); }
   s.today = freshLedger(s, t);
+  forecastPatrols(s, t);
   scheduleNight(s, t);
   return s;
 }
 // Saves from before the real-time clock keep their progress; the clock starts now.
 export function migrate(s, t = Date.now()) {
   if (!s.guide) s.guide = { step: 99 };
+  s.mastery ||= {}; s.collect ||= {};
+  // Older saves: chapters you'd already have reached are in the collection book, not popped up one after another
+  if (!s.story) { s.story = { seen: [], queue: [] }; for (const c of STORY) if ((!c.level || (s.level || 1) >= c.level) && (!c.evidence || (s.case?.evidence || 0) >= c.evidence) && (!c.lab || s.labUnlocked)) s.story.seen.push(c.id); }
+  for (const st of Object.values(s.staff || {})) if (!st.trait) st.trait = pick(['steady', 'steady', 'loyal', 'greedy', 'nervous', 'chatty', 'sharp']);
   s.honest ||= { days: 0, best: 0, awards: {} };
   if (s.v === 3) {
     // One shop becomes a list of shops
@@ -1560,6 +1711,7 @@ export function migrate(s, t = Date.now()) {
 // ---------- The clock ----------
 // Play the game forward to time `now`. live: the player is watching (show customers, speak events).
 export function advance(s, now, { live: watching = false } = {}) {
+  curSeason = seasonAt(s.last || now);
   if (!(now > s.last)) return;
   liveMode = watching;
   if (now - s.last > CFG.maxCatchUpDays * DAY) s.last = now - CFG.maxCatchUpDays * DAY;
@@ -1573,6 +1725,7 @@ export function advance(s, now, { live: watching = false } = {}) {
     if (t === roll) rollover(s, roll);
   }
   s.last = now; s.clock = now;
+  seasonCheck(s, now); storyCheck(s);
   checkMilestones(s, now);
   checkGoals(s, now);
   liveMode = false;
@@ -1606,10 +1759,12 @@ function shopSpan(s, t0, t1, mins, showIt) {
       m.job = null;
       return;
     }
-    if (s.crew.baker) collectJob(s, i, t1, { quiet: true });
+    if (s.crew.baker) collectJob(s, i, t1, { quiet: true, crew: true });
     // Marco keeps idle machines going once their trays have room again
     if (!m.job && s.crew.chef) chefRestart(s, i, t1);
   });
+  // A manager, if this shop has one
+  if (s.manager) { s.manager.acc = (s.manager.acc || 0) + mins; if (s.manager.acc >= MANAGER.skills[s.manager.skill].every) { s.manager.acc = 0; manage(s, t1); } }
   // Customers
   s.custAcc += customersPerHour(s, t0) / 60 * mins;
   while (s.custAcc >= 1) { s.custAcc -= 1; customerVisit(s, t0 + rand() * (t1 - t0), showIt); }
@@ -1745,7 +1900,7 @@ function rollover(s, t) {
   if (s.crew.accountant && s.dirty > 0) launder(s, Math.min(s.dirty, launderLeft(s)), true);
   if (s.labUnlocked) washMorning(s, t);
   // Bills
-  const rent = shopRent(s) + businessRates(s), dayWages = crewWages(s, 'day'), income = eff(s, 'income');
+  const rent = shopRent(s) + businessRates(s), dayWages = crewWages(s, 'day') + managerWages(s), income = eff(s, 'income');
   td.rent = rent; td.wages = dayWages; td.income = income;
   s.clean = round2(s.clean + income);
   const bill = rent + dayWages;
@@ -1765,7 +1920,7 @@ function rollover(s, t) {
     else { s.clean = 0; for (const r of ['fixer', 'lawyer', 'driver', 'chemist', 'muscle', 'lookout', 'cook']) if (s.crew[r]) { s.crew[r] = false; note(s, `💸 You couldn't pay ${CREW[r].name}, so ${CREW[r].name} walked.`, 'bad', t); break; } }
   }
   // Jay's luck on the street
-  if (td.jayWorked && s.crew.dealer && rand() < (CFG.dealerArrestPerNight + s.heat * CFG.dealerArrestPerHeat) * (has(s, 'van') ? CFG.vanArrestMult : 1)) {
+  if (td.jayWorked && s.crew.dealer && rand() < (CFG.dealerArrestPerNight + s.heat * CFG.dealerArrestPerHeat) * (has(s, 'van') ? CFG.vanArrestMult : 1) * (traitOf(s, 'dealer') === 'nervous' ? 1.3 : 1) * patrolNight(s)) {
     s.crew.dealer = false; s.heat = clamp(s.heat + CFG.dealerArrestHeat, 0, 100);
     note(s, `🚔 Jay was picked up on the street. Heat +${CFG.dealerArrestHeat}.`, 'bad', t);
     const bail = LOYALTY.bailBase + LOYALTY.bailPerLevel * s.level;
@@ -1794,7 +1949,7 @@ function rollover(s, t) {
   for (const [id, k] of Object.entries(s.corners)) {
     const c = CORNERS[id], sold = k.soldToday; k.soldToday = 0;
     if (!sold) continue;
-    if (rand() < c.risk * (0.5 + (s.areaHeat?.streets || 0) / 60 + s.heat / 300) * (s.crew.copper ? 0.5 : 1)) {
+    if (rand() < c.risk * (0.5 + (s.areaHeat?.streets || 0) / 60 + s.heat / 300) * (s.crew.copper ? 0.5 : 1) * patrolNight(s)) {
       const lost = k.stock; k.stock = 0; areaHeat(s, 'streets', CFG.cornerSweepHeat); addEvidence(s, CASE.sweep, t); s.taxWeek.seizures = (s.taxWeek.seizures || 0) + 1;
       note(s, `🚓 Police swept ${c.name.toLowerCase()}: ${lost} bags seized. Heat +${CFG.cornerSweepHeat}.`, 'bad', t);
     } else if (feature(s, 'rivals') && !s.crew.muscle && rand() < 0.03) {
@@ -1855,12 +2010,23 @@ function rollover(s, t) {
   const premium = Object.keys(INSURANCE).filter(k => s.insurance[k]).reduce((a, k) => a + insurancePremium(s, k), 0);
   if (premium) { s.clean = round2(Math.max(0, s.clean - premium)); td.rent += premium; }
   for (const r of Object.keys(CREW)) if (s.crew[r]) {
-    const st = staffOf(s, r); st.loyalty = Math.min(100, st.loyalty + LOYALTY.perDay + (CREW[r].shift === 'night' ? backLoyalty(s) : 0));
-    if (CREW[r].shift === 'night' && st.loyalty < LOYALTY.informAt && rand() < LOYALTY.informChance) {
-      addEvidence(s, CASE.informant, t); note(s, `🐀 ${CREW[r].name} has been talking to ${CASE.detective}. Evidence +${CASE.informant}. A bonus might buy some loyalty back.`, 'bad', t);
+    const st = staffOf(s, r), tr = st.trait || 'steady';
+    st.loyalty = Math.min(100, st.loyalty + LOYALTY.perDay * (tr === 'steady' ? 1.5 : tr === 'greedy' ? 0.5 : 1) + (CREW[r].shift === 'night' ? backLoyalty(s) : 0));
+    if (tr === 'loyal') st.loyalty = Math.max(50, st.loyalty);
+    if (CREW[r].shift !== 'night') continue;
+    // An informant keeps feeding Harrow until loyalty is won back (or they're let go). You only learn who with a lawyer or a bent copper.
+    const named = s.crew.lawyer || s.crew.copper;
+    if (st.informant) {
+      if (st.loyalty >= INFORMANT.clearAt) { st.informant = false; note(s, `🤐 ${named ? CREW[r].name : 'Whoever it was'} has stopped talking to ${CASE.detective}.`, 'good', t); }
+      else addEvidence(s, INFORMANT.perDay, t);
+    } else if (tr !== 'loyal' && st.loyalty < (tr === 'chatty' ? INFORMANT.chattyAt : INFORMANT.at) && rand() < INFORMANT.chance) {
+      st.informant = true;
+      note(s, named ? `🐀 Your ${s.crew.lawyer ? 'lawyer' : 'friend on the force'} says ${CREW[r].name} has started talking to ${CASE.detective}. Win back their loyalty (a bonus) or let them go.`
+        : `🐀 Someone in the night crew has started talking to ${CASE.detective}. Low loyalty is the usual reason.`, 'bad', t);
     }
   }
   if (s.labUnlocked) s.case.evidence = Math.max(0, s.case.evidence - (td.labBatches ? CASE.decayBusy : CASE.decay));
+  if (s.rival.open && rand() < RIVAL_MOVES.chance) rivalMove(s, t);
   if (s.rival.open) {
     const low = menuOf(s).filter(id => s.priceLevel[id] === 'low').length > menuOf(s).length / 2;
     s.rival.share = clamp(s.rival.share + RIVAL.grow - (low ? RIVAL.lowPriceHit * 2 : 0), 0, RIVAL.max);

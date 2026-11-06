@@ -207,6 +207,54 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
 - **Walking**: people walk around machines, counters and decor. If there's no way through they stop as close as they
   can get rather than walking through things.
 
+## Baking well
+
+- **Perfect bakes**: collect a batch yourself within a few minutes of it finishing (15% of its cook time, between 2 and
+  10 minutes) and it's perfect: 20% more servings and half as much XP again. Crew collecting don't get them, except
+  a sharp baker half the time.
+- **Mastery**: every batch of a recipe counts. Stars at 15, 50, 120, 250 and 500 batches each add 3% servings and 2%
+  to the price; five stars make it a signature dish, with a gold sparkle over its counter.
+- **Throwing food away**: tap a counter and throw its food away (it stays on that counter, empty), or throw it away and
+  free the counter for something else. If every counter is taken, a finished batch of something else stays in its
+  machine until you make room.
+
+## Seasons
+
+Seasons follow the real calendar: Valentine's (1–14 Feb), Easter (20 Mar–20 Apr), summer (15 Jun–31 Aug), Halloween
+(15–31 Oct), Bonfire Night (1–7 Nov) and Christmas (1–26 Dec). Each brings three to five limited recipes on the
+stall's machines (learned free when it starts, on sale only until it ends, and a bit dearer), shifts what people want
+(ice cream in summer, pastries at Christmas), and decorates the shop: a garland along the back wall and something by
+the door (a tree, pumpkins, a heart balloon, an Easter basket, a parasol, lanterns).
+
+## The story and the collection book
+
+Chapters turn up as you go: Rosa's letters and keepsakes, Dez's past catching up with him, and DI Harrow's case as it
+builds (14 in all). ☰ Menu → 📖 Collection keeps them to read again, and has sets to complete for prize money:
+recipes baked, signature dishes, perfect bakes, seasonal treats, products made, chapters and bakery awards.
+
+## Locals, managers and the rival
+
+- **Local tastes**: each branch's customers like different things (market shoppers: bread and pastries; students:
+  drinks and ice cream, and they watch their money; office workers: savoury; commuters: drinks; tourists; day-trippers:
+  cold treats; the rich don't mind prices). Shops & property and the Kitchen say who's local.
+- **Branch managers** (from level 10): hire one for any branch (junior, experienced or star: £150, £400 or £1,000 a day).
+  They collect and restock that shop's counters every 30, 15 or 5 minutes while you're elsewhere.
+- **Crumbs & Co fights back**: while they're open, now and then they start a price war on your best seller (fewer
+  people pay full price for 2 days, unless it's today's special or priced low), try to poach one of your day crew (match
+  the offer or lose them), or tip off a critic to visit today. If you have a back room, Jay may offer to have the crew
+  "have a word" with their suppliers: they lose customers fast, but heat and evidence go up.
+
+## The night: patrols and the crew
+
+- **Patrol forecast** (Heat & police): at 6am you get tonight's patrols for the evening, late night and early hours:
+  quiet, normal or heavy. Heavy patrols raise the chance a buyer is undercover, corner sweeps and arrests; quiet ones
+  lower them.
+- **Crew personalities**: each crew member is steady, loyal, greedy, nervous, chatty or sharp, shown on their card.
+  Loyal never talk; greedy want more pay; nervous get picked up more; chatty bring day customers in but turn informant
+  more easily; sharp collect perfectly or sell for more.
+- **Informants**: night crew with low loyalty may start talking to Harrow, feeding his case every day until their
+  loyalty is won back (a bonus) or you let them go. You only learn who it is with a lawyer or a bent copper.
+
 ## A clean record
 
 Days in a row with nothing cooked, sold or washed after dark count as a clean record (Bank & tax shows it). Every 3

@@ -509,7 +509,29 @@ export const ITEMS = {
   goldlolly: R('candy', "Gold-leaf lollies", '✨', 'sweet', 96, 480, ['sugar', 'goldleaf']),
   truffletart: R('grand', "Truffle tarts", '🍄', 'savory', 96, 120, ['flour', 'truffle', 'cream']),
   goldcroq: R('grand', "Golden croquembouche", '🏆', 'pastry', 98, 360, ['flour', 'cream', 'goldleaf']),
+  // Seasonal: only in their season (SEASONS below), learned free when it starts
+  heartcookies: { ...R('oven', "Heart cookies", '💘', 'sweet', 1, 4, ['flour', 'sugar', 'butter']), season: 'valentine' },
+  lovelatte: { ...R('drinks', "Rose lattes", '🌹', 'drink', 1, 2, ['beans', 'milk', 'sugar']), season: 'valentine' },
+  chochearts: { ...R('mixer', "Chocolate hearts", '💝', 'sweet', 1, 8, ['chocolate', 'cream']), season: 'valentine' },
+  hotcross: { ...R('oven', "Hot cross buns", '✝️', 'bread', 1, 10, ['flour', 'fruit', 'spices']), season: 'easter' },
+  simnel: { ...R('oven', "Simnel cake", '🐣', 'pastry', 1, 30, ['flour', 'fruit', 'nuts', 'eggs']), season: 'easter' },
+  easteregg: { ...R('mixer', "Easter eggs", '🥚', 'sweet', 1, 12, ['chocolate', 'sugar']), season: 'easter' },
+  icelolly: { ...R('mixer', "Ice lollies", '🍭', 'cold', 1, 10, ['fruit', 'sugar', 'ice']), season: 'summer' },
+  strawcream: { ...R('mixer', "Strawberries and cream", '🍓', 'cold', 1, 5, ['fruit', 'cream', 'sugar']), season: 'summer' },
+  summercooler: { ...R('drinks', "Summer coolers", '🧉', 'drink', 1, 3, ['fruit', 'citrus', 'ice']), season: 'summer' },
+  pumpkinpie: { ...R('oven', "Pumpkin pie", '🎃', 'pastry', 1, 25, ['flour', 'spices', 'cream']), season: 'halloween' },
+  spookycake: { ...R('oven', "Spooky cupcakes", '👻', 'sweet', 1, 12, ['flour', 'sugar', 'cocoa']), season: 'halloween' },
+  witchbrew: { ...R('drinks', "Witch's brew", '🧪', 'drink', 1, 3, ['fruit', 'sugar', 'spices']), season: 'halloween' },
+  parkin: { ...R('oven', "Parkin", '🔥', 'pastry', 1, 30, ['flour', 'honey', 'spices']), season: 'bonfire' },
+  bonfiretoffee: { ...R('mixer', "Bonfire toffee", '🎆', 'sweet', 1, 15, ['sugar', 'butter', 'honey']), season: 'bonfire' },
+  hotapple: { ...R('drinks', "Hot spiced apple", '🍏', 'drink', 1, 3, ['fruit', 'spices']), season: 'bonfire' },
+  mincepies: { ...R('oven', "Mince pies", '🥧', 'pastry', 1, 20, ['flour', 'fruit', 'butter', 'spices']), season: 'christmas' },
+  yulelog: { ...R('oven', "Yule log", '🪵', 'sweet', 1, 40, ['flour', 'chocolate', 'cream']), season: 'christmas' },
+  gingerbread: { ...R('oven', "Gingerbread people", '🧑‍🎄', 'sweet', 1, 10, ['flour', 'honey', 'spices']), season: 'christmas' },
+  mulled: { ...R('drinks', "Mulled juice", '🍷', 'drink', 1, 4, ['fruit', 'citrus', 'spices']), season: 'christmas' },
+  xmaspud: { ...R('mixer', "Christmas pudding", '🎄', 'sweet', 1, 60, ['fruit', 'nuts', 'butter']), season: 'christmas' },
 };
+for (const r of Object.values(ITEMS)) if (r.season) { r.cost = 0; r.price = Math.round(r.price * 1.25 * 10) / 10; } // seasonal treats sell for a bit more
 // Ingredient amounts: about a quarter of what a batch sells for, split across its ingredients.
 for (const r of Object.values(ITEMS)) {
   const budget = r.servings * r.price * 0.25 / r.ingList.length;
@@ -517,7 +539,7 @@ for (const r of Object.values(ITEMS)) {
 }
 // The first recipe of each machine comes free with it.
 for (const type of Object.keys(MACHINES)) {
-  const first = Object.entries(ITEMS).filter(([, r]) => r.machine === type).sort((a, b) => a[1].level - b[1].level)[0];
+  const first = Object.entries(ITEMS).filter(([, r]) => r.machine === type && !r.season).sort((a, b) => a[1].level - b[1].level)[0];
   if (first) first[1].cost = 0;
 }
 export const START_RECIPES = ['sourdough', 'croissant', 'cookies', 'pancakes'];
@@ -831,6 +853,86 @@ export const COUNTERS = [
   { level: 2, price: 250 }, { level: 4, price: 800 }, { level: 8, price: 2000 }, { level: 14, price: 5000 }, { level: 22, price: 12000 },
 ];
 export const PER_COUNTER = 1;
+
+// ---------- Seasons on the real calendar (month 1-12, day): demand shifts, limited recipes, decorations ----------
+export const SEASONS = {
+  valentine: { name: "Valentine's", emoji: '💘', from: [2, 1], to: [2, 14], want: { sweet: 1.35, drink: 1.1 }, decor: 'hearts' },
+  easter:    { name: 'Easter', emoji: '🐣', from: [3, 20], to: [4, 20], want: { bread: 1.2, sweet: 1.25 }, decor: 'eggs' },
+  summer:    { name: 'Summer', emoji: '☀️', from: [6, 15], to: [8, 31], want: { cold: 1.5, drink: 1.25, bread: 0.9 }, decor: 'summer' },
+  halloween: { name: 'Halloween', emoji: '🎃', from: [10, 15], to: [10, 31], want: { sweet: 1.3, pastry: 1.15 }, decor: 'pumpkins' },
+  bonfire:   { name: 'Bonfire Night', emoji: '🎆', from: [11, 1], to: [11, 7], want: { drink: 1.3, sweet: 1.2 }, decor: 'bonfire' },
+  christmas: { name: 'Christmas', emoji: '🎄', from: [12, 1], to: [12, 26], want: { pastry: 1.3, sweet: 1.3, drink: 1.2, cold: 0.7 }, decor: 'christmas' },
+};
+
+// ---------- Perfect bakes and recipe mastery ----------
+// Collect a batch yourself soon after it's done and it's perfect: more servings and more XP
+export const PERFECT = { windowShare: 0.15, minMin: 2, maxMin: 10, servings: 0.2, xp: 0.5 };
+// Every batch of a recipe counts; stars bring more servings and a better price; five stars make it a signature dish
+export const MASTERY = { stars: [15, 50, 120, 250, 500], servings: 0.03, price: 0.02 };
+
+// ---------- The story: chapters that turn up as you go ----------
+export const STORY = [
+  { id: 'letter1', level: 2, title: 'A letter in the till', text: 'Under the cash tray there is an envelope in Rosa\'s handwriting. "If you are reading this, the stall is yours. The ovens run hot on the left. Never trust a man called Dez. Love, R." You wonder how she knew.' },
+  { id: 'dez1', level: 3, lab: true, title: 'A knock at the back', text: 'Dez turns up at the back door as if he has done it a hundred times. "Your aunt and me had an arrangement," he says. "The room back there pays better than bread." He leaves a number on a napkin.' },
+  { id: 'letter2', level: 8, title: 'The recipe box', text: 'Behind the flour sacks: a tin box of Rosa\'s recipe cards, sticky with butter. Half of them have notes in the margins. One just says "for the bad winter, 1987". It is a recipe for soup.' },
+  { id: 'harrow1', evidence: 25, title: 'A quiet man in a raincoat', text: 'A man buys a coffee every morning and never drinks it. He watches the back door. On Thursday he leaves a card on the counter: Detective Inspector Harrow. "Lovely bakery," he says. "Be a shame."' },
+  { id: 'letter3', level: 15, title: 'Photographs', text: 'A shoebox of photographs in the flat upstairs: Rosa at twenty, flour to the elbows, laughing at someone off camera. On the back of one: "Opening day. Dez said it would never last."' },
+  { id: 'dez2', level: 20, lab: true, title: 'What Dez owed her', text: 'Dez, three drinks in, tells you Rosa lent him money when nobody else would. He never paid it back. "So I look out for the stall," he says. "That\'s what this is." You are not sure he believes it either.' },
+  { id: 'harrow2', evidence: 50, title: 'The file', text: 'Harrow is in the shop again, reading a thick file over his coffee. He lets you see the first page: your name, your shop, and a list of dates. "It all adds up," he says, "eventually."' },
+  { id: 'letter4', level: 30, title: 'The last card', text: 'The last recipe card in Rosa\'s tin is blank on the front. On the back: "The bakery was always the point. Do not let the back room eat the front." You put it by the till.' },
+  { id: 'dez3', level: 40, lab: true, title: 'An old face', text: 'A man comes asking for Dez by his real name, which you have never heard. Dez does not come round for a week. When he does, he has a new phone and an old bruise, and he does not want to talk about it.' },
+  { id: 'harrow3', evidence: 75, title: 'Close', text: 'Harrow sits on your bench outside and eats a sausage roll. "I knew your aunt," he says. "She was the only honest one on this street." He folds the paper bag very neatly and leaves.' },
+  { id: 'letter5', level: 50, title: 'Rosa\'s other book', text: 'In the cellar, wrapped in a tea towel: a ledger in Rosa\'s writing, with dates going back forty years. It is not a recipe book. So that is how the stall survived the bad winter.' },
+  { id: 'dez4', level: 60, lab: true, title: 'Dez wants out', text: '"I\'m getting old," Dez says, watching your vans load. "You\'re bigger than I ever was. Bigger than Rosa." He does not sound proud. He sounds tired.' },
+  { id: 'empire', level: 75, title: 'The Rosa name', text: 'Somebody at a dinner party calls it "Rosa\'s, the chain". You think of the stall, the left oven running hot, and a woman laughing at someone off camera.' },
+  { id: 'end', level: 99, title: 'Still open', text: 'You find yourself at the stall at six in the morning, the first oven on, nobody else awake. The street smells of bread. Whatever else you have built, this part still feels like hers.' },
+];
+
+// ---------- The collection book: sets with a reward when complete ----------
+export const COLLECTION = [
+  { id: 'bake10', cat: 'baked', n: 10, name: 'A proper menu', reward: 500 }, { id: 'bake30', cat: 'baked', n: 30, name: 'The regulars\' favourites', reward: 2500 },
+  { id: 'bake75', cat: 'baked', n: 75, name: 'A cookbook\'s worth', reward: 12000 }, { id: 'bake150', cat: 'baked', n: 150, name: 'Everything Rosa knew', reward: 60000 },
+  { id: 'bake205', cat: 'baked', n: 205, name: 'Every recipe in the land', reward: 250000 },
+  { id: 'star5', cat: 'master', n: 1, name: 'A signature dish', reward: 2000 }, { id: 'star10', cat: 'master', n: 10, name: 'Ten signatures', reward: 40000 },
+  { id: 'perfect25', cat: 'perfect', n: 25, name: 'Twenty-five perfect bakes', reward: 1500 }, { id: 'perfect250', cat: 'perfect', n: 250, name: 'Two hundred and fifty perfect bakes', reward: 25000 },
+  { id: 'season3', cat: 'seasonal', n: 3, name: 'Seasonal baker', reward: 1500 }, { id: 'season10', cat: 'seasonal', n: 10, name: 'All year round', reward: 15000 },
+  { id: 'season20', cat: 'seasonal', n: 20, name: 'Every season tasted', reward: 50000 },
+  { id: 'prod5', cat: 'products', n: 5, name: 'Branching out', reward: 1000, night: true }, { id: 'prod15', cat: 'products', n: 15, name: 'A wide catalogue', reward: 15000, night: true },
+  { id: 'prod33', cat: 'products', n: 33, name: 'Everything Dez ever sold', reward: 150000, night: true },
+  { id: 'story5', cat: 'story', n: 5, name: 'Family history', reward: 3000 }, { id: 'story14', cat: 'story', n: 14, name: 'The whole story', reward: 50000 },
+  { id: 'award4', cat: 'awards', n: 4, name: 'Every bakery award', reward: 30000 },
+];
+
+// ---------- The night: police patrols, forecast each evening for three parts of the night ----------
+export const PATROL = { bands: [[18, 22, 'evening'], [22, 2, 'late'], [2, 7, 'early hours']], levels: [['quiet', 0.6], ['normal', 1], ['heavy', 1.6]] };
+
+// ---------- Crew personalities ----------
+export const TRAITS = {
+  steady:  { name: 'Steady', emoji: '🙂', desc: 'Nothing fazes them. Loyalty grows a little faster.' },
+  loyal:   { name: 'Loyal', emoji: '🤝', desc: 'Never talks to the police, and loyalty never falls below 50.' },
+  greedy:  { name: 'Greedy', emoji: '💸', desc: 'Wants 20% more pay, and loyalty grows half as fast.' },
+  nervous: { name: 'Nervous', emoji: '😬', desc: 'Night crew: more likely to be picked up or spooked.' },
+  chatty:  { name: 'Chatty', emoji: '💬', desc: 'Customers love them (day crew: +5% customers), but they talk: they turn informant more easily.' },
+  sharp:   { name: 'Sharp', emoji: '🦊', desc: 'Day crew collect batches perfectly half the time; night crew get 10% better prices.' },
+};
+export const INFORMANT = { at: 30, chattyAt: 45, chance: 0.08, perDay: 4, clearAt: 60 };
+
+// ---------- Crumbs & Co fights back ----------
+export const RIVAL_MOVES = { chance: 0.25, priceWarDays: 2, priceWarHit: 0.25, poachRaise: 0.15, leanCost: 3000, leanShare: 0.08, leanHeat: 8, leanEvidence: 5 };
+
+// ---------- Branch managers: run a shop when you're not there ----------
+export const MANAGER = { level: 10, skills: [{ name: 'Junior', wage: 150, every: 30 }, { name: 'Experienced', wage: 400, every: 15 }, { name: 'Star', wage: 1000, every: 5 }] };
+
+// ---------- What the locals like, shop by shop (multiplies what customers ask for; price: how much prices put them off) ----------
+export const TASTES = {
+  stall:     { who: 'Market shoppers', like: { bread: 1.3, pastry: 1.15 }, price: 1 },
+  cafe:      { who: 'Students', like: { drink: 1.3, cold: 1.35, savory: 1.1 }, price: 1.4 },
+  deli:      { who: 'Office workers', like: { savory: 1.4, drink: 1.1 }, price: 0.9 },
+  express:   { who: 'Commuters', like: { drink: 1.5, bread: 1.2, sweet: 0.85 }, price: 1.1 },
+  bistro:    { who: 'Tourists', like: { pastry: 1.3, savory: 1.2, drink: 1.1 }, price: 0.8 },
+  gelateria: { who: 'Day-trippers', like: { cold: 1.6, sweet: 1.2, savory: 0.8 }, price: 1 },
+  maison:    { who: 'The rich', like: { pastry: 1.4, sweet: 1.3, bread: 0.8 }, price: 0.6 },
+};
 // Counter extras: today's special sells for more and draws more customers to it; a bigger cabinet holds more batches
 export const SPECIAL = { price: 0.2, pull: 2 };
 export const CABINET = { level: 10, price: 1500, batches: 2 };

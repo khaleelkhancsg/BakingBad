@@ -15,7 +15,7 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 import * as SFX from './sound.js';
-import { SPECIAL, CABINET, CLEAN_RECORD } from './data.js';
+import { SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
 const SETTINGS_KEY = 'bakingbad.settings';
 const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
@@ -122,6 +122,9 @@ function hudHTML() {
 
 // ---------- Dock pieces ----------
 const ibtn = (kind, id) => `<button class="ibtn" data-act="info" data-kind="${kind}" data-id="${id}" aria-label="More info">i</button>`;
+// Mastery stars after a recipe's name, and seasonal ones marked
+const GROUPS = { bread: '🍞 bread', pastry: '🥐 pastries', sweet: '🍰 sweets', savory: '🥪 savoury', drink: '☕ drinks', cold: '🍦 cold treats' };
+const starTag = id => { const n = G.starsOf(s, id); return (n ? ` <span class="stars">${'★'.repeat(n)}</span>` : '') + (ITEMS[id].season ? ` <span class="seasontag">${SEASONS[ITEMS[id].season].emoji}</span>` : ''); };
 const pcard = (inner, info, cls = '', at = '') => `<div class="pcard ${cls}" ${at}>${info || ''}${inner}</div>`;
 const lockTag = lvl => `<span class="lock">🔒 Lv ${lvl}</span>`;
 const line = (a, b, cls = '') => `<div class="line"><span>${a}</span><span class="${cls}">${b}</span></div>`;
@@ -190,7 +193,7 @@ function kitchenTab() {
   }).join('');
   cards += elsewhere(false);
   const spots = G.freeSpots(s).length;
-  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)} (one per counter; tap a bare counter by the till for another). Tap a machine to cook, choose what's on sale and set prices.` };
+  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)} (one per counter; tap a bare counter by the till for another).${G.currentSeason() ? ` ${SEASONS[G.currentSeason()].emoji} ${SEASONS[G.currentSeason()].name}: seasonal recipes are on the machines.` : ''} Locals here like ${Object.entries(TASTES[s.shops[s.cur || 0].id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}. Collect a batch yourself within a few minutes of it finishing for a ✨ perfect bake. Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
 function shopTab(lab = false) {
@@ -214,7 +217,7 @@ function crewTab(night = false) {
     const st = s.staff[role];
     const btn = !G.unlocked(s, c.level) ? lockTag(c.level)
       : `<div class="pbtns">${s.crew[role] ? `<button class="small" data-act="bonus" data-id="${role}">Bonus</button><button class="small danger" data-act="fire" data-id="${role}">Let go</button>` : `<button class="small" data-act="hire" data-id="${role}">Hire</button>`}</div>`;
-    const loyal = s.crew[role] && st ? `<span class="heat pop ${st.loyalty < LOYALTY.informAt ? 'hot' : st.loyalty < 50 ? 'warm' : ''}"><span class="meter wide"><i style="width:${st.loyalty}%"></i></span></span><small>loyalty ${Math.round(st.loyalty)}${st.greed > 1.05 ? ' · greedy' : st.greed < 0.95 ? ' · modest' : ''}</small>` : '';
+    const loyal = s.crew[role] && st ? `<span class="heat pop ${st.loyalty < LOYALTY.informAt ? 'hot' : st.loyalty < 50 ? 'warm' : ''}"><span class="meter wide"><i style="width:${st.loyalty}%"></i></span></span><small>loyalty ${Math.round(st.loyalty)} · ${TRAITS[st.trait || 'steady'].emoji} ${TRAITS[st.trait || 'steady'].name.toLowerCase()}${st.informant && (s.crew.lawyer || s.crew.copper) ? ' · <b class="bad">🐀 talking to Harrow</b>' : ''}</small>` : '';
     return pcard(`<div class="ptop"><span class="em">${c.emoji}</span><div><b>${c.name}</b><small>${c.role} · ${pay}</small></div></div>${loyal}${btn}`,
       ibtn('crew', role), `${c.shift === 'night' ? 'night' : ''} ${open ? '' : 'locked'} ${s.crew[role] ? 'hired' : ''}`);
   }).join('');
@@ -309,10 +312,16 @@ function dealsTab() {
   return { cards, hint: s.delivery.on ? 'Buyers phone and riders deliver; anyone left over knocks at the stall\'s back door.' : 'Buyers knock at the stall\'s back door from 6pm to 7am. Read them before you sell. Dez\'s jobs pay well for a big batch by a deadline.' };
 }
 // 🚨 Heat & police: heat, the sergeant, the case and street rep
+const t0 = () => s.clock;
 function policeTab() {
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '', ev = s.case.evidence;
   let cards = pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>undercover ≈ ${Math.round(G.copChance(s) * 100)}% · vans ${Math.round(s.areaHeat.vans || 0)} · streets ${Math.round(s.areaHeat.streets || 0)}</small></div></div>
     <span class="heat ${heatCls}"><span class="meter wide"><i style="width:${s.heat}%"></i></span></span>`, ibtn('heat', 'heat'), 'wide night');
+  {
+    const lv = s.patrol?.lv, now = G.patrolBand(t0());
+    cards += pcard(`<div class="ptop"><span class="em">🚓</span><div><b>Tonight's patrols</b><small>${lv ? PATROL.bands.map(([a, b, name], k) => `<span class="${lv[k] === 2 ? 'bad' : lv[k] === 0 ? 'good' : ''}">${k === now ? '▶ ' : ''}${name} (${a}:00–${b}:00): ${PATROL.levels[lv[k]][0]}</span>`).join('<br>') : 'The forecast comes at 6am.'}</small></div></div>`,
+      '', 'wide night');
+  }
   cards += pcard(`<div class="ptop"><span class="em">🕵️</span><div><b>${CASE.detective}'s case</b><small>${Math.round(ev)}% built · court at 100%</small></div></div>
     <span class="heat ${ev >= 60 ? 'hot' : ev >= 30 ? 'warm' : ''}"><span class="meter wide"><i style="width:${ev}%"></i></span></span>
     <div class="pbtns"><button class="small violet" data-act="case-bribe" ${s.dirty >= G.caseBribeCost(s) && ev > 0 ? '' : 'disabled'}>Bribe<small>${money(G.caseBribeCost(s))}</small></button>
@@ -457,7 +466,10 @@ function shopsTab() {
     if (i >= 0) {
       const x = s.shops[i], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
       cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.short}</b><small>${what} · ${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}<br>prices ×${d.priceMult} · rent ${money(d.rent)}/day${d.launder ? ` · fronts ${money(d.launder)}` : ''}</small></div></div>
-        <div class="pbtns">${i === (s.cur || 0) ? '<span class="lock good">You\'re here</span>' : `<button class="small primary" data-act="shop-view" data-id="${i}">Go there</button>`}</div>`,
+        <small>👥 ${TASTES[id].who} like ${Object.entries(TASTES[id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}${TASTES[id].price > 1.05 ? ' · watch their money' : TASTES[id].price < 0.95 ? ' · don\'t mind prices' : ''}</small>
+        <small>${x.manager ? `🧑‍💼 ${MANAGER.skills[x.manager.skill].name} manager · ${money(MANAGER.skills[x.manager.skill].wage)}/day` : G.unlocked(s, MANAGER.level) ? '🧑‍💼 No manager' : ''}</small>
+        <div class="pbtns">${i === (s.cur || 0) ? '<span class="lock good">You\'re here</span>' : `<button class="small primary" data-act="shop-view" data-id="${i}">Go there</button>`}
+          ${!G.unlocked(s, MANAGER.level) ? '' : x.manager ? `<button class="small" data-act="manager-fire" data-shop="${i}">Let the manager go</button>` : MANAGER.skills.map((M, k) => `<button class="small" data-act="manager-hire" data-shop="${i}" data-skill="${k}">${M.name} · ${money(M.wage)}/day</button>`).join('')}</div>`,
         ibtn('shop', id), `wide hired`);
     } else {
       cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.name}</b><small>${what} · prices ×${d.priceMult}<br>rent ${money(d.rent)}/day · launders ${money(d.launder)}/day</small></div></div>
@@ -814,6 +826,7 @@ function infoFor(kind, id) {
     return T(`${a.emoji} ${a.name}`, line('Price', money(a.price)) + line('Charm', `+${a.charm}`) + line('Sells back for', money(Math.round(a.price * D.SELL_BACK)))
       + '<p class="mute">One piece per wall panel. Not over the window, menu board or door.</p>');
   }
+  if (kind === 'chapter') { const c = STORY.find(x => x.id === id); return T(`📜 ${c.title}`, `<p class="story">${c.text}</p>`); }
   if (kind === 'clean') {
     const h = s.honest || { days: 0, awards: {} };
     return T('🕊️ A clean record', `<p>Every day with nothing cooked, sold or washed after dark adds a day. Any night trade starts it again from zero.</p>`
@@ -828,7 +841,9 @@ function infoFor(kind, id) {
       + line('Counters', `${G.countersOf(s.design)} of 7 (one thing each)`) + more);
     const it = ITEMS[item], have = Math.floor(s.display[item] || 0), cap = G.trayCap(s, item);
     const pctFull = Math.round(100 * have / Math.max(1, cap));
-    return T(`${it.emoji} ${it.name}`, `<div class="bar"><i style="width:${pctFull}%"></i></div>`
+    const nx = G.nextStarAt(s, item), stars = G.starsOf(s, item);
+    return T(`${it.emoji} ${stars >= MASTERY.stars.length ? 'Signature ' : ''}${it.name}${starTag(item)}`, `<div class="bar"><i style="width:${pctFull}%"></i></div>`
+      + line('Mastery', `${G.masteryOf(s, item)} batches${nx ? ` · next ★ at ${nx}` : ' · signature dish'}`)
       + line('Servings left', `${have} of ${cap}`, have ? '' : 'bad') + line('Price', money2(G.itemPrice(s, item)))
       + line('Made in', MACHINES[it.machine].name.toLowerCase()) + line('A batch makes', `${G.servingsFor(s, item, G.maxTier(s, it.machine))} servings`)
       + `<p class="mute">The counter holds ${cap} servings (${CFG.trayBatches} batches); a full counter means finished food waits in the machine.</p>`
@@ -836,6 +851,7 @@ function infoFor(kind, id) {
       + `<div class="pbtns col" style="margin-top:8px">
         <button class="small primary" data-act="restock" data-id="${item}">🔁 Restock (${MACHINES[it.machine].name.toLowerCase()})</button>
         <button class="small ${s.design.special === item ? 'on' : ''}" data-act="special" data-id="${item}">${s.design.special === item ? '⭐ Today\'s special (tap to stop)' : `⭐ Make it today's special (+${Math.round(SPECIAL.price * 100)}% price, more asks)`}</button>
+        <div class="row2"><button class="small" data-act="throw" data-id="${item}" ${have ? '' : 'disabled'}>🗑️ Throw away ${have}</button><button class="small danger" data-act="throwfree" data-id="${item}">🗑️ Throw away and free the counter</button></div>
         ${G.cabinetOn(s, k) ? '<small class="good">🧊 Bigger cabinet fitted</small>' : G.unlocked(s, CABINET.level) ? `<button class="small" data-act="cabinet" data-id="${k}" ${s.clean < CABINET.price ? 'disabled' : ''}>🧊 Bigger cabinet: +${CABINET.batches} batches · ${money(CABINET.price)}</button>` : `<small class="mute">Bigger cabinets at level ${CABINET.level}</small>`}
       </div>` + more);
   }
@@ -862,8 +878,26 @@ const TABS = {
   wash: { label: 'Wash', emoji: '🧼', fn: () => washTab(), night: true },
   logistics: { label: 'Logistics', emoji: '🚚', fn: () => logisticsTab(), night: true },
   settings: { label: 'Settings', emoji: '⚙️', fn: () => settingsTab() },
+  collection: { label: 'Collection', emoji: '📖', fn: () => collectionTab() },
 };
 const NATIVE = !!window.Capacitor?.isNativePlatform?.();
+const CAT = { baked: ['🍞', 'Recipes baked', () => Object.keys(ITEMS).length], master: ['⭐', 'Signature dishes (5★)', () => Object.keys(ITEMS).length],
+  perfect: ['✨', 'Perfect bakes', null], seasonal: ['🎄', 'Seasonal treats', () => Object.values(ITEMS).filter(r => r.season).length],
+  products: ['💜', 'Products made', () => Object.keys(PRODUCTS).length], story: ['📜', 'Chapters', () => STORY.length], awards: ['🏅', 'Bakery awards', () => CLEAN_RECORD.awards.length] };
+function collectionTab() {
+  let cards = '';
+  for (const [cat, [emoji, name, total]] of Object.entries(CAT)) {
+    if (cat === 'products' && !s.labUnlocked) continue;
+    const have = G.collectionCount(s, cat), sets = COLLECTION.filter(c => c.cat === cat);
+    const btns = sets.map(c => { const done = s.collect?.claimed?.[c.id], ready = have >= c.n;
+      return `<button class="small ${ready && !done ? 'primary' : ''}" data-act="claim" data-id="${c.id}" ${ready && !done ? '' : 'disabled'}>${done ? '✓' : `${c.n}`} · ${c.name}${done ? '' : ` · ${money(Math.round(c.reward * (1 + s.level / 25)))}`}</button>`; }).join('');
+    cards += pcard(`<div class="ptop"><span class="em">${emoji}</span><div><b>${name}</b><small>${have}${total ? ` of ${total()}` : ''}</small></div></div><div class="pbtns col">${btns}</div>`, '', 'wide');
+  }
+  const read = STORY.filter(c => s.story?.seen?.includes(c.id));
+  cards += pcard(`<div class="ptop"><span class="em">📜</span><div><b>The story so far</b><small>${read.length ? 'Tap a chapter to read it again' : 'Nothing yet'}</small></div></div>
+    <div class="pbtns col">${read.map(c => `<button class="small" data-act="info" data-kind="chapter" data-id="${c.id}">${c.title}</button>`).join('')}</div>`, '', 'wide');
+  return { cards, hint: 'Complete a set to claim its reward. Prizes grow with your level.' };
+}
 function settingsTab() {
   const tog = (key, label, sub) => pcard(`<div class="ptop"><span class="em">${key === 'sound' ? (settings.sound ? '🔊' : '🔇') : (settings.notify ? '🔔' : '🔕')}</span><div><b>${label}</b><small>${sub}</small></div></div>
     <div class="pbtns"><button class="small ${settings[key] ? 'primary' : ''}" data-act="setting" data-id="${key}">${settings[key] ? 'On' : 'Off'}</button></div>`);
@@ -902,7 +936,7 @@ function guideHTML() {
 function menuGroups() {
   if (ui.room === 'back' && s.labUnlocked) return [['The back room', ['back', 'stash', 'nightshop', 'nightcrew', 'deals']],
     ['The operation', ['police', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : []), 'settings']]];
-  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank', 'settings']]];
+  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank', 'collection', 'settings']]];
 }
 const tabBadge = id => (id === 'orders' && s.orders.filter(o => o.kind !== 'dez').length ? s.orders.filter(o => o.kind !== 'dez').length : id === 'deals' && (doorTotal() + s.orders.filter(o => o.kind === 'dez').length) ? doorTotal() + s.orders.filter(o => o.kind === 'dez').length : id === 'police' && s.case.evidence >= 60 ? '!' : id === 'bank' && s.hmrc > 1 ? '!' : '');
 function openTab(id) {
@@ -1002,7 +1036,7 @@ function machineModal(m) {
         `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>` : '';
       return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
         <span class="em">${r.emoji}</span>
-        <div class="grow"><b>${r.name}</b><small>×${G.servingsFor(s, id, mc.tier || 0)} · ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)} · ${money2(G.itemPrice(s, id))} each</small>
+        <div class="grow"><b>${r.name}${starTag(id)}</b><small>×${G.servingsFor(s, id, mc.tier || 0)} · ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)} · ${money2(G.itemPrice(s, id))} each</small>
           <small>${ingText(r)}${known ? ` · stock for ${batches} · case ${s.display[id] || 0}/${G.trayCap(s, id)}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
@@ -1094,6 +1128,11 @@ function modalHTML() {
   if (!m) return '';
   let inner = '';
   if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`; }
+  else if (m.type === 'story') {
+    const c = STORY.find(x => x.id === m.id), n = STORY.findIndex(x => x.id === m.id) + 1;
+    inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection</p><button class="big primary" data-act="story-read">Carry on</button>` : '';
+    if (!c) ui.modal = null;
+  }
   else if (m.type === 'backup') inner = `<h2>💾 Your backup</h2><p class="mute">This code is your whole game. Copy it somewhere safe; Settings → Load a backup puts it back.</p>
     <textarea id="backup-code" class="code" readonly>${backupCode()}</textarea>
     <div class="pbtns"><button class="small primary" data-act="backup-copy">Copy</button>${NATIVE ? '' : '<button class="small" data-act="backup-file">Save as a file</button>'}<button class="small" data-act="close">Close</button></div>`;
@@ -1154,7 +1193,7 @@ function modalHTML() {
       <div class="row2"><button class="violet" data-act="offer" data-id="yes">Hear him out</button><button data-act="offer" data-id="no">Not interested</button></div>`;
   }
   const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night');
-  const sticky = m.type === 'levelup' || m.type === 'offer' || m.type === 'confirm' || m.type === 'decision';
+  const sticky = m.type === 'levelup' || m.type === 'offer' || m.type === 'confirm' || m.type === 'decision' || m.type === 'story';
   return `<div class="modal-bg" data-act="${sticky ? 'noop' : 'close'}"><div class="modal ${night ? 'night' : ''}" data-act="noop">${inner}</div></div>`;
 }
 
@@ -1343,6 +1382,7 @@ function render(force = false) {
     if (s.levelUps?.length) ui.modal = { type: 'levelup', level: s.levelUps[0] };
     else if (s.offerPending) ui.modal = { type: 'offer' };
     else if (s.decisions.length) ui.modal = { type: 'decision', id: s.decisions[0].id };
+    else if (s.story?.queue?.length && s.introSeen) ui.modal = { type: 'story', id: s.story.queue[0] };
   }
   const html = hudHTML() + (ui.design ? designScreen() : dockHTML()) + guideHTML() + modalHTML();
   if (!force && html === lastHTML) return;
@@ -1374,7 +1414,7 @@ function tapMachine(kind, idx) {
   if (!mc) return;
   const v = G.jobView(s, mc, s.clock, lab);
   if (v.item && v.done && !mc.broken) {
-    const ok = lab ? G.collectLab(s, idx, s.clock) : G.collectJob(s, idx, s.clock);
+    const ok = lab ? G.collectLab(s, idx, s.clock) : G.collectJob(s, idx, s.clock, { byYou: true });
     if (ok) { world.poke(s, kind, idx, v.item); return; }
   }
   world.poke(s, kind, idx, null);
@@ -1386,6 +1426,9 @@ function confirmText(a, d) {
   const id = d.id;
   if (a === 'buymachine') return `Buy another ${MACHINES[id].name.toLowerCase()} for ${money(G.machinePrice(s, id))}?`;
   if (a === 'buylab') return `Buy a ${LAB_MACHINES[id].name.toLowerCase()} for 💜 ${money(G.machinePrice(s, id, true))}?`;
+  if (a === 'throw') return `Throw away ${Math.floor(s.display[id] || 0)} ${ITEMS[id].name.toLowerCase()}? It stays on its counter, empty.`;
+  if (a === 'throwfree') return `Throw away the ${ITEMS[id].name.toLowerCase()} and take it off its counter, so something else can go there?`;
+  if (a === 'manager-hire') return `Hire a ${MANAGER.skills[Number(d.skill)].name.toLowerCase()} manager for ${money(MANAGER.skills[Number(d.skill)].wage)} a day?`;
   if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? It holds one more thing on sale.` : null) : null; }
   if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
   if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
@@ -1427,6 +1470,11 @@ function act(el) {
       ui.modal = null; break;
     }
     case 'special': G.setSpecial(s, id); break;
+    case 'throw': G.throwAway(s, id, false); break;
+    case 'throwfree': G.throwAway(s, id, true); ui.modal = null; break;
+    case 'story-read': G.readChapter(s); ui.modal = null; break;
+    case 'claim': G.claimSet(s, id); break;
+    case 'manager-hire': case 'manager-fire': { const keep = s.cur; s.cur = Number(el.dataset.shop); if (a === 'manager-hire') G.hireManager(s, Number(el.dataset.skill)); else G.fireManager(s); s.cur = keep; break; }
     case 'cabinet': G.buyCabinet(s, Number(id)); break;
     case 'setting': settings[id] = !settings[id]; saveSettings(); if (id === 'sound') { SFX.setSound(settings.sound); SFX.unlock(); } if (id === 'notify' && settings.notify) askNotify(); break;
     case 'guide-next': s.guide.step++; break;
@@ -1486,12 +1534,12 @@ function act(el) {
     case 'collect': {
       const kind = el.dataset.kind, idx = Number(el.dataset.idx), lab = kind === 'night';
       const item = (lab ? s.lab : s.machines)[idx]?.job?.item;
-      if (lab ? G.collectLab(s, idx, t) : G.collectJob(s, idx, t)) world.poke(s, kind, idx, item);
+      if (lab ? G.collectLab(s, idx, t) : G.collectJob(s, idx, t, { byYou: true })) world.poke(s, kind, idx, item);
       break;
     }
     case 'collectall': {
       let n = 0;
-      s.machines.forEach((m, i) => { const item = m.job?.item; if (machineState(m) === 'ready' && G.collectJob(s, i, t, { quiet: true })) { n++; world.poke(s, 'day', i, item); } });
+      s.machines.forEach((m, i) => { const item = m.job?.item; if (machineState(m) === 'ready' && G.collectJob(s, i, t, { quiet: true, byYou: true })) { n++; world.poke(s, 'day', i, item); } });
       showToast(n ? `Collected ${n} batch${n === 1 ? '' : 'es'}.` : 'Nothing collected: the trays are full.', n ? 'good' : 'bad');
       break;
     }

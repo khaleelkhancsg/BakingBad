@@ -874,6 +874,49 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     scene.add(hit); pickables.push(hit);
     trays.push({ x, group: tg, sig: '' });
   }
+  const seasonGroup = new THREE.Group(); scene.add(seasonGroup);
+  let seasonSig = null;
+  function syncSeason(s) {
+    const z = G.currentSeason();
+    if (z === seasonSig) return;
+    seasonSig = z;
+    seasonGroup.clear();
+    if (!z) return;
+    const add = m => { seasonGroup.add(m); return m; };
+    const cols = { christmas: ['#c8323c', '#2f7a4a', '#d4af37'], halloween: ['#ff9a3d', '#6b3a8a', '#2b2d36'], valentine: ['#ff6f9a', '#e8323c', '#ffffff'],
+      easter: ['#ffd1e8', '#bfe6ff', '#fff3a8', '#c8f0c0'], summer: ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a'], bonfire: ['#ff9a3d', '#ffd447', '#e85d75'] }[z];
+    const glowM = c => smat({ color: c, emissive: c, emissiveIntensity: 0.35, roughness: 0.5 });
+    // Garland along the top of the back wall
+    for (let k = 0; k < 17; k++) {
+      const x = -4.1 + k * 0.5, y = 2.62 - Math.sin((k % 4) / 4 * PI) * 0.12, c = cols[k % cols.length];
+      if (z === 'summer') { const f = mesh(geo('flag', () => new THREE.ConeGeometry(0.11, 0.22, 3)), mat(c), x, y, -4.38, false); f.rotation.x = PI; add(f); }
+      else if (z === 'easter') { const e = sphere(0.07, c, x, y, -4.38, false); e.scale.set(0.8, 1.1, 0.8); add(e); }
+      else add(sphere(z === 'valentine' ? 0.07 : 0.06, glowM(c), x, y, -4.38, false));
+    }
+    // Something by the door outside (and a small one on the counter by the till)
+    const g = new THREE.Group(); g.position.set(6.25, 0, 4.45); add(g);
+    if (z === 'christmas') {
+      g.add(cyl(0.08, 0.1, 0.3, '#7a4a2e', 0, 0, 0, 8));
+      for (let k = 0; k < 3; k++) g.add(mesh(geo(`xt${k}`, () => new THREE.ConeGeometry(0.5 - k * 0.12, 0.55, 10)), mat('#2f7a4a'), 0, 0.55 + k * 0.38, 0));
+      g.add(mesh(geo('star', () => new THREE.OctahedronGeometry(0.07, 0)), starM, 0, 1.6, 0, false));
+      for (let k = 0; k < 9; k++) { const a = k * 1.9, r = 0.36 - (k % 3) * 0.08; g.add(sphere(0.045, glowM(cols[k % 3]), Math.cos(a) * r, 0.5 + (k % 3) * 0.38, Math.sin(a) * r, false)); }
+    } else if (z === 'halloween') {
+      for (const [x, r] of [[-0.2, 0.22], [0.22, 0.16]]) { const pk = sphere(r, '#ff9a3d', x, r * 0.85, 0); pk.scale.set(1.15, 0.85, 1.15); g.add(pk); g.add(cyl(0.025, 0.03, 0.08, '#3f7a3a', x, r * 1.6, 0, 6)); g.add(box(0.08, 0.05, 0.02, glowM('#ffd447'), x, r * 0.85, r * 1.05, false)); }
+    } else if (z === 'valentine') {
+      g.add(cyl(0.004, 0.004, 1.3, '#ffffff', 0, 0, 0, 4, false));
+      for (const dx of [-0.07, 0.07]) g.add(sphere(0.11, glowM('#e8323c'), dx, 1.42, 0, false));
+      const tip = mesh(geo('hearttip', () => new THREE.ConeGeometry(0.15, 0.2, 10)), glowM('#e8323c'), 0, 1.25, 0, false); tip.rotation.x = PI; g.add(tip);
+    } else if (z === 'easter') {
+      g.add(cyl(0.22, 0.17, 0.18, '#c9a46a', 0, 0, 0, 12)); g.add(mesh(geo('handle', () => new THREE.TorusGeometry(0.2, 0.015, 6, 14, PI)), mat('#a8703f'), 0, 0.18, 0));
+      for (let k = 0; k < 5; k++) { const e = sphere(0.06, cols[k % 4], Math.cos(k * 1.3) * 0.1, 0.2, Math.sin(k * 1.3) * 0.1); e.scale.set(0.8, 1.1, 0.8); g.add(e); }
+    } else if (z === 'summer') {
+      g.add(cyl(0.02, 0.02, 1.6, '#e9e4da', 0, 0, 0, 6)); g.add(mesh(geo('psol', () => new THREE.ConeGeometry(0.7, 0.3, 8)), mat('#ffd447'), 0, 1.6, 0));
+      g.add(cyl(0.18, 0.18, 0.02, '#4f9de8', 0.3, 0.001, 0.2, 14));
+    } else if (z === 'bonfire') {
+      for (let k = 0; k < 3; k++) { const l = box(0.14, 0.2, 0.14, glowM(cols[k]), -0.25 + k * 0.25, 0.9 + (k % 2) * 0.1, 0, false); g.add(l); g.add(cyl(0.004, 0.004, 0.9, '#2b2d36', -0.25 + k * 0.25, 0, 0, 4, false)); }
+    }
+    seasonGroup.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  }
   let counterSig = '';
   const starM = smat({ color: '#ffd447', emissive: '#ffb400', emissiveIntensity: 0.6, roughness: 0.4 });
   function syncCounters(s) {
@@ -2424,15 +2467,18 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     // Display case
     syncCounters(s); syncOpenSign(s);
     for (const o of counterGroup.children) if (o.userData.spin) o.rotation.y += dt * 1.5;
+    for (const t of trays) for (const o of t.group.children) if (o.userData.spin) o.rotation.y += dt * 2;
+    syncSeason(s);
     const menu = G.menuOf(s);
     const fill = id => Math.min(6, Math.ceil((s.display[id] || 0) / ITEMS[id].servings * 3));
-    const tsig = menu.map(id => id + fill(id)).join(',');
+    const sig5 = id => (G.starsOf(s, id) >= 5 ? '*' : '');
+    const tsig = menu.map(id => id + fill(id) + sig5(id)).join(',');
     if (tsig !== traySig) {
       traySig = tsig;
       trays.forEach((t, k) => {
         const id = menu[k];
         const n = id ? fill(id) : 0;
-        const tsg = id + n;
+        const tsg = id + n + (id ? sig5(id) : '');
         if (t.sig === tsg) return;
         t.sig = tsg;
         for (const o of t.group.children) if (o.isMesh) o.geometry.dispose();
@@ -2445,6 +2491,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
           t.group.add(m);
         }
         if (n) mergeStatic(t.group); // a counter's food: one mesh per material
+        if (n && sig5(id)) { const sp = mesh(geo('sparkle', () => new THREE.OctahedronGeometry(0.05, 0)), starM, 0, 0.45, 0, false); sp.userData.spin = true; t.group.add(sp); }
       });
     }
     // Back room props
