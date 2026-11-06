@@ -87,7 +87,7 @@ function hudHTML() {
       ${chip(`🎖️ ${s.level}<span class="meter xp"><i style="width:${s.level >= CFG.maxLevel ? 100 : Math.min(100, s.xp / G.xpToNext(s.level) * 100)}%"></i></span>`, 'data-act="info" data-kind="level" data-id="xp" title="Level"')}
       ${chip(`⭐ ${Math.round(s.rep)}`, 'data-act="info" data-kind="pop" data-id="pop" title="Popularity"')}
       ${showDirty ? chip(`🚨 ${Math.round(s.heat)}`, 'data-act="info" data-kind="heat" data-id="heat" title="Heat"', heatCls) : ''}
-      ${s.labUnlocked && s.case.evidence >= 1 ? chip(`🕵️ ${Math.round(s.case.evidence)}%`, 'data-act="tab" data-id="back" title="The case against you"', s.case.evidence >= 60 ? 'hot' : s.case.evidence >= 30 ? 'warm' : '') : ''}
+      ${s.labUnlocked && s.case.evidence >= 1 ? chip(`🕵️ ${Math.round(s.case.evidence)}%`, 'data-act="tab" data-id="police" title="The case against you"', s.case.evidence >= 60 ? 'hot' : s.case.evidence >= 30 ? 'warm' : '') : ''}
       ${s.won ? '' : chip(`🏦 ${d}d`, `data-act="tab" data-id="bank" title="${money(G.nextDue(s))} due"`, d <= 2 ? 'warn' : '')}
       ${doorTotal() && !(ui.room === 'back' && s.door.length) ? chip(`🚪 ${doorTotal()}`, `data-act="go-back" data-id="${doorShop()}" title="Buyers at a back door"`, 'night') : ''}
       ${s.decisions.length ? chip(`❗ ${s.decisions.length}`, 'data-act="decide" title="Waiting for you"', 'warn') : ''}
@@ -177,8 +177,8 @@ function kitchenTab() {
   return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
-function shopTab() {
-  const list = UPGRADES.filter(u => G.upgradeAvailable(s, u) && u.level <= s.level + 12);
+function shopTab(lab = false) {
+  const list = UPGRADES.filter(u => G.upgradeAvailable(s, u) && u.level <= s.level + 12 && !!u.lab === lab);
   list.sort((a, b) => (G.unlocked(s, b.level) - G.unlocked(s, a.level)) || (a.level - b.level));
   const cards = list.map(u => {
     const dirty = u.cash === 'dirty', open = G.unlocked(s, u.level);
@@ -188,11 +188,11 @@ function shopTab() {
     return pcard(`<div class="ptop"><span class="em">${u.emoji || '🛠️'}</span><div><b>${u.name}</b><small>${u.desc}</small></div></div>${btn}`, ibtn('upgrade', u.id), `wide ${u.lab ? 'night' : ''} ${open ? '' : 'locked'}`);
   }).join('') || pcard('<b>All bought</b><small>Nothing left in the shop for now.</small>');
   const owned = UPGRADES.filter(u => G.has(s, u.id)).length;
-  return { cards, hint: `Permanent upgrades.${owned ? ` You own ${owned}.` : ''}` };
+  return { cards, hint: lab ? 'Back-room upgrades: purity, safety, laundering and the people you know. Mostly paid in dirty cash.' : `Permanent bakery upgrades.${owned ? ` You own ${owned}.` : ''}` };
 }
 
-function crewTab() {
-  const cards = Object.entries(CREW).filter(([, c]) => (!c.lab || s.labUnlocked) && c.level <= s.level + 15).map(([role, c]) => {
+function crewTab(night = false) {
+  const cards = Object.entries(CREW).filter(([, c]) => (c.shift === 'night') === night && (!c.lab || s.labUnlocked) && c.level <= s.level + 15).map(([role, c]) => {
     const open = G.unlocked(s, role === 'pr' ? 1 : c.level);
     const pay = role === 'dealer' ? `keeps ${CFG.dealerCut * 100}%` : `${c.cash === 'dirty' ? '💜' : '💷'} ${money(c.wage)}/day`;
     const st = s.staff[role];
@@ -205,39 +205,42 @@ function crewTab() {
   return { cards, hint: `Loyal crew stay quiet; night crew below ${LOYALTY.informAt} loyalty may talk to ${CASE.detective}. A bonus (a day's pay) helps. Crew work while you're away. Wages come out at 6am: day crew from clean cash, night crew from dirty first. Today: ${money(G.crewWages(s, 'day'))} + 💜 ${money(G.crewWages(s, 'night'))}.` };
 }
 
+// ---------- The back room's own sections (they mirror the bakery's) ----------
+const labHint = t => s.cur ? `This back room cooks for the stall: what it makes is packed into Rosa's vans and driven to the stall under the bread.`
+  : G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
+  : `Cook any time; buyers come to the back door from 6pm to 7am.`;
+// 🧪 Lab: the back room's machines (like the Kitchen)
 function backTab() {
-  const t = s.clock;
-  let cards = '';
-  // The door
-  for (const b of s.door) {
-    const p = PRODUCTS[b.product], left = Math.max(0, (b.arrive + b.patience - t) / 1000);
-    cards += pcard(`<div class="ptop"><span class="em">${b.courier ? '📦' : '👤'}</span><div><b>${b.name}${b.hint ? ' 📷' : ''}</b><small>${p.emoji} ${p.name} ×${b.want} · ${secs(left)}</small></div></div>
-      <div class="pbtns"><button class="small violet" data-act="buyer" data-id="${b.id}">Answer</button></div>`, '', `night ${b.hint ? 'flagged' : ''}`);
-  }
-  // A branch back room packs for the stall
+  const t = s.clock, labHere = G.shopDef(s).lab;
+  const ready = s.lab.filter(m => m.job && t >= m.job.start + m.job.dur).length, idle = s.lab.filter(m => !m.job && m.last && !m.broken).length;
+  let cards = pcard(`<div class="ptop"><span class="em">⚡</span><div><b>Quick jobs</b><small>${ready} ready · ${idle} idle</small></div></div>
+    <div class="pbtns col"><button class="small violet" data-act="collectlab" ${ready ? '' : 'disabled'}>Bag it all (${ready})</button>
+    <button class="small" data-act="restartlab" ${idle && !G.sealed(s, t) ? '' : 'disabled'}>🔁 Cook again (${idle})</button></div>`, '', 'wide night');
   if (s.cur) {
     const st = s.stock, n = G.packed(s, s.cur);
     cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${G.shopDef(s).drive}h to the stall</small></div></div>
-      <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button><button class="small" data-act="tab" data-id="logistics">Fleet</button></div>`, ibtn('vans', 'x'), 'wide night');
+      <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button></div>`, ibtn('vans', 'x'), 'wide night');
   }
-  // The case against you
-  if (!s.cur) {
-    const ev = s.case.evidence;
-    cards += pcard(`<div class="ptop"><span class="em">🕵️</span><div><b>${CASE.detective}'s case</b><small>${Math.round(ev)}% built · court at 100%</small></div></div>
-      <span class="heat ${ev >= 60 ? 'hot' : ev >= 30 ? 'warm' : ''}"><span class="meter wide"><i style="width:${ev}%"></i></span></span>
-      <div class="pbtns"><button class="small violet" data-act="case-bribe" ${s.dirty >= G.caseBribeCost(s) && ev > 0 ? '' : 'disabled'}>Bribe<small>${money(G.caseBribeCost(s))}</small></button>
-        <button class="small violet" data-act="case-frame" ${s.dirty >= G.caseFrameCost(s) && ev > 0 ? '' : 'disabled'}>Frame rivals<small>${money(G.caseFrameCost(s))}</small></button></div>`, ibtn('case', 'x'), 'wide night');
-    if (s.auction && s.auction.until > t) {
-      const p = PRODUCTS[s.auction.product];
-      cards += pcard(`<div class="ptop"><span class="em">🔨</span><div><b>Auction: ${p.emoji} ${p.name}</b><small>${s.auction.kits} rare kits · ${money(Math.round(p.price * purityMult(0.6)))} a bag · closes in ${mins((s.auction.until - t) / MIN)}</small></div></div>
-        <div class="pbtns"><button class="small violet" data-act="auction" ${s.dirty >= s.auction.price ? '' : 'disabled'}>💜 ${money(s.auction.price)}</button></div>`, ibtn('product', s.auction.product), 'wide night');
-    }
+  for (const [type, M] of Object.entries(LAB_MACHINES)) {
+    if (!labHere.includes(type) || M.level > s.level + 10) continue;
+    const list = s.lab.map((m, i) => [m, i]).filter(([m]) => m.type === type), block = G.machineBlock(s, type, true);
+    const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
+    cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
+      <div class="pbtns col">${list.length ? `<button class="small violet" data-act="machine" data-kind="night" data-idx="${list[0][1]}">Open</button>` : ''}
+      ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)}</button>`}</div>`,
+      ibtn('labmachine', type), `wide night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
   }
-  // Street reputation
-  const stCls = s.street < 25 ? 'hot' : s.street < 45 ? 'warm' : '';
-  cards += pcard(`<div class="ptop"><span class="em">🗣️</span><div><b>Street rep ${Math.round(s.street)}</b><small>≈ ${Math.round(G.buyersPerHour(s))} buyers an hour after dark</small></div></div>
-    <span class="heat pop ${stCls}"><span class="meter wide"><i style="width:${s.street}%"></i></span></span>`, ibtn('street', 'x'), 'night');
-  // Products and kits (what you can make, plus the next few)
+  return { cards, hint: `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. ${labHint(t)}` };
+}
+// 📦 Supplies: kits from Dez, cutting, the auction, selling leftovers to Dez
+function stashTab() {
+  const t = s.clock;
+  let cards = '';
+  if (s.auction && s.auction.until > t) {
+    const p = PRODUCTS[s.auction.product];
+    cards += pcard(`<div class="ptop"><span class="em">🔨</span><div><b>Auction: ${p.emoji} ${p.name}</b><small>${s.auction.kits} rare kits · ${money(Math.round(p.price * purityMult(0.6)))} a bag · closes in ${mins((s.auction.until - t) / MIN)}</small></div></div>
+      <div class="pbtns"><button class="small violet" data-act="auction" ${s.dirty >= s.auction.price ? '' : 'disabled'}>💜 ${money(s.auction.price)}</button></div>`, ibtn('product', s.auction.product), 'wide night');
+  }
   const left = G.kitsLeftToday(s), kitNx = nextCap(CAPS.kits, s.level);
   const prods = Object.entries(PRODUCTS).filter(([id, p]) => p.rare ? (s.bags[id] || 0) + (s.kits[id] || 0) > 0 : G.unlocked(s, p.level) || (s.bags[id] || 0) > 0);
   prods.sort((a, b) => ((s.bags[b[0]] || 0) > 0) - ((s.bags[a[0]] || 0) > 0) || b[1].level - a[1].level);
@@ -251,37 +254,47 @@ function backTab() {
       ${!open ? lockTag(p.level) : `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${cut === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>
       <div class="pbtns">${p.rare ? '<span class="lock">auction only</span>' : kitBtns}<button class="small" data-act="dez" data-id="${id}" ${have ? '' : 'disabled'}>Dez<small>½ price</small></button></div>`}`, ibtn('product', id), `wide night ${open ? '' : 'locked'}`);
   }
-  // This shop's back-room machines
-  const labHere = G.shopDef(s).lab;
-  for (const [type, M] of Object.entries(LAB_MACHINES)) {
-    if (!labHere.includes(type) || M.level > s.level + 10) continue;
-    const list = s.lab.map((m, i) => [m, i]).filter(([m]) => m.type === type), block = G.machineBlock(s, type, true);
-    const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
-    cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
-      <div class="pbtns col">${list.length ? `<button class="small violet" data-act="machine" data-kind="night" data-idx="${list[0][1]}">Use</button>` : ''}
-      ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)}</button>`}</div>`,
-      ibtn('labmachine', type), `night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
+  return { cards, hint: `Kits from Dez (${left} more today; he charges half again for clean money), how hard to cut each product, and anything you can't shift sold back to Dez at half price.` };
+}
+// 🚪 Deals: the back door, Dez's jobs and deliveries (like Orders)
+function dealsTab() {
+  const t = s.clock;
+  let cards = '';
+  for (const b of s.shops[0].door) {
+    const p = PRODUCTS[b.product], left = Math.max(0, (b.arrive + b.patience - t) / 1000);
+    cards += pcard(`<div class="ptop"><span class="em">${b.courier ? '📦' : '👤'}</span><div><b>${b.name}${b.hint ? ' 📷' : ''}</b><small>${p.emoji} ${p.name} ×${b.want} · ${secs(left)}</small></div></div>
+      <div class="pbtns"><button class="small violet" data-act="buyer" data-id="${b.id}">Answer</button></div>`, '', `wide night ${b.hint ? 'flagged' : ''}`);
   }
-  // Cash and heat
-  const safe = G.launderLeft(s);
-  cards += pcard(`<div class="ptop"><span class="em">🧼</span><div><b>Launder</b><small>${money(safe)} through the tills today · ${pct(G.launderFee(s))} cut</small></div></div>
-    <div class="pbtns"><button class="small violet" data-act="launder-open" ${s.dirty >= 1 ? '' : 'disabled'}>Tills</button><button class="small" data-act="tab" data-id="wash">All routes</button></div>`, ibtn('launder', 'x'), 'night');
-  const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
-  cards += pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>undercover ≈ ${Math.round(G.copChance(s) * 100)}%</small></div></div>
-    <span class="heat ${heatCls}"><span class="meter wide"><i style="width:${s.heat}%"></i></span></span>`, ibtn('heat', 'heat'), 'night');
+  for (const o of s.orders.filter(o => o.kind === 'dez')) {
+    const it = PRODUCTS[o.item], have = G.orderStock(s, o);
+    cards += pcard(`<div class="ptop"><span class="em">${it.emoji}</span><div><b>${o.client}</b><small>${o.qty} × ${it.name} · ${mins((o.until - t) / MIN)} left<br>pays 💜 ${money(o.pay)} · ${o.xp} XP</small></div></div>
+      <div class="pbtns"><button class="small violet" data-act="order" data-id="${o.id}" ${have >= o.qty ? '' : 'disabled'}>${have >= o.qty ? 'Deliver' : `${have}/${o.qty}`}</button>
+      <button class="small" data-act="order-drop" data-id="${o.id}">Turn down</button></div>`, '', 'wide night');
+  }
+  if (G.deliveryOpen(s)) cards += pcard(`<div class="ptop"><span class="em">🛵</span><div><b>Delivery round ${s.delivery.on ? 'on' : 'off'}</b><small>${s.delivery.riders} riders · ${s.deliveries.length} out on drops</small></div></div>
+    <div class="pbtns"><button class="small" data-act="tab" data-id="logistics">Riders</button></div>`, ibtn('delivery', 'x'), 'night');
+  if (!cards) cards = pcard(`<div class="ptop"><span class="em">🌙</span><div><b>Quiet right now</b><small>${doorOpen(t) ? 'Nobody at the back door.' : `The back door opens at 6pm (in ${mins((G.nextNightStart(t) - t) / MIN)}).`}</small></div></div>`, '', 'wide night');
+  return { cards, hint: s.delivery.on ? 'Buyers phone and riders deliver; anyone left over knocks at the stall\'s back door.' : 'Buyers knock at the stall\'s back door from 6pm to 7am. Read them before you sell. Dez\'s jobs pay well for a big batch by a deadline.' };
+}
+// 🚨 Heat & police: heat, the sergeant, the case and street rep
+function policeTab() {
+  const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '', ev = s.case.evidence;
+  let cards = pcard(`<div class="ptop"><span class="em">🚨</span><div><b>Heat ${Math.round(s.heat)}</b><small>undercover ≈ ${Math.round(G.copChance(s) * 100)}% · vans ${Math.round(s.areaHeat.vans || 0)} · streets ${Math.round(s.areaHeat.streets || 0)}</small></div></div>
+    <span class="heat ${heatCls}"><span class="meter wide"><i style="width:${s.heat}%"></i></span></span>`, ibtn('heat', 'heat'), 'wide night');
+  cards += pcard(`<div class="ptop"><span class="em">🕵️</span><div><b>${CASE.detective}'s case</b><small>${Math.round(ev)}% built · court at 100%</small></div></div>
+    <span class="heat ${ev >= 60 ? 'hot' : ev >= 30 ? 'warm' : ''}"><span class="meter wide"><i style="width:${ev}%"></i></span></span>
+    <div class="pbtns"><button class="small violet" data-act="case-bribe" ${s.dirty >= G.caseBribeCost(s) && ev > 0 ? '' : 'disabled'}>Bribe<small>${money(G.caseBribeCost(s))}</small></button>
+      <button class="small violet" data-act="case-frame" ${s.dirty >= G.caseFrameCost(s) && ev > 0 ? '' : 'disabled'}>Frame rivals<small>${money(G.caseFrameCost(s))}</small></button></div>`, ibtn('case', 'x'), 'wide night');
   cards += pcard(`<div class="ptop"><span class="em">👮</span><div><b>Sergeant</b><small>Heat -${CFG.bribeHeat}, once a day</small></div></div>
     <div class="pbtns"><button class="small violet" data-act="bribe" ${s.dirty < CFG.bribeCost || s.today.bribe ? 'disabled' : ''}>💜 ${money(CFG.bribeCost)}</button></div>`, ibtn('bribe', 'x'), 'night');
-  if (Object.keys(s.corners).length) cards += pcard(`<div class="ptop"><span class="em">🗺️</span><div><b>Turf</b><small>${Object.keys(s.corners).length} corners · ${Object.values(s.corners).reduce((a, k) => a + k.stock, 0)} bags out</small></div></div>
-    <div class="pbtns"><button class="small violet" data-act="tab" data-id="turf">Corners</button></div>`, '', 'night');
+  const stCls = s.street < 25 ? 'hot' : s.street < 45 ? 'warm' : '';
+  cards += pcard(`<div class="ptop"><span class="em">🗣️</span><div><b>Street rep ${Math.round(s.street)}</b><small>≈ ${Math.round(G.buyersPerHour(s))} buyers an hour after dark</small></div></div>
+    <span class="heat pop ${stCls}"><span class="meter wide"><i style="width:${s.street}%"></i></span></span>`, ibtn('street', 'x'), 'night');
+  if (G.cashPileHeat(s)) cards += pcard(`<div class="ptop"><span class="em">💰</span><div><b>Cash pile</b><small>+${Math.round(G.cashPileHeat(s))} raid heat · wash or stash it</small></div></div>
+    <div class="pbtns"><button class="small violet" data-act="tab" data-id="wash">Wash</button></div>`, '', 'night');
   cards += FEATURES.filter(f => ['haggle', 'courier', 'rivals'].includes(f.id) && !G.unlocked(s, f.level)).map(f => pcard(`<div class="ptop"><span class="em">${{ haggle: '🤝', courier: '🚚', rivals: '👥' }[f.id]}</span><div><b>${f.name}</b><small>coming up</small></div></div>
       ${lockTag(f.level)}`, ibtn('feature', f.id), 'night locked')).join('');
-  const hint = s.cur ? `This back room cooks for the stall: what it makes is packed into Rosa's vans and driven to the stall's back room under the bread. Buyers only come to the stall.`
-    : G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
-    : s.delivery.on ? `Delivery round on: ${s.delivery.riders} riders${s.delivery.out ? ` (${s.delivery.out} arrested)` : ''}, ${s.deliveries.length} out on drops. Buyers phone instead of knocking.`
-    : doorOpen(t) ? `The back door is open until 7am. ${s.door.length ? `${s.door.length} waiting.` : 'Nobody at the door right now.'}`
-    : `Cook any time. Buyers come to the back door from 6pm to 7am (opens in ${mins((G.nextNightStart(t) - t) / MIN)}).`;
-  const where = `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. `;
-  return { cards, hint: where + hint };
+  return { cards, hint: `Raids come at ${CFG.raidAt}+ heat; a case at 100% goes to court. Lying low cools both.` };
 }
 
 function turfTab() {
@@ -391,7 +404,7 @@ function ordersTab() {
     cards += pcard(`<div class="ptop"><span class="em">${g.done ? '✅' : '🎯'}</span><div><b>${kind}</b><small>${GOALS[g.key].text(g.target)}</small></div></div>
       <span class="heat pop"><span class="meter wide"><i style="width:${(pg / g.target * 100).toFixed(0)}%"></i></span></span><small>${g.done ? 'Done' : `${Math.round(pg).toLocaleString('en-GB')} / ${g.target.toLocaleString('en-GB')}`}${kind === 'This week' ? ' · +1 ⭐ token' : ''}</small>`, '', `wide ${g.done ? 'hired' : ''}`);
   }
-  for (const o of s.orders) {
+  for (const o of s.orders.filter(o => o.kind !== 'dez')) {
     const dez = o.kind === 'dez', it = (dez ? PRODUCTS : ITEMS)[o.item], have = G.orderStock(s, o);
     cards += pcard(`<div class="ptop"><span class="em">${it.emoji}</span><div><b>${o.client}</b><small>${o.qty} × ${it.name} · ${mins((o.until - t) / MIN)} left<br>pays ${dez ? '💜' : '💷'} ${money(o.pay)} · ${o.xp} XP</small></div></div>
       <div class="pbtns"><button class="small ${dez ? 'violet' : 'primary'}" data-act="order" data-id="${o.id}" ${have >= o.qty ? '' : 'disabled'}>${have >= o.qty ? 'Deliver' : `${have}/${o.qty}`}</button>
@@ -769,17 +782,19 @@ const TABS = {
   shop: { label: 'Upgrades', emoji: '🛠️', fn: () => shopTab() }, crew: { label: 'Crew', emoji: '👥', fn: () => crewTab() },
   orders: { label: 'Orders', emoji: '📦', fn: () => ordersTab() }, marketing: { label: 'Marketing', emoji: '📣', fn: () => marketingTab() },
   shops: { label: 'Shops & property', emoji: '🏪', fn: () => shopsTab() }, bank: { label: 'Bank & tax', emoji: '🏦', fn: () => bankTab() },
-  back: { label: 'Back room', emoji: '💜', fn: () => backTab(), night: true }, turf: { label: 'Turf', emoji: '🗺️', fn: () => turfTab(), night: true },
+  back: { label: 'Lab', emoji: '🧪', fn: () => backTab(), night: true }, stash: { label: 'Supplies', emoji: '📦', fn: () => stashTab(), night: true },
+  nightshop: { label: 'Upgrades', emoji: '🛠️', fn: () => shopTab(true), night: true }, nightcrew: { label: 'Crew', emoji: '🧢', fn: () => crewTab(true), night: true },
+  deals: { label: 'Deals', emoji: '🚪', fn: () => dealsTab(), night: true }, police: { label: 'Heat & police', emoji: '🚨', fn: () => policeTab(), night: true },
+  turf: { label: 'Turf', emoji: '🗺️', fn: () => turfTab(), night: true },
   wash: { label: 'Wash', emoji: '🧼', fn: () => washTab(), night: true },
   logistics: { label: 'Logistics', emoji: '🚚', fn: () => logisticsTab(), night: true },
 };
 function menuGroups() {
-  const dark = ['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]];
-  const business = ['Business', ['marketing', 'shops', 'bank']];
-  if (ui.room === 'back' && s.labUnlocked) return [dark, business];
-  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], business];
+  if (ui.room === 'back' && s.labUnlocked) return [['The back room', ['back', 'stash', 'nightshop', 'nightcrew', 'deals']],
+    ['The operation', ['police', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]]];
+  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank']]];
 }
-const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && doorTotal() ? doorTotal() : id === 'bank' && s.hmrc > 1 ? '!' : '');
+const tabBadge = id => (id === 'orders' && s.orders.filter(o => o.kind !== 'dez').length ? s.orders.filter(o => o.kind !== 'dez').length : id === 'deals' && (doorTotal() + s.orders.filter(o => o.kind === 'dez').length) ? doorTotal() + s.orders.filter(o => o.kind === 'dez').length : id === 'police' && s.case.evidence >= 60 ? '!' : id === 'bank' && s.hmrc > 1 ? '!' : '');
 function openTab(id) {
   ui.tab = id; ui.panel = null;
   if (TABS[id].night) ui.room = 'back'; else if (ui.room === 'back') ui.room = 'shop';
@@ -1205,7 +1220,7 @@ function act(el) {
     case 'panel': ui.panel = ui.panel === id ? null : id; if (id === 'menu' && ui.panel) ui.tab = null; break;
     case 'dock-close': ui.tab = null; break;
     case 'map-go': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.panel = null; if (ui.tab && TABS[ui.tab].night) ui.tab = null; break;
-    case 'go-back': if (id !== undefined) G.viewShop(s, Number(id)); ui.room = 'back'; ui.panel = null; ui.tab = 'back'; break;
+    case 'go-back': if (id !== undefined) G.viewShop(s, Number(id)); ui.room = 'back'; ui.panel = null; ui.tab = doorTotal() ? 'deals' : 'back'; break;
     case 'room':
       if (!s.labUnlocked) break;
       ui.room = ui.room === 'back' ? 'shop' : 'back';
@@ -1242,6 +1257,8 @@ function act(el) {
       break;
     }
     case 'learn': G.buyRecipe(s, id); break;
+    case 'collectlab': { let n = 0; s.lab.forEach((m, i) => { const item = m.job?.item; if (m.job && t >= m.job.start + m.job.dur && G.collectLab(s, i, t, { quiet: true })) { n++; world.poke(s, 'night', i, item); } }); showToast(n ? `Bagged ${n} cook${n === 1 ? '' : 's'}.` : 'Nothing ready.', n ? 'good' : 'bad'); break; }
+    case 'restartlab': { let n = 0; s.lab.forEach((m, i) => { if (!m.job && m.last && !m.broken && G.startLab(s, i, m.last, t, { quiet: true })) n++; }); showToast(n ? `Started ${n} cook${n === 1 ? '' : 's'}.` : 'Couldn\'t start anything: check kits.', n ? 'good' : 'bad'); break; }
     case 'buymachine': G.buyMachine(s, id); break;
     case 'buylab': G.buyMachine(s, id, true); break;
     case 'repair': G.repairMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
