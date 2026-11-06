@@ -277,7 +277,12 @@ Open **🎨 Design** any time:
 - **Walls**: wallpaper each wall panel.
 - **Decor**: place plants, tables, a piano, an aquarium, a carousel and more on the green squares. Tap one to move, turn or sell it (half back).
 - **Wall art**: paintings, mirrors, gold records and more on the wall panels.
+- **Outside**: each shop's paint, a canopy over the door, a shop sign (wooden, hand-painted, neon or gold) and extras
+  (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm.
 - **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for more machines.
+  You can see them: an island counter, striped food carts and stall canopies, steel benches, a cellar hatch and the annex.
+
+Upgraded machines look it too: chrome bands, a glow strip, gold trim and a star at tier 5, with pips for the tier.
 
 Decor adds **charm**. Each point of charm brings about 1% more customers, up to +30%.
 

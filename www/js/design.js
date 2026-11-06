@@ -105,6 +105,67 @@ export const EXPANSIONS = {
 };
 export const SELL_BACK = 0.5;
 
+// ---------- The outside of each shop ----------
+export const OUT_PAINT = {
+  cream:      { level: 1,  name: 'Cream',          price: 0,     color: '#c98f6b', trim: '#fff0dc' },
+  sage:       { level: 4,  name: 'Sage green',     price: 400,   color: '#7f9c7a', trim: '#f4f0e8', charm: 1 },
+  navy:       { level: 8,  name: 'Navy',           price: 700,   color: '#2f4a6b', trim: '#e9d8b4', charm: 1 },
+  blush:      { level: 12, name: 'Blush pink',     price: 1000,  color: '#e3a6a6', trim: '#ffffff', charm: 2 },
+  butter:     { level: 18, name: 'Butter yellow',  price: 1600,  color: '#e9c46a', trim: '#5c3520', charm: 2 },
+  terracotta: { level: 26, name: 'Terracotta',     price: 2500,  color: '#b5654a', trim: '#f4efe6', charm: 2 },
+  charcoal:   { level: 36, name: 'Charcoal',       price: 4000,  color: '#3a3d44', trim: '#d4af37', charm: 3 },
+  royal:      { level: 60, name: 'Royal green & gold', price: 12000, color: '#1f4d3a', trim: '#d4af37', charm: 4 },
+};
+export const OUT_CANOPY = {
+  none:    { level: 1,  name: 'No canopy',      price: 0 },
+  red:     { level: 3,  name: 'Red stripes',    price: 500,   a: '#e85d75', b: '#ffffff', charm: 2 },
+  green:   { level: 7,  name: 'Green stripes',  price: 800,   a: '#4f8f48', b: '#f4f0e8', charm: 2 },
+  navy:    { level: 14, name: 'Navy stripes',   price: 1400,  a: '#2f4a6b', b: '#f4f0e8', charm: 3 },
+  plum:    { level: 24, name: 'Plum',           price: 2600,  a: '#6b3a5a', b: '#6b3a5a', charm: 3 },
+  gold:    { level: 45, name: 'Gold scalloped', price: 8000,  a: '#d4af37', b: '#fff1b8', charm: 5 },
+};
+export const OUT_SIGN = {
+  none:    { level: 1,  name: 'No sign',        price: 0 },
+  wood:    { level: 2,  name: 'Wooden board',   price: 300,  bg: '#8a5a36', fg: '#ffe7c2', charm: 1 },
+  painted: { level: 10, name: 'Hand-painted',   price: 1200, bg: '#f4f0e8', fg: '#7a3b33', charm: 2 },
+  neon:    { level: 20, name: 'Neon',           price: 3000, bg: '#1d1528', fg: '#ff7eb6', glow: true, charm: 3 },
+  gold:    { level: 40, name: 'Gold lettering', price: 9000, bg: '#1f2026', fg: '#d4af37', charm: 4 },
+};
+export const OUT_EXTRAS = {
+  boxes:    { level: 2,  name: 'Window boxes',    emoji: '🌺', price: 250,   charm: 1 },
+  bay:      { level: 5,  name: 'Potted bay trees', emoji: '🌳', price: 600,  charm: 2 },
+  bikes:    { level: 8,  name: 'Bike rack',       emoji: '🚲', price: 400,   charm: 1 },
+  benchout: { level: 11, name: 'Bench by the door', emoji: '🪑', price: 900, charm: 2 },
+  bunting:  { level: 15, name: 'Bunting',         emoji: '🎏', price: 1200,  charm: 2 },
+  lanterns: { level: 22, name: 'Door lanterns',   emoji: '🏮', price: 2000,  charm: 2 },
+  lights:   { level: 30, name: 'String lights',   emoji: '💡', price: 3500,  charm: 3 },
+};
+export function outOf(s) {
+  s.design.outside ||= { paint: 'cream', canopy: 'none', sign: 'none', extras: {} };
+  return s.design.outside;
+}
+export function setOutside(s, part, id) {
+  const T = { paint: OUT_PAINT, canopy: OUT_CANOPY, sign: OUT_SIGN }[part], o = outOf(s), f = T?.[id];
+  if (!f) return { msg: '' };
+  if (!levelOk(s, f)) return lockMsg(f);
+  if (o[part] === id) return { msg: 'You already have that.' };
+  if (!pay(s, f.price)) return { msg: 'Not enough clean cash.' };
+  o[part] = id; return { ok: true, msg: `${f.name}: done.` };
+}
+export function toggleExtra(s, id) {
+  const f = OUT_EXTRAS[id], o = outOf(s);
+  if (!f) return { msg: '' };
+  if (o.extras[id]) { delete o.extras[id]; refund(s, Math.round(f.price * SELL_BACK)); return { ok: true, msg: `${f.name} taken down (half back).` }; }
+  if (!levelOk(s, f)) return lockMsg(f);
+  if (!pay(s, f.price)) return { msg: 'Not enough clean cash.' };
+  o.extras[id] = true; return { ok: true, msg: `${f.name} put up.` };
+}
+export function outsideCharm(s) {
+  const o = s.design.outside; if (!o) return 0;
+  return (OUT_PAINT[o.paint]?.charm || 0) + (OUT_CANOPY[o.canopy]?.charm || 0) + (OUT_SIGN[o.sign]?.charm || 0)
+    + Object.keys(o.extras || {}).reduce((a, k) => a + (OUT_EXTRAS[k]?.charm || 0), 0);
+}
+
 // ---------- The back room's own look (paid in dirty cash) ----------
 // Whole-room floors and walls, and decorations on a 7 x 9 grid of squares. Decor does something:
 // comfort keeps the night crew loyal, cover hides product from raids, security cools the heat.
@@ -484,6 +545,7 @@ export function charm(s) {
   for (const k in d.art) c += ART[d.art[k]]?.charm || 0;
   for (const k in d.floor) c += d.floor[k] === 'cracked' ? -0.2 : ['checker', 'stone'].includes(d.floor[k]) ? 0 : 0.1;
   for (const k in d.wall) c += d.wall[k] === 'torn' ? -0.5 : d.wall[k] === 'plaster' ? 0 : 0.3;
+  c += outsideCharm(s);
   c = Math.max(0, c);
   return Math.round(c * 10) / 10;
 }

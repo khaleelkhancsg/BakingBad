@@ -884,8 +884,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
   // ---------- Outside: shopfront walls, planters, A-board, street lamp ----------
   // Knee-high front walls (they open up when a terrace is bought), with planters and a doorway on the street side
   const frontWall = new THREE.Group(), sideWall = new THREE.Group();
-  frontWall.add(box(9.4, 0.5, 0.2, shopWain, 0, 0, 4.6), box(9.44, 0.06, 0.26, trim, 0, 0.5, 4.6));
-  sideWall.add(box(0.2, 0.5, 7.5, shopWain, 4.6, 0, -0.95), box(0.26, 0.06, 7.54, trim, 4.6, 0.5, -0.95));
+  const extWain = mat('#c98f6b'), extTrim = mat('#fff0dc');
+  frontWall.add(box(9.4, 0.5, 0.2, extWain, 0, 0, 4.6), box(9.44, 0.06, 0.26, extTrim, 0, 0.5, 4.6));
+  sideWall.add(box(0.2, 0.5, 7.5, extWain, 4.6, 0, -0.95), box(0.26, 0.06, 7.54, extTrim, 4.6, 0.5, -0.95));
   const petalCols = ['#ff7eb6', '#ffd447', '#ffffff', '#ff5d6c', '#b58cff'];
   function planter(group, x, z, alongX) {
     group.add(box(alongX ? 1.1 : 0.3, 0.2, alongX ? 0.3 : 1.1, '#6b4a2e', x, 0.56, z));
@@ -1212,6 +1213,76 @@ export function createScene(canvas, overlayEl, { onPick }) {
       backDecorGroup.add(m);
     });
   }
+  // ---------- The outside of the shop: paint, canopy, sign and extras ----------
+  const outsideGroup = new THREE.Group(); scene.add(outsideGroup);
+  let outSig = '';
+  const stripeTex = (a, b) => canvasTex(64, 16, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? b : a; c.fillRect(i * 8, 0, 8, h); } }, [4, 1]);
+  function syncOutside(s) {
+    const o = s.design.outside || { paint: 'cream', canopy: 'none', sign: 'none', extras: {} };
+    const ex = s.design.expansions || {};
+    const sig = JSON.stringify([o, ex.front, ex.side, G.shopDef(s).sign]);
+    if (sig === outSig) return;
+    outSig = sig;
+    const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream;
+    extWain.color.set(P.color); extTrim.color.set(P.trim);
+    outsideGroup.clear();
+    const add = m => { m.traverse?.(x => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); outsideGroup.add(m); return m; };
+    // A canopy over the side doorway
+    const C = D.OUT_CANOPY[o.canopy];
+    if (C && C.a) {
+      const cm = mesh(new THREE.BoxGeometry(0.85, 0.05, 2.1), smat({ map: stripeTex(C.a, C.b), roughness: 0.8 }), 5.0, 2.2, 3.7);
+      cm.rotation.z = -0.32; add(cm);
+      for (const z of [2.75, 4.65]) add(box(0.04, 0.5, 0.04, '#2b2d36', 4.65, 1.75, z));
+      if (o.canopy === 'gold') for (let k = 0; k < 7; k++) add(sphere(0.07, C.b, 5.38, 2.03, 2.75 + k * 0.32));
+    }
+    // The shop sign, on two posts at the front corner
+    const S = D.OUT_SIGN[o.sign];
+    if (S && S.bg) {
+      const text = G.shopDef(s).sign;
+      const tex = canvasTex(256, 64, (c, w, h) => { c.fillStyle = S.bg; c.fillRect(0, 0, w, h); if (S.glow) { c.shadowColor = S.fg; c.shadowBlur = 16; }
+        c.fillStyle = S.fg; c.font = `bold ${text.length > 13 ? 26 : 32}px Georgia, serif`; c.textAlign = 'center'; c.fillText(text, w / 2, 42); });
+      const board = mesh(new THREE.BoxGeometry(1.7, 0.42, 0.06), [mat(S.bg), mat(S.bg), mat(S.bg), mat(S.bg), S.glow ? new THREE.MeshBasicMaterial({ map: tex }) : smat({ map: tex, roughness: 0.7 }), mat(S.bg)], 5.85, 1.5, 4.95);
+      board.rotation.y = PI / 4; add(board);
+      for (const dx of [-0.6, 0.6]) add(box(0.05, 1.3, 0.05, '#2b2d36', 5.85 + dx * Math.cos(PI / 4), 0, 4.95 - dx * Math.sin(PI / 4)));
+    }
+    const E = o.extras || {};
+    if (E.boxes && !ex.front) for (const x of [-1.7, 1.3]) { add(box(1.0, 0.18, 0.26, '#7a4a2e', x, 0.56, 4.78)); for (let k = 0; k < 4; k++) add(sphere(0.07, ['#ff7eb6', '#ffd447', '#ffffff', '#b58cff'][k], x - 0.36 + k * 0.24, 0.8, 4.78)); }
+    if (E.bay) for (const x of [5.05, 6.65]) { add(cyl(0.2, 0.16, 0.4, '#3a3d44', x, 0, 5.45, 12)); add(cyl(0.03, 0.03, 0.5, '#7a5534', x, 0.4, 5.45, 6)); add(sphere(0.3, '#3f7a3a', x, 1.1, 5.45)); }
+    if (E.benchout) { const g = new THREE.Group(); g.add(box(1.2, 0.06, 0.38, '#a8703f', 0, 0.42, 0)); g.add(box(1.2, 0.32, 0.05, '#a8703f', 0, 0.5, -0.18)); for (const dx of [-0.5, 0.5]) g.add(box(0.06, 0.42, 0.34, '#2b2d36', dx, 0, 0)); g.position.set(5.85, 0, 6.45); g.rotation.y = PI; add(g); }
+    if (E.bikes) { for (let k = 0; k < 3; k++) { const r = mesh(geo('bikeloop', () => new THREE.TorusGeometry(0.3, 0.025, 6, 14, PI)), mat('#8d939c', { metalness: 0.6 }), -6.6 + k * 0.45, 0, 5.6); r.rotation.y = PI / 2; add(r); } }
+    if (E.bunting) { const cols = ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a', '#ffffff']; for (let k = 0; k < 18; k++) { const f = mesh(geo('flag', () => new THREE.ConeGeometry(0.11, 0.22, 3)), mat(cols[k % 5]), -4.3 + k * 0.5, 2.78, -4.35); f.rotation.x = PI; add(f); } }
+    if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); }
+    if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } }
+  }
+  // ---------- What the expansions add: an island, carts, stalls, benches, a cellar hatch, the annex ----------
+  const expGroup = new THREE.Group(); scene.add(expGroup);
+  let expSig = '';
+  function syncExpansions(s) {
+    const ex = s.design.expansions || {};
+    const sig = JSON.stringify(ex);
+    if (sig === expSig) return;
+    expSig = sig;
+    expGroup.clear();
+    const add = m => { m.traverse?.(x => { if (x.isMesh) x.receiveShadow = true; }); expGroup.add(m); return m; };
+    const plank = mat('#b88452'), steel = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
+    if (ex.island) { add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -2.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.65)); }
+    if (ex.island2) add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -1.1));
+    const canopy = (x, z, ry, a, b) => {
+      const g = new THREE.Group();
+      g.add(mesh(new THREE.BoxGeometry(1.25, 0.05, 1.1), smat({ map: stripeTex(a, b), roughness: 0.8 }), 0, 2.25, 0));
+      for (const [dx, dz] of [[-0.55, -0.48], [0.55, -0.48], [-0.55, 0.48], [0.55, 0.48]]) g.add(box(0.04, 2.25, 0.04, '#3a3d44', dx, 0, dz));
+      g.add(box(1.15, 0.06, 0.95, '#a8703f', 0, 0, 0));
+      for (const dx of [-0.45, 0.45]) { const w = cyl(0.12, 0.12, 0.05, '#2b2d36', dx, 0.12, 0.5, 12); w.rotation.x = PI / 2; g.add(w); }
+      g.position.set(x, 0, z); g.rotation.y = ry; add(g);
+    };
+    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) canopy(x, 6.05, 0, '#e85d75', '#ffffff');
+    if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) canopy(6.05, z, PI / 2, '#4f8f48', '#f4f0e8');
+    if (ex.bench) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, -1.2));
+    if (ex.bench3) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, 0.1));
+    if (ex.bench2) { add(box(0.8, 0.03, 0.8, '#2b2d36', -6.4, 0.005, -2.55)); for (const dx of [-0.25, 0.25]) add(box(0.04, 0.9, 0.04, '#8d939c', -6.4 + dx, 0, -2.25)); }
+    if (ex.annex) { for (const [x, z] of [[-5.3, -3.0], [-5.3, 0.6], [-6.6, 4.0], [-8.0, 4.0]]) add(box(1.3, 0.02, 1.3, '#6b6f78', x, 0.004, z)); add(box(0.08, 2.2, 1.2, '#2b2d36', -4.72, 0, -1.6)); }
+  }
+
   // Design overlay for the back room: green where decor can go
   const ovBack = canvasOf(7 * TS, 9 * TS);
   const ovBackMesh = mesh(new THREE.PlaneGeometry(7, 9), ovMatB(ovBack), D.BACK_GRID.x0 + 3, 0.02, D.BACK_GRID.z0 + 4, false);
@@ -1297,7 +1368,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function syncDesign(s, now) {
     const d = s.design;
     if (!d) return;
-    syncBack(s);
+    syncBack(s); syncOutside(s); syncExpansions(s);
     const bdv = view.design?.back ? view.design : null;
     ovBackMesh.visible = !!bdv && bdv.cat === 'bdecor';
     if (bdv) {
@@ -1380,6 +1451,17 @@ export function createScene(canvas, overlayEl, { onPick }) {
       const pl = (kind === 'day' ? SPOTS : LAB_SPOTS)[m.spot];
       if (!M || !pl) return;
       const st = (BUILDERS[M.model] || buildOven)(M.tint);
+      const tier = m.tier || 0;
+      if (tier) {
+        const bb = new THREE.Box3().setFromObject(st.group), w = bb.max.x - bb.min.x, d = bb.max.z - bb.min.z, top = Math.min(bb.max.y, 1.0);
+        const chrome = mat('#d9dde3', { metalness: 0.7, roughness: 0.25 }), gold = mat('#d4af37', { metalness: 0.7, roughness: 0.3 });
+        st.group.add(box(w + 0.04, 0.05, d + 0.04, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2, 0.06, (bb.max.z + bb.min.z) / 2));
+        if (tier >= 2) st.group.add(box(w + 0.04, 0.04, d + 0.04, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2, 0.2, (bb.max.z + bb.min.z) / 2));
+        if (tier >= 3) { const gm = emissiveMat('#1d1528', kind === 'day' ? '#ffb454' : '#b58cff'); glowMats.push(gm); st.group.add(box(w * 0.8, 0.035, 0.02, gm, (bb.max.x + bb.min.x) / 2, top - 0.08, bb.max.z + 0.012, false)); }
+        if (tier >= 5) st.group.add(mesh(geo('tierstar', () => new THREE.OctahedronGeometry(0.09, 0)), gold, (bb.max.x + bb.min.x) / 2, bb.max.y + 0.12, (bb.max.z + bb.min.z) / 2));
+        const plate = box(0.34, 0.1, 0.02, '#2b2d36', (bb.max.x + bb.min.x) / 2, 0.3, bb.max.z + 0.012, false); st.group.add(plate);
+        for (let k = 0; k < tier; k++) st.group.add(sphere(0.022, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2 - 0.12 + k * 0.06, 0.35, bb.max.z + 0.03, false));
+      }
       st.group.position.set(pl.x, 0, pl.z);
       st.group.rotation.y = pl.ry;
       st.group.userData = { act: 'machine', kind, idx };
@@ -1764,7 +1846,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   let traySig = '', bagTint = null;
   function syncState(s, dt, now) {
     syncDesign(s, now);
-    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot]), s.lab.map(m => [m.type, m.spot])]);
+    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot, m.tier || 0]), s.lab.map(m => [m.type, m.spot, m.tier || 0])]);
     if (sig !== stationSig) { stationSig = sig; rebuildStations(s); }
     for (const st of stations) {
       const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];

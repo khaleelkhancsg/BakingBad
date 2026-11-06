@@ -199,7 +199,7 @@ export function buildWorld(scene) {
   // Trees: a trunk plus one or two low-poly canopy blobs
   const TREES = [[-17, -3], [-24, -1.5], [-18.2, 6.2], [-25, 4.6], [-23, -4.6], [-15.8, 1.2],
     [-12, 11.7], [-20, 11.7], [14.5, 11.7], [19.5, 11.7], [-6.5, 11.7],
-    [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27, 9], [21, 5]]
+    [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
   const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
   instanced(geo('trunk', () => new THREE.CylinderGeometry(0.1, 0.15, 1.3, 6).translate(0, 0.65, 0)), mat('#7a5534'), TREES.map(t => ({ ...t, y: -0.09 })), { shadow: true });
@@ -210,8 +210,8 @@ export function buildWorld(scene) {
   // Hedges and bushes
   const BUSHES = [];
   for (let x = -13.5; x < 6.5; x += 0.62) if (x < -6.8 || x > -5.4) BUSHES.push({ x, z: 12.95, s: 0.42 + rand() * 0.1, ry: rand() * PI });
-  for (let z = -4.2; z < 7.5; z += 0.62) BUSHES.push({ x: -14.7, z, s: 0.36 + rand() * 0.08, ry: rand() * PI });
-  for (const [x, z] of [[-18.5, -0.8], [-22.5, 3.6], [-19, 3.4], [-24.5, 0.8], [11.9, 9.6], [-1, -4.95], [3.2, -4.95], [-7.4, -4.95]]) BUSHES.push({ x, z, s: 0.5 + rand() * 0.2, ry: rand() * PI });
+  for (let z = -4.2; z < 4.6; z += 0.62) BUSHES.push({ x: -14.7, z, s: 0.36 + rand() * 0.08, ry: rand() * PI });
+  for (const [x, z] of [[-18.5, -0.8], [-22.5, 3.6], [-19, 3.4], [-24.5, 0.8], [12.4, 13.1], [-1, -4.95], [3.2, -4.95], [-7.4, -4.95]]) BUSHES.push({ x, z, s: 0.5 + rand() * 0.2, ry: rand() * PI });
   instanced(geo('bush', () => new THREE.IcosahedronGeometry(1, 0)), leafy, BUSHES.map((b, i) => ({ ...b, y: b.s * 0.55, sy: b.s * 0.8, c: ['#4f8f48', '#5a9a50', '#467f42'][i % 3] })), { shadow: true, colors: ['#4f8f48'] });
   // Flowers in the beds
   const FLOWERS = [];
@@ -235,9 +235,9 @@ export function buildWorld(scene) {
   instanced(geo('tuft', () => new THREE.ConeGeometry(0.045, 0.24, 3).translate(0, 0.12, 0)), smat({ color: '#ffffff', roughness: 0.9, flatShading: true }), TUFTS, { colors: ['#5f9e4f'] });
   // Picket fence between the alley and the park
   const PICKETS = [];
-  for (let z = -4.4; z < 7.6; z += 0.26) PICKETS.push({ x: -14.25, z, y: -0.09 });
+  for (let z = -4.4; z < 4.6; z += 0.26) PICKETS.push({ x: -14.25, z, y: -0.09 });
   instanced(geo('picket', () => new THREE.BoxGeometry(0.05, 0.62, 0.09).translate(0, 0.31, 0)), mat('#f4efe6'), PICKETS, { shadow: true });
-  for (const y of [0.2, 0.46]) root.add(box(0.04, 0.05, 12, '#f4efe6', -14.22, y - 0.09, 1.6, false));
+  for (const y of [0.2, 0.46]) root.add(box(0.04, 0.05, 9, '#f4efe6', -14.22, y - 0.09, 0.1, false));
 
   // ---------- Street furniture ----------
   const lampM = night(smat({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0 }), 2.4);
@@ -261,7 +261,7 @@ export function buildWorld(scene) {
     root.add(cyl(0.22, 0.22, 0.04, '#4f9de8', x + 1.6, 2.15, z - 0.3, 14).rotateX(PI / 2));
   }
   // Benches in the park
-  for (const [x, z, ry] of [[-18.8, -2.2, 0.3], [-23.8, 5.3, -0.4], [-22.2, -0.3, PI / 2 + 0.2]]) {
+  for (const [x, z, ry] of [[-18.8, -2.2, 0.3], [-23.8, 5.3, -0.4], [-23.6, -0.9, PI / 2 + 0.6]]) {
     const g = new THREE.Group();
     g.add(box(1.4, 0.07, 0.4, '#a8703f', 0, 0.4, 0)); g.add(box(1.4, 0.34, 0.06, '#a8703f', 0, 0.5, -0.2));
     for (const dx of [-0.6, 0.6]) g.add(box(0.07, 0.4, 0.36, '#2b2d36', dx, 0, 0));
@@ -341,6 +341,6 @@ export function buildWorld(scene) {
 // Flower beds: on the far verge, in the park and by the café.
 const FLOWER_BEDS = [
   { x: -10.2, z: 13.7, rx: 1.6, rz: 0.45 }, { x: -3.5, z: 13.7, rx: 2.0, rz: 0.45 }, { x: 3.2, z: 13.7, rx: 1.6, rz: 0.45 },
-  { x: -17.8, z: 1.0, rx: 0.9, rz: 0.7 }, { x: -24.2, z: 2.4, rx: 1.0, rz: 0.6 }, { x: -21.5, z: 4.4, rx: 0.8, rz: 0.5 },
-  { x: -16.2, z: -4.2, rx: 0.8, rz: 0.5 }, { x: 13.6, z: 9.6, rx: 0.9, rz: 0.5 },
+  { x: -18.6, z: 4.6, rx: 0.9, rz: 0.5 }, { x: -24.2, z: 2.4, rx: 1.0, rz: 0.6 }, { x: -21.5, z: 4.4, rx: 0.8, rz: 0.5 },
+  { x: -16.2, z: -4.2, rx: 0.8, rz: 0.5 }, { x: 13.6, z: 13.7, rx: 0.9, rz: 0.45 },
 ];

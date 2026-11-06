@@ -231,7 +231,7 @@ function backTab() {
       ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)}</button>`}</div>`,
       ibtn('labmachine', type), `wide night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
   }
-  cards += elsewhere(true);
+
   return { cards, hint: `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. ${labHint(t)}` };
 }
 // The machines that live in your other shops (or ones you haven't opened yet)
@@ -1085,7 +1085,7 @@ function emojiItem(id, d, on, kind) {
 function designScreen() {
   const dv = ui.design;
   if (dv.back) return backDesignScreen();
-  const cats = dv.back ? [] : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
+  const cats = [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['outside', '🏠 Outside'], ['expand', '➕ Expand']];
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
   if (dv.cat === 'floor') {
@@ -1121,6 +1121,19 @@ function designScreen() {
     items = Object.entries(D.ART).map(([id, d]) => emojiItem(id, d, dv.item === id, 'art')).join('')
       + `<div class="ditem ${dv.item === 'remove' ? 'on' : ''}" data-act="d-item" data-id="remove" role="button"><span class="em">🗑️</span><small>Take down</small><small class="price">half back</small></div>`;
     hint = dv.item === 'remove' ? 'Tap a panel to take its art down.' : `Tap a green wall panel to hang a <b>${D.ART[dv.item].name}</b>.`;
+  } else if (dv.cat === 'outside') {
+    const o = D.outOf(s);
+    const sw = (part, id, f) => { const open = D.levelOk(s, f), on = o[part] === id;
+      const a = f.color || f.a || f.bg || '#3a3046', b = f.trim || f.b || f.fg || '#3a3046';
+      return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-set" data-part="${part}" data-id="${id}" data-level="${f.level}" role="button">
+        <span class="sw" style="background:linear-gradient(135deg, ${a} 0 50%, ${b} 50% 100%)"></span><small>${f.name}</small><small class="price">${open ? (f.price ? money(f.price) : 'free') : `🔒 Lv ${f.level}`}</small></div>`; };
+    const label = t => `<div class="dlabel">${t}</div>`;
+    items = label('Paint') + Object.entries(D.OUT_PAINT).map(([id, f]) => sw('paint', id, f)).join('')
+      + label('Door canopy') + Object.entries(D.OUT_CANOPY).map(([id, f]) => sw('canopy', id, f)).join('')
+      + label('Shop sign') + Object.entries(D.OUT_SIGN).map(([id, f]) => sw('sign', id, f)).join('')
+      + label('Extras') + Object.entries(D.OUT_EXTRAS).map(([id, f]) => { const open = D.levelOk(s, f), on = o.extras[id];
+        return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-extra" data-id="${id}" data-level="${f.level}" role="button"><span class="em">${f.emoji}</span><small>${f.name}</small><small class="price">${!open ? `🔒 Lv ${f.level}` : on ? '✓ up · tap to remove' : money(f.price)}</small></div>`; }).join('');
+    hint = `The outside of ${G.shopDef(s).short}: paint, a canopy over the door, a sign and extras. All of it adds charm.`;
   } else if (dv.cat === 'expand') {
     hint = dv.back ? `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more back-room machines.` : 'Expansions add squares to decorate and room for more machines.';
     items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots : !e.labSpots).map(([id, e]) => {
@@ -1442,6 +1455,10 @@ function act(el) {
     case 'd-deselect': ui.design.sel = null; ui.design.moving = null; break;
     case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-done': D.checkoutCart(s); ui.design = null; break;
+    case 'o-set': case 'o-extra': {
+      if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
+      D.startCart(s); const r = a === 'o-set' ? D.setOutside(s, el.dataset.part, id) : D.toggleExtra(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break;
+    }
     case 'b-floor': case 'b-wall': {
       if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
       D.startCart(s); const r = a === 'b-floor' ? D.setBackFloor(s, id) : D.setBackWall(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break;
