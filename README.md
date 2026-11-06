@@ -281,8 +281,9 @@ Open **🎨 Design** any time:
   (plain, Georgian, arched, stained glass, neon or gold frames), front door (wood, green, red, glass, Victorian, revolving,
   gilded), roof (felt, gravel, pitched terracotta or slate, a green roof, solar panels, a rooftop terrace), the awning
   (its stripes also skirt the food carts and stalls), a shop sign (wooden, hand-painted, neon or gold) and extras
-  (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm, and the
-  Outside tab shows the building from outside while you choose.
+  (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm. Zoom out and the corner
+  buttons become a single 🏠 Outside button, which opens these as tabs (Paint, Walls, Windows, Door, Roof, Awning, Sign,
+  Extras); zoom back in and Map, Design and Menu return.
 - **The building grows** when zoomed out: the front terrace gets a deeper awning and planters, the food carts café
   parasols, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
   back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the

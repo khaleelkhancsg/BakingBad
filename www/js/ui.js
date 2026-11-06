@@ -13,7 +13,7 @@ const SPEED = Math.max(1, Number(params.get('speed')) || 1);
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
-const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {} };
+const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 let s = load() || G.newGame();
 
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
@@ -21,6 +21,12 @@ const world = createScene(document.getElementById('scene'), document.getElementB
     if (info.act === 'design') { if (ui.design) designTap(info); return; }
     if (ui.design || ui.modal) return;
     act({ dataset: info });
+  },
+  // Zooming out to the outside of the building swaps the corner buttons for one Outside button, and back
+  onOutside: on => {
+    ui.outside = on;
+    if (on) ui.panel = null;
+    if (!ui.design) render();
   },
 });
 
@@ -831,6 +837,9 @@ function openTab(id) {
 // The three corner buttons, the menu and map panels, and the section dock
 function fabsHTML() {
   const alert = s.orders.length || doorTotal() || s.hmrc > 1;
+  if (ui.outside) return `<div class="fabs">
+    <button class="fab" data-act="tab" data-id="outside"><span>🏠</span><small>Outside</small></button>
+  </div>`;
   return `<div class="fabs">
     <button class="fab ${ui.panel === 'map' ? 'on' : ''}" data-act="panel" data-id="map"><span>🗺️</span><small>Map</small></button>
     <button class="fab" data-act="tab" data-id="design"><span>🎨</span><small>Design</small></button>
@@ -1085,7 +1094,9 @@ function emojiItem(id, d, on, kind) {
 function designScreen() {
   const dv = ui.design;
   if (dv.back) return backDesignScreen();
-  const cats = [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['outside', '🏠 Outside'], ['expand', '➕ Expand']];
+  // Zoomed out, the Outside button opens the outside on its own, one part per tab
+  const cats = dv.cat === 'outside' ? OUT_PARTS.map(([id, label]) => [id, label, 'o-part'])
+    : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
   if (dv.cat === 'floor') {
@@ -1127,17 +1138,15 @@ function designScreen() {
       const a = f.color || f.a || f.bg || SWATCH[part]?.[id]?.[0] || '#3a3046', b = f.trim || f.b || f.fg || SWATCH[part]?.[id]?.[1] || a;
       return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-set" data-part="${part}" data-id="${id}" data-level="${f.level}" role="button">
         <span class="sw" style="background:linear-gradient(135deg, ${a} 0 50%, ${b} 50% 100%)"></span><small>${f.name}</small><small class="price">${open ? (f.price ? money(f.price) : 'free') : `🔒 Lv ${f.level}`}</small></div>`; };
-    const label = t => `<div class="dlabel">${t}</div>`;
-    items = label('Paint') + Object.entries(D.OUT_PAINT).map(([id, f]) => sw('paint', id, f)).join('')
-      + label('Wall finish') + Object.entries(D.OUT_FINISH).map(([id, f]) => sw('finish', id, f)).join('')
-      + label('Windows') + Object.entries(D.OUT_WINDOW).map(([id, f]) => sw('window', id, f)).join('')
-      + label('Front door') + Object.entries(D.OUT_DOOR).map(([id, f]) => sw('door', id, f)).join('')
-      + label('Roof') + Object.entries(D.OUT_ROOF).map(([id, f]) => sw('roof', id, f)).join('')
-      + label('Awning') + Object.entries(D.OUT_CANOPY).map(([id, f]) => sw('canopy', id, f)).join('')
-      + label('Shop sign') + Object.entries(D.OUT_SIGN).map(([id, f]) => sw('sign', id, f)).join('')
-      + label('Extras') + Object.entries(D.OUT_EXTRAS).map(([id, f]) => { const open = D.levelOk(s, f), on = o.extras[id];
+    const part = dv.part || 'paint';
+    const T = { paint: D.OUT_PAINT, finish: D.OUT_FINISH, window: D.OUT_WINDOW, door: D.OUT_DOOR, roof: D.OUT_ROOF, canopy: D.OUT_CANOPY, sign: D.OUT_SIGN }[part];
+    items = T ? Object.entries(T).map(([id, f]) => sw(part, id, f)).join('')
+      : Object.entries(D.OUT_EXTRAS).map(([id, f]) => { const open = D.levelOk(s, f), on = o.extras[id];
         return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-extra" data-id="${id}" data-level="${f.level}" role="button"><span class="em">${f.emoji}</span><small>${f.name}</small><small class="price">${!open ? `🔒 Lv ${f.level}` : on ? '✓ up · tap to remove' : money(f.price)}</small></div>`; }).join('');
-    hint = `The outside of ${G.shopDef(s).short}: paint, walls, windows, door, roof, awning, sign and extras. All of it adds charm, and it shows when you zoom out.`;
+    hint = { paint: 'The colour of the shop, its trim and its plinth.', finish: 'What the walls are made of.', window: 'Frames and glass for every window, upstairs too.',
+      door: 'The side door your customers come in by.', roof: 'Flat, pitched, planted, solar, or a terrace up top.', canopy: 'The awning over the windows; its stripes also dress the carts and stalls.',
+      sign: 'The board above the windows, with a hanging sign on the corner.', extras: 'Little touches. Tap one again to take it down for half back.' }[part]
+      + ` <span class="mute">(the outside adds ✨ ${D.outsideCharm(s)} charm)</span>`;
   } else if (dv.cat === 'expand') {
     hint = dv.back ? `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more back-room machines.` : 'Expansions add squares to decorate and room for more machines.';
     items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots : !e.labSpots).map(([id, e]) => {
@@ -1150,7 +1159,7 @@ function designScreen() {
     }).join('');
   }
   return `<div class="designbar">
-    <div class="drow"><div class="dcats">${cats.map(([id, label]) => `<button class="small ${dv.cat === id ? 'on' : ''}" data-act="d-cat" data-id="${id}">${label}</button>`).join('')}</div>
+    <div class="drow"><div class="dcats">${cats.map(([id, label, act]) => `<button class="small ${(act ? (dv.part || 'paint') : dv.cat) === id ? 'on' : ''}" data-act="${act || 'd-cat'}" data-id="${id}">${label}</button>`).join('')}</div>
       ${D.cartInfo()?.n ? `<button class="small" data-act="d-cancel">Cancel</button><button class="primary small" data-act="d-checkout" ${s.clean >= D.cartInfo().cost ? '' : 'disabled'}>${D.cartInfo().cost >= 0 ? `Checkout · ${money(D.cartInfo().cost)}` : `Done · +${money(-D.cartInfo().cost)}`}</button>` : '<button class="primary small" data-act="d-done">Done</button>'}</div>
     <div class="dinfo"><span>${hint}${D.cartInfo()?.n ? ` <b>· ${D.cartInfo().n} change${D.cartInfo().n === 1 ? '' : 's'} in the basket</b>` : ''}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
     ${sel}
@@ -1201,6 +1210,7 @@ function backDesignScreen() {
   </div>`;
 }
 
+const OUT_PARTS = [['paint', '🎨 Paint'], ['finish', '🧱 Walls'], ['window', '🪟 Windows'], ['door', '🚪 Door'], ['roof', '🏠 Roof'], ['canopy', '⛱️ Awning'], ['sign', '🪧 Sign'], ['extras', '🌺 Extras']];
 // Swatch colours for outside options that don't carry a colour of their own
 const SWATCH = {
   finish: { render: ['#e9d8c4', '#d9c4aa'], brick: ['#a5523d', '#e6d8c4'], cladding: ['#c9a46a', '#8a6a3a'], stone: ['#b8ad9a', '#8c8475'], tiles: ['#4f9de8', '#f4f0e8'], marble: ['#ece8e2', '#9a9aa6'] },
@@ -1320,6 +1330,7 @@ function act(el) {
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
     case 'tab':
       if (id === 'design') { openDesign(); ui.tab = null; ui.panel = null; }
+      else if (id === 'outside') { ui.design = { cat: 'outside', part: 'paint', item: null, sel: null, moving: null }; ui.tab = null; ui.panel = null; }
       else openTab(id);
       break;
     case 'panel': ui.panel = ui.panel === id ? null : id; if (id === 'menu' && ui.panel) ui.tab = null; break;
@@ -1454,6 +1465,7 @@ function act(el) {
     case 'confirm-yes': { const c = ui.confirm; ui.confirm = null; ui.modal = c?.back || null; if (c) act({ dataset: { ...c.data, confirmed: '1' } }); return; }
     case 'confirm-no': ui.modal = ui.confirm?.back || null; ui.confirm = null; break;
     // Design
+    case 'o-part': ui.design.part = id; break;
     case 'd-cat': Object.assign(ui.design, { cat: id, item: DESIGN_DEFAULT[id], sel: null, moving: null }); break;
     case 'd-item':
       if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }

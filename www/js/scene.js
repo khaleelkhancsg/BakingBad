@@ -663,7 +663,7 @@ class Agent {
 
 // ---------- The scene ----------
 
-export function createScene(canvas, overlayEl, { onPick }) {
+export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 600;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, smallScreen ? 1.5 : 2));
@@ -1323,7 +1323,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     c.beginPath(); c.arc(w / 2, h / 2, h / 3, 0, 7); c.stroke();
   };
 
-  let shellK = 0, shellSig = '';
+  let shellK = 0, shellSig = '', zoomedOut = false;
   function buildShell(s) {
     const o = { ...D.outOf(s) }, ex = s.design.expansions || {}, text = G.shopDef(s).sign;
     const flat = s.cur === 0 && !!s.property?.flat;
@@ -1549,6 +1549,9 @@ export function createScene(canvas, overlayEl, { onPick }) {
     // Designing the outside shows the building whatever the zoom; any other design tab shows the inside
     const want = view.design ? (view.design.cat === 'outside' && !view.design.back ? 1 : 0) : Math.max(0, Math.min(1, (0.85 - cam.zoom) / 0.2));
     shellK += (want - shellK) * Math.min(1, dt * 6);
+    // Tell the UI when the view has gone outside (by zoom alone; a little either way so it doesn't flicker)
+    const out = zoomedOut ? cam.zoom < 0.8 : cam.zoom < 0.72;
+    if (out !== zoomedOut) { zoomedOut = out; onOutside?.(out); }
     if (shellK > 0.01) buildShell(s);
     shellGroup.visible = shellK > 0.01;
     insideOnly.visible = shellK < 0.5;
