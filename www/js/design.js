@@ -404,7 +404,7 @@ export const artAllowed = key => !['b6', 'b7', 'b8', 'l7', 'l8'].includes(key);
 
 export function defaultDesign(base = {}) {
   return {
-    floor: {}, wall: {}, art: {}, base,
+    floor: {}, wall: {}, art: {}, base, counters: 2,
     decor: [
       { type: 'plant', cx: 8, cz: 0, rot: 0 },
       { type: 'sacks', cx: 7, cz: 0, rot: 0 },
@@ -432,6 +432,8 @@ function ensureOne(s) {
   s.design.decor = s.design.decor.filter(it => !it.gone);
   // Older saves: rooms already holding machines get the expansions those spots now need, and back-room decor on
   // squares that must now stay clear is taken down with a full refund
+  // Older saves: as many counters as the old level-based menu allowed, so nothing comes off sale
+  if (s.design.counters == null) s.design.counters = Math.min(7, Math.max(2, capAt(CAPS.menu, s.level || 1)));
   const ex = s.design.expansions;
   if (['bench', 'bench2', 'bench3', 'annex'].some(k => ex[k])) ex.storeroom = true;
   if ((s.machines || []).some(m => SPOTS[m.spot]?.need === 'refit')) ex.refit = true;

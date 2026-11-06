@@ -180,8 +180,8 @@ function kitchenTab() {
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
   }).join('');
   cards += elsewhere(false);
-  const spots = G.freeSpots(s).length, nx = nextCap(CAPS.menu, s.level);
-  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine to cook, choose what's on sale and set prices.` };
+  const spots = G.freeSpots(s).length;
+  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} On sale: ${G.menuOf(s).length} of ${G.menuSlots(s)} (one per counter; tap a bare counter by the till for another). Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
 function shopTab(lab = false) {
@@ -800,6 +800,19 @@ function infoFor(kind, id) {
     return T(`${a.emoji} ${a.name}`, line('Price', money(a.price)) + line('Charm', `+${a.charm}`) + line('Sells back for', money(Math.round(a.price * D.SELL_BACK)))
       + '<p class="mute">One piece per wall panel. Not over the window, menu board or door.</p>');
   }
+  if (kind === 'tray') {
+    const k = Number(id), menu = G.menuOf(s), item = menu[k], nc = G.nextCounter(s);
+    const more = nc ? line('Another counter', G.unlocked(s, nc.level) ? money(nc.price) : `level ${nc.level}`) + '<p class="mute">Tap a bare counter by the till to buy it.</p>' : '<p class="mute">All 7 counters are yours.</p>';
+    if (!item) return T(`🧺 Counter ${k + 1}: empty`, `<p>Nothing on this counter. Put something on sale from a machine (tap it, then the ✓ on a recipe).</p>`
+      + line('Counters', `${G.countersOf(s.design)} of 7 (one thing each)`) + more);
+    const it = ITEMS[item], have = Math.floor(s.display[item] || 0), cap = G.trayCap(s, item);
+    const pctFull = Math.round(100 * have / Math.max(1, cap));
+    return T(`${it.emoji} ${it.name}`, `<div class="bar"><i style="width:${pctFull}%"></i></div>`
+      + line('Servings left', `${have} of ${cap}`, have ? '' : 'bad') + line('Price', money2(G.itemPrice(s, item)))
+      + line('Made in', MACHINES[it.machine].name.toLowerCase()) + line('A batch makes', `${G.servingsFor(s, item, G.maxTier(s, it.machine))} servings`)
+      + `<p class="mute">The counter holds ${cap} servings (${CFG.trayBatches} batches); a full counter means finished food waits in the machine.</p>`
+      + line('Counters', `${G.countersOf(s.design)} of 7`) + more);
+  }
   if (kind === 'exp') {
     const e = D.EXPANSIONS[id];
     const what = e.cells ? `${e.cells} squares to decorate` : e.spots ? `room for ${e.spots} more machines` : `room for ${e.labSpots} more back-room machines`;
@@ -1303,6 +1316,7 @@ function confirmText(a, d) {
   const id = d.id;
   if (a === 'buymachine') return `Buy another ${MACHINES[id].name.toLowerCase()} for ${money(G.machinePrice(s, id))}?`;
   if (a === 'buylab') return `Buy a ${LAB_MACHINES[id].name.toLowerCase()} for 💜 ${money(G.machinePrice(s, id, true))}?`;
+  if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? It holds one more thing on sale.` : null) : null; }
   if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
   if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
   if (a === 'front-buy') return `Buy the ${FRONTS[id].name.toLowerCase()} for ${money(FRONTS[id].price)}?`;
@@ -1328,6 +1342,13 @@ function act(el) {
   switch (a) {
     case 'noop': return;
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
+    case 'counter': {
+      const k = Number(id);
+      if (k < G.countersOf(s.design)) ui.modal = { type: 'info', kind: 'tray', id: String(k) };
+      else act({ dataset: { act: 'counter-buy' } });
+      return render(true);
+    }
+    case 'counter-buy': G.buyCounter(s); break;
     case 'tab':
       if (id === 'design') { openDesign(); ui.tab = null; ui.panel = null; }
       else if (id === 'outside') { ui.design = { cat: 'outside', part: 'paint', item: null, sel: null, moving: null }; ui.tab = null; ui.panel = null; }

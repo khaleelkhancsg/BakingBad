@@ -5,6 +5,7 @@ import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, labSpot
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 import { buildWorld } from './world.js';
+import { foodModel } from './food.js';
 import * as D from './design.js';
 
 const PAL = {
@@ -105,6 +106,7 @@ function itemModel(id) {
     g.add(cyl(0.11, 0.11, 0.05, '#f6e7c4', 0, 0.075, 0, 16)); g.add(cyl(0.115, 0.115, 0.02, '#ffffff', 0, 0.125, 0, 16));
     g.add(sphere(0.025, '#e2394b', 0, 0.16, 0));
   }
+  if (!g.children.length) { const f = foodModel(id); if (f) return f; }
   if (!g.children.length) {
     // Anything else: a simple shape for its kind of food, in a colour of its own
     let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -833,15 +835,41 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   statics.add(box(5.14, 0.08, 0.94, '#5c3520', 0, 0, 0.95));
   statics.add(box(5.0, 0.6, 0.02, '#b67a52', 0, 0.2, 1.41));
   statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 0.95, 0.95));
+  // Seven counter sections, the first nearest the till. Each holds one product. Tap one to see how much is left,
+  // or tap a bare one to buy it.
   const glass = smat({ color: '#cfefff', transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false });
-  statics.add(box(5.1, 0.55, 0.9, glass, 0, 0.99, 0.95, false));
-  statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 1.54, 0.95));
-  const trays = [];
-  for (let k = 0; k < 14; k++) {
-    const x = -2.22 + (k % 7) * 0.74, z = k < 7 ? 1.16 : 0.74;
-    statics.add(box(0.66, 0.03, 0.34, '#f6f1e6', x, 0.99, z));
-    const tg = new THREE.Group(); tg.position.set(x, 1.02, z); scene.add(tg);
+  const trays = [], counterGroup = new THREE.Group(); scene.add(counterGroup);
+  const hitM = new THREE.MeshBasicMaterial({ visible: false });
+  for (let k = 0; k < 7; k++) {
+    const x = 2.22 - k * 0.74;
+    const tg = new THREE.Group(); tg.position.set(x, 1.02, 0.95); scene.add(tg);
+    const hit = mesh(new THREE.BoxGeometry(0.72, 0.6, 0.92), hitM, x, 1.25, 0.95, false); hit.userData = { act: 'counter', id: String(k) };
+    scene.add(hit); pickables.push(hit);
     trays.push({ x, group: tg, sig: '' });
+  }
+  let counterSig = -1;
+  function syncCounters(s) {
+    const n = G.countersOf(s.design);
+    if (n === counterSig) return;
+    counterSig = n;
+    counterGroup.clear();
+    const trayM = mat('#f6f1e6'), capM = mat('#efe6d8'), postM = mat('#5c3520'), bareM = mat('#d9c8ae'), tagM = mat('#2f6b4f');
+    for (let k = 0; k < 7; k++) {
+      const x = 2.22 - k * 0.74;
+      if (k < n) {
+        counterGroup.add(box(0.7, 0.03, 0.8, trayM, x, 0.99, 0.95, false));
+        counterGroup.add(box(0.72, 0.55, 0.9, glass, x, 0.99, 0.95, false));
+        // A glass top in a slim frame, so you can see the food from above
+        for (const dz of [-0.45, 0.45]) counterGroup.add(box(0.74, 0.04, 0.04, capM, x, 1.54, 0.95 + dz));
+        for (const dx of [-0.36, 0.36]) counterGroup.add(box(0.03, 0.55, 0.9, postM, x + dx, 0.99, 0.95, false));
+      } else {
+        // Bare: just the wooden top, with a little green "for sale" card standing on it
+        counterGroup.add(box(0.72, 0.02, 0.9, bareM, x, 0.99, 0.95, false));
+        const card = box(0.2, 0.13, 0.02, tagM, x, 1.01, 1.2, false); card.rotation.x = -0.25; counterGroup.add(card);
+        counterGroup.add(box(0.14, 0.02, 0.025, mat('#ffffff'), x, 1.07, 1.215, false));
+        counterGroup.add(box(0.025, 0.08, 0.025, mat('#ffffff'), x, 1.04, 1.215, false));
+      }
+    }
   }
   statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
   statics.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
@@ -2335,6 +2363,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
     }
     // Display case
+    syncCounters(s);
     const menu = G.menuOf(s);
     const fill = id => Math.min(6, Math.ceil((s.display[id] || 0) / ITEMS[id].servings * 3));
     const tsig = menu.map(id => id + fill(id)).join(',');
@@ -2349,8 +2378,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         t.group.clear();
         for (let j = 0; j < n; j++) {
           const m = itemModel(id);
-          m.position.set(((j % 3) - 1) * 0.19, 0, (Math.floor(j / 3) - 0.5) * 0.15);
-          m.scale.setScalar(0.72);
+          m.position.set(((j % 3) - 1) * 0.21, 0, (Math.floor(j / 3) - 0.5) * 0.32);
+          m.scale.setScalar(1.25);
           m.rotation.y = (j * 1.7) % PI;
           t.group.add(m);
         }

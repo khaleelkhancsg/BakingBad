@@ -9,10 +9,10 @@ export const CFG = {
   // XP and levels: XP to go from level n to n+1 is xpBase + xpScale * n^xpPow
   maxLevel: 99, xpBase: 60, xpScale: 12, xpPow: 2.5, levelCash: 25,
   // Customers (per real hour, before time of day, popularity, marketing and charm)
-  custBase: 20, custPerPop: 0.6, varietyBonus: 0.04, varietyCap: 0.4,
+  custBase: 20, custPerPop: 0.6, varietyBonus: 0.067, varietyCap: 0.4, // 7 full counters: +40%
   popServed: 0.01, popUnserved: -0.004, popHome: 50, popDriftPerHour: 0.1,
   // Food: what's left done in a machine spoils after max(spoilMin, cook time) more minutes
-  spoilMin: 30, trayBatches: 2,
+  spoilMin: 30, trayBatches: 4, // a counter holds 4 batches
   cashierBonus: 0.1, drinkAddOn: 0.35,
   // Laundering
   launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, cashPileFree: 5000, cashPilePer: 5000, cashPileMax: 25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05, branchBuyers: 0.6,
@@ -823,6 +823,14 @@ export const LAB_SPOTS = [
 ];
 // Where a back-room spot is, with or without the storeroom knocked through
 export const labSpotAt = (spot, ext) => (ext && spot.ext ? { ...spot, ...spot.ext } : spot);
+
+// Display counters by the till: each one holds one product, and what's on sale is whatever fits on your counters.
+// Every branch starts with 2 and can have up to 7. The first sit nearest the till.
+export const COUNTERS = [
+  { level: 1, price: 0 }, { level: 1, price: 0 },
+  { level: 2, price: 250 }, { level: 4, price: 800 }, { level: 8, price: 2000 }, { level: 14, price: 5000 }, { level: 22, price: 12000 },
+];
+export const PER_COUNTER = 1;
 
 export const EVENTS = [
   { id: 'rain',      p: 0.15, text: '🌧️ Rain today. Fewer people out.',                  cust: 0.7 },

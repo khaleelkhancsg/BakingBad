@@ -62,8 +62,16 @@ spots along its walls; the kitchen refit (level 7) adds 4 between them, the isla
 back, with an aisle in front of each row), then food carts and side stalls outside. The back room starts with 4; knocking
 into the storeroom (level 14) makes it 3 m deeper with a new back wall (+1), and the benches, more benches, cellar and
 annex go in that space and along the side walls. At the limit the buy
-button says "Reach level N to unlock additional ovens". The same goes for how many things you can sell at once, how
-many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
+button says "Reach level N to unlock additional ovens".
+
+**Display counters.** What's on sale is whatever is on the glass counters by the till: one product per counter, and each
+counter holds 4 batches of it. Every branch starts with 2 counters and can buy up to 7 (levels 2–22, £250 to
+£12,000); bare ones have a green card on them, tap one to buy it. Tap a stocked counter to see how many servings are
+left, its price and how many it holds; a full counter means finished food waits in the machine. Every recipe has its
+own little model on the counter, and the more of the counter is stocked the more customers come (variety, up to +40%
+with 7 stocked).
+
+The same level caps go for how many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
 When lots of machines crowd the screen, idle ones show as small dots. Crew make idle play work: Priya the baker puts finished food in the case, Marco the head chef starts the same recipe
 again whenever its tray has room, and Grace the manager keeps the ingredients topped up.

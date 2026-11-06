@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -379,7 +379,7 @@ export const missingCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduc
 export const cookMs = (s, id, tier = 0) => Math.round(ITEMS[id].minutes * MIN * Math.max(0.5, 1 - eff(s, 'speed')) * (1 - TIERS.speed * tier));
 // How many servings a batch makes on a machine (its tier and the sous chef add more)
 export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1));
-const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
+export const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
 export const spoilMs = (s, id) => Math.max(CFG.spoilMin, ITEMS[id].minutes) * MIN * (1 + eff(s, 'keep'));
 export const trayCap = (s, id) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray')));
 export const launderRatio = s => CFG.launderRatio + eff(s, 'launder');
@@ -477,7 +477,7 @@ export const productsFor = type => Object.keys(PRODUCTS).filter(id => PRODUCTS[i
 const ownedAnywhere = (s, type) => s.shops.some(x => x.machines.some(m => m.type === type));
 function addToMenus(s, id) {
   for (const x of s.shops) if (SHOPS[x.id].machines.includes(ITEMS[id].machine) && x.machines.some(m => m.type === ITEMS[id].machine)
-    && !x.onMenu.includes(id) && x.onMenu.filter(k => s.recipes.includes(k)).length < menuSlots(s)) x.onMenu.push(id);
+    && !x.onMenu.includes(id) && x.onMenu.filter(k => s.recipes.includes(k)).length < countersOf(x.design) * PER_COUNTER) x.onMenu.push(id);
 }
 export function learnFree(s) {
   for (const id in ITEMS) {
@@ -682,14 +682,27 @@ function runCorners(s, t0, t1, mins) {
 }
 
 // ---------- Menu, ingredients, prices ----------
-export const menuSlots = s => capAt(CAPS.menu, s.level || 1);
+// What's on sale is what fits on the shop's display counters (one product each)
+export const countersOf = d => Math.max(1, Math.min(COUNTERS.length, Math.round(d?.counters ?? 2)));
+export const menuSlots = s => countersOf(s.design) * PER_COUNTER;
+export const nextCounter = s => COUNTERS[countersOf(s.design)] || null;
+export function buyCounter(s) {
+  const c = nextCounter(s);
+  if (!c) return say(`That's every counter there's room for (${COUNTERS.length}).`, 'bad');
+  if (!unlocked(s, c.level)) return say(`Reach level ${c.level} for another counter.`, 'bad');
+  if (s.clean < c.price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - c.price); s.today.capex += c.price;
+  s.design.counters = countersOf(s.design) + 1;
+  say(`New display counter: room for ${menuSlots(s)} things on sale.`, 'good');
+  return true;
+}
 export const menuOf = s => s.onMenu.filter(id => s.recipes.includes(id) && shopDef(s).machines.includes(ITEMS[id].machine)).slice(0, menuSlots(s));
 export function toggleMenu(s, id) {
   if (!s.recipes.includes(id)) return;
   if (s.onMenu.includes(id)) { s.onMenu = s.onMenu.filter(x => x !== id); return; }
   if (menuOf(s).length >= menuSlots(s)) {
-    const nx = nextCap(CAPS.menu, s.level);
-    return say(`You can sell ${menuSlots(s)} things at once${nx ? ` (reach level ${nx.level} for ${nx.amount})` : ''}. Take something off first.`, 'bad');
+    const nc = nextCounter(s);
+    return say(`Your counters hold ${menuSlots(s)} things${nc ? ` (another counter: tap a bare one by the till${unlocked(s, nc.level) ? '' : `, level ${nc.level}`})` : ''}. Take something off first.`, 'bad');
   }
   s.onMenu.push(id);
 }

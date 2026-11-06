@@ -74,6 +74,7 @@ function checkIn(s, st, t, next) {
   const picked = [];
   for (const id of known) { const k = ITEMS[id].machine; if ((byMachine[k] || 0) < 2) { picked.push(id); byMachine[k] = (byMachine[k] || 0) + 1; } }
   for (const id of known) if (!picked.includes(id)) picked.push(id);
+  for (let c = G.nextCounter(s); c && G.unlocked(s, c.level) && c.price < spare() * 0.4; c = G.nextCounter(s)) if (!G.buyCounter(s)) break;
   s.onMenu = picked.slice(0, G.menuSlots(s));
   // Growth: machines, recipes, expansions, upgrades, property, crew, marketing, decor
   for (const type of Object.keys(MACHINES)) if (!G.machineBlock(s, type) && G.machinePrice(s, type) < spare() * 0.35) G.buyMachine(s, type);
