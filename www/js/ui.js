@@ -13,7 +13,7 @@ const SPEED = Math.max(1, Number(params.get('speed')) || 1);
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
-const ui = { modal: null, design: null, tab: 'kitchen', room: 'shop', dockMin: false };
+const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop' };
 let s = load() || G.newGame();
 
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
@@ -77,8 +77,7 @@ function hudHTML() {
     <div class="hud-row">
       <div class="badge daybadge" data-act="info" data-kind="clock" data-id="clock"><b>${hhmm(t)} · Day ${G.dayIndex(s, t) + 1}</b><small>${sub}</small></div>
       <div class="hud-right">${due}
-        ${s.shops.length > 1 ? `<button class="badge roombtn" data-act="shop-next" title="Go to your next shop">${G.shopDef(s).emoji} ${G.shopDef(s).short} ▸</button>` : ''}
-        ${s.labUnlocked ? `<button class="badge roombtn ${ui.room === 'back' ? 'night' : ''}" data-act="room">${ui.room === 'back' ? '☀️ Bakery' : '🌙 Back room'}${s.door.length && ui.room !== 'back' ? ` <b class="dot">${s.door.length}</b>` : ''}</button>` : ''}
+        ${s.door.length && ui.room !== 'back' ? `<button class="badge roombtn night" data-act="go-back" title="Buyers at the back door">🚪 <b class="dot">${s.door.length}</b></button>` : ''}
       </div>
     </div>
     <div class="hud-row stats">
@@ -651,30 +650,74 @@ function infoFor(kind, id) {
 }
 
 // ---------- The dock ----------
-function tabsList() {
-  const tabs = [['kitchen', '🍳 Kitchen'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
-  if (s.labUnlocked) tabs.push(['back', `💜 Back room${s.door.length ? ` (${s.door.length})` : ''}`]);
-  if (s.labUnlocked && s.level >= 6) tabs.push(['turf', '🗺️ Turf']);
-  if (s.labUnlocked) tabs.push(['wash', '🧼 Wash']);
-  tabs.push(['orders', `📦 Orders${s.orders.length ? ` (${s.orders.length})` : ''}`], ['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['shops', '🏪 Shops'], ['bank', '🏦 Bank']);
-  return tabs;
+// Sections, grouped for the menu
+const TABS = {
+  kitchen: { label: 'Kitchen', emoji: '🍳', fn: () => kitchenTab() }, supplies: { label: 'Supplies', emoji: '🧺', fn: () => suppliesTab() },
+  shop: { label: 'Upgrades', emoji: '🛠️', fn: () => shopTab() }, crew: { label: 'Crew', emoji: '👥', fn: () => crewTab() },
+  orders: { label: 'Orders', emoji: '📦', fn: () => ordersTab() }, marketing: { label: 'Marketing', emoji: '📣', fn: () => marketingTab() },
+  shops: { label: 'Shops & property', emoji: '🏪', fn: () => shopsTab() }, bank: { label: 'Bank & tax', emoji: '🏦', fn: () => bankTab() },
+  back: { label: 'Back room', emoji: '💜', fn: () => backTab(), night: true }, turf: { label: 'Turf', emoji: '🗺️', fn: () => turfTab(), night: true },
+  wash: { label: 'Wash', emoji: '🧼', fn: () => washTab(), night: true },
+};
+function menuGroups() {
+  const groups = [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank']]];
+  if (s.labUnlocked) groups.push(['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash']]);
+  return groups;
+}
+const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && s.door.length ? s.door.length : id === 'bank' && s.hmrc > 1 ? '!' : '');
+function openTab(id) {
+  ui.tab = id; ui.panel = null;
+  if (TABS[id].night) { ui.room = 'back'; G.viewShop(s, 0); } else if (ui.room === 'back') ui.room = 'shop';
+}
+
+// The three corner buttons, the menu and map panels, and the section dock
+function fabsHTML() {
+  const alert = s.orders.length || s.door.length || s.hmrc > 1;
+  return `<div class="fabs">
+    <button class="fab ${ui.panel === 'map' ? 'on' : ''}" data-act="panel" data-id="map"><span>🗺️</span><small>Map</small></button>
+    <button class="fab" data-act="tab" data-id="design"><span>🎨</span><small>Design</small></button>
+    <button class="fab ${ui.panel === 'menu' || ui.tab ? 'on' : ''}" data-act="panel" data-id="menu"><span>☰</span><small>Menu</small>${alert ? '<i class="fabdot"></i>' : ''}</button>
+  </div>`;
+}
+function menuPanel() {
+  return `<div class="panel menupanel">${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
+    <div class="pgrid">${ids.map(id => `<button class="ptile ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}"><span>${TABS[id].emoji}</span><small>${TABS[id].label}</small>${tabBadge(id) ? `<i>${tabBadge(id)}</i>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
+}
+function mapPanel() {
+  const here = ui.room === 'back' ? 'back' : s.cur || 0;
+  const places = s.shops.map((x, i) => {
+    const d = SHOPS[x.id], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
+    return `<button class="place ${here === i ? 'on' : ''}" data-act="map-go" data-id="${i}"><span>${d.emoji}</span><b>${d.short}</b><small>${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}</small></button>`;
+  });
+  if (s.labUnlocked) places.push(`<button class="place night ${here === 'back' ? 'on' : ''}" data-act="go-back"><span>💜</span><b>Back room</b><small>${s.door.length ? `${s.door.length} at the door` : doorOpen(s.clock) ? 'door open' : 'door shut till 6pm'}</small></button>`);
+  const next = G.nextShops(s)[0];
+  if (next) {
+    const d = SHOPS[next], open = G.unlocked(s, d.level);
+    places.push(`<button class="place new ${open ? '' : 'locked'}" data-act="tab" data-id="shops"><span>${d.emoji}</span><b>${d.short}</b><small>${open ? `open for ${money(d.price)}` : `🔒 level ${d.level}`}</small></button>`);
+  }
+  return `<div class="panel mappanel"><h4>Where to?</h4><div class="places">${places.join('')}</div></div>`;
 }
 function dockHTML() {
-  const tabs = tabsList();
-  if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'kitchen';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, orders: ordersTab, wash: washTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
+  if (ui.tab && (!TABS[ui.tab] || (TABS[ui.tab].night && !s.labUnlocked))) ui.tab = null;
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
       <p>The game runs on the real clock and never closes. Tap a machine to start a batch, come back when it's done to put it in the case, and customers buy from the case all day, even while you're away. Long recipes are for when you go out; don't leave food sitting in a machine or it spoils.</p>
+      <p class="mute">☰ Menu has everything else; 🗺️ Map takes you between your shops.</p>
       <button class="small" data-act="intro-ok">Got it</button></div>`
     : s.event && ui.tab === 'supplies' ? `<div class="floatbanner">${s.event.text}</div>` : '';
-  return intro + `<div class="designbar plandock ${ui.room === 'back' ? 'night' : ''} ${ui.dockMin ? 'min' : ''}">
-    <div class="drow"><div class="dcats">${tabs.map(([id, label]) => `<button class="small ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}">${label}</button>`).join('')}</div>
-      <button class="small" data-act="dockmin" aria-label="Hide or show the dock">${ui.dockMin ? '▴' : '▾'}</button></div>
-    ${ui.dockMin ? '' : `<div class="dinfo"><span>${hint}</span></div>
-    <div class="catalog cards" data-key="dock-${ui.tab}">${cards}</div>`}
-  </div>`;
+  let dock = '';
+  if (ui.tab) {
+    const T = TABS[ui.tab], { cards, hint } = T.fn();
+    dock = `<div class="designbar plandock ${T.night ? 'night' : ''}">
+      <div class="drow dhead"><button class="small" data-act="panel" data-id="menu" aria-label="Back to the menu">‹</button>
+        <b>${T.emoji} ${T.label}</b><button class="small" data-act="dock-close" aria-label="Close">✕</button></div>
+      <div class="dinfo"><span>${hint}</span></div>
+      <div class="catalog cards" data-key="dock-${ui.tab}">${cards}</div>
+    </div>`;
+  }
+  const panel = ui.panel === 'menu' ? menuPanel() : ui.panel === 'map' ? mapPanel() : '';
+  return intro + dock + panel + fabsHTML();
 }
 
 // ---------- Modals ----------
@@ -961,7 +1004,7 @@ function layoutScene() {
   const H = window.innerHeight;
   const top = app.querySelector('.hud')?.getBoundingClientRect().bottom || 0;
   document.documentElement.style.setProperty('--hud-h', `${Math.round(top)}px`);
-  const lower = app.querySelector('.designbar');
+  const lower = app.querySelector('.designbar') || app.querySelector('.fabs');
   const bottom = lower ? H - lower.getBoundingClientRect().top : 0;
   world.setView({ zone: ui.room === 'back' ? 'back' : 'shop', top: top + 34, bottom: bottom + 8, design: ui.design ? { ...ui.design } : null });
 }
@@ -986,10 +1029,13 @@ function act(el) {
     case 'noop': return;
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
     case 'tab':
-      if (id === 'design') openDesign();
-      else { ui.tab = id; ui.dockMin = false; if (id === 'back' || id === 'turf' || id === 'wash') { ui.room = 'back'; G.viewShop(s, 0); } }
+      if (id === 'design') { openDesign(); ui.tab = null; ui.panel = null; }
+      else openTab(id);
       break;
-    case 'dockmin': ui.dockMin = !ui.dockMin; break;
+    case 'panel': ui.panel = ui.panel === id ? null : id; if (id === 'menu' && ui.panel) ui.tab = null; break;
+    case 'dock-close': ui.tab = null; break;
+    case 'map-go': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.panel = null; if (ui.tab && TABS[ui.tab].night) ui.tab = null; break;
+    case 'go-back': G.viewShop(s, 0); ui.room = 'back'; ui.panel = null; ui.tab = 'back'; break;
     case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') { G.viewShop(s, 0); ui.tab = 'back'; } else if (ui.tab === 'back') ui.tab = 'kitchen'; break;
     case 'intro-ok': s.introSeen = true; break;
     // Kitchen
@@ -1068,7 +1114,7 @@ function act(el) {
     case 'corner-product': G.setCornerProduct(s, id, el.dataset.type); break;
     case 'corner-stock': G.stockCorner(s, id, Number(el.dataset.n)); break;
     case 'shop-buy': { const n = s.shops.length; G.buyShop(s, id); if (s.shops.length > n) { G.viewShop(s, n); ui.room = 'shop'; ui.tab = 'kitchen'; } break; }
-    case 'shop-view': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.tab = 'kitchen'; break;
+    case 'shop-view': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.tab = null; break;
     case 'shop-next': G.viewShop(s, ((s.cur || 0) + 1) % s.shops.length); ui.room = 'shop'; if (ui.tab === 'back' || ui.tab === 'turf') ui.tab = 'kitchen'; break;
     case 'launder-open': ui.modal = { type: 'launder' }; break;
     case 'launder': G.launder(s, ui.modal?.amount ?? Math.min(Math.floor(s.dirty), G.launderLeft(s))); ui.modal = null; break;
@@ -1098,7 +1144,7 @@ function act(el) {
     case 'd-done': ui.design = null; break;
     case 'restart':
       if (!confirm('Start a new game? This bakery will be lost.')) return;
-      s = G.newGame(Date.now()); vt = Date.now(); ui.modal = null; ui.design = null; ui.room = 'shop'; ui.tab = 'kitchen';
+      s = G.newGame(Date.now()); vt = Date.now(); ui.modal = null; ui.design = null; ui.room = 'shop'; ui.tab = null; ui.panel = null;
       break;
   }
   save();

@@ -9,6 +9,9 @@ It's a 3D game: you look down into the shop at an angle. The bakery has ovens, m
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
 (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
+Three buttons sit in the bottom-right corner: **☰ Menu** (everything, grouped into the bakery, business and after
+dark), **🎨 Design**, and **🗺️ Map** to move between your shops and the back room.
+
 ## The real clock
 
 There's no in-game day. The clock in the corner is your clock.
@@ -95,7 +98,7 @@ buyers at the back door after dark. The products are parodies of real ones; the 
 
 ## Washing money
 
-The 🧼 Wash tab lists every route. Each has its own daily limit, cut, speed, tax treatment and risk, so spreading
+Menu → 🧼 Wash lists every route. Each has its own daily limit, cut, speed, tax treatment and risk, so spreading
 money across them keeps heat and HMRC's questions down:
 
 | Route | From | Cut | Taxed? | The catch |
@@ -126,8 +129,8 @@ Rosa's stall is where it starts. Branches open as you level up, and each costs f
 | 👑 Maison Rosa, The Capital | 84 | £15M | sweet machine, grand patisserie, patisserie bench, drinks bar | ×1.75 | +£150,000 |
 
 Each shop has its own machines, case, menu and design, pays its own rent, and they all trade at once (your crew work
-every one). Each shop you own brings 5% more customers to all of them. Switch shops from the button in the top bar or
-the 🏪 Shops tab, which also has property. The back room is only at the stall.
+every one). Each shop you own brings 5% more customers to all of them. Move between shops with 🗺️ Map; open new
+ones (and buy property) from Menu → Shops & property. The back room is only at the stall.
 
 ## Tax
 
