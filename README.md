@@ -337,4 +337,21 @@ node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 3 365
 
 ## Android
 
-Not packaged yet. The plan is to wrap `www/` with Capacitor into an APK and sideload it.
+`www/` is wrapped with Capacitor 8 (`capacitor.config.json`, app id `com.khaleel.bakingbad`) into the Android project
+in `android/`. In the app:
+- it runs full screen in portrait (swipe in from the edge for the system bars);
+- the back button closes whatever is open one layer at a time (a question, a window, Design with its unpaid basket
+  undone, a section, the menu or map), then goes from the back room to the shop, and only then sends the app to the
+  background; it keeps its place and catches up on the real clock when you come back;
+- it saves when it goes to the background. Saves live in the app's own storage, kept until you uninstall it or clear
+  its data.
+
+Building needs JDK 21 and the Android SDK (platform 36 and build tools). With those installed and `ANDROID_HOME` set:
+
+```
+npm run android:build
+```
+
+That copies `www/` into the app and builds `android/app/build/outputs/apk/debug/app-debug.apk`, which can be
+sideloaded (`adb install -r` on that file, or copy it to the phone). `npm run android:sync` only copies `www/` across
+(run it after changing the game); `npm run android:open` opens the project in Android Studio.

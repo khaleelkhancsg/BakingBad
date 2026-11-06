@@ -1598,5 +1598,25 @@ catchUp(vt);
 render(true);
 requestAnimationFrame(frame);
 
+// ---------- On Android (the Capacitor app) ----------
+// The back button closes whatever is open, one layer at a time, then goes back to the shop from the back room,
+// and only then sends the app to the background (it keeps running; the game catches up when you return).
+// Leaving or backgrounding the app saves first.
+const NativeApp = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.App : null;
+if (NativeApp) {
+  document.documentElement.classList.add('native');
+  NativeApp.addListener('backButton', () => {
+    if (ui.confirm) return act({ dataset: { act: 'confirm-no' } });
+    if (ui.modal) return act({ dataset: { act: 'close' } });
+    if (ui.design) return act({ dataset: { act: D.cartInfo()?.n ? 'd-cancel' : 'd-done' } });
+    if (ui.tab) return act({ dataset: { act: 'dock-close' } });
+    if (ui.panel) return act({ dataset: { act: 'panel', id: ui.panel } });
+    if (ui.room === 'back') return act({ dataset: { act: 'room' } });
+    save(); NativeApp.minimizeApp();
+  });
+  NativeApp.addListener('pause', () => save());
+  NativeApp.addListener('resume', () => { vt = Math.max(vt, Date.now()); });
+}
+
 // Debug hooks for testing in the browser console: __game.skip(3) plays three hours forward.
 window.__game = { get s() { return s; }, G, render, save, world, ui, skip(hours) { vt += hours * HOUR; } };

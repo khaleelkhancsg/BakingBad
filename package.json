@@ -1,1 +1,17 @@
-{"type":"module","devDependencies":{"three":"^0.187.0"}}
+{
+  "type": "module",
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "three": "^0.187.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0"
+  },
+  "scripts": {
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:build": "cap sync android && cd android && gradlew.bat assembleDebug"
+  }
+}

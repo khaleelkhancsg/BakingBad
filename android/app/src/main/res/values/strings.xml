@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Baking Bad</string>
+    <string name="title_activity_main">Baking Bad</string>
+    <string name="package_name">com.khaleel.bakingbad</string>
+    <string name="custom_url_scheme">com.khaleel.bakingbad</string>
+</resources>
