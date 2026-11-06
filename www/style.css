@@ -530,3 +530,8 @@ button.big { padding: 11px; font-size: 15px; }
 .panel { max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
 .panel::-webkit-scrollbar { display: none; }
 #app .modal-bg { z-index: 20; }
+
+/* Basket steppers */
+.pcard .pbtns.stepper { align-items: center; }
+.pcard .pbtns.stepper b { min-width: 30px; text-align: center; font-size: 14px; }
+.pcard .pbtns.stepper button { flex: 0 0 34px; }

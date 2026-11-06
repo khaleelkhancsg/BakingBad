@@ -209,11 +209,35 @@ export function canPlace(s, type, cx, cz, ignore = -1) {
 }
 
 const round2 = v => Math.round(v * 100) / 100;
+// The design basket: changes show in the shop straight away but are only paid for at checkout (or undone)
+let cart = null;
+export const cartInfo = () => cart && { cost: cart.cost, n: cart.n };
+export function startCart(s) { if (!cart) cart = { cost: 0, n: 0, snap: JSON.stringify(s.design), shop: s.cur || 0 }; }
+export const cartSnapshot = () => cart && { shop: cart.shop, design: JSON.parse(cart.snap) };
+export function checkoutCart(s) {
+  if (!cart) return { msg: '' };
+  const c = cart; cart = null;
+  s.clean = round2(s.clean - c.cost);
+  if (s.today && c.cost > 0) s.today.upgradesSpent = round2((s.today.upgradesSpent || 0) + c.cost);
+  return { ok: true, msg: c.cost >= 0 ? `Paid £${Math.round(c.cost).toLocaleString('en-GB')} for ${c.n} change${c.n === 1 ? '' : 's'}.` : `Got £${Math.round(-c.cost).toLocaleString('en-GB')} back.` };
+}
+export function cancelCart(s) {
+  if (!cart) return;
+  s.design = JSON.parse(cart.snap); cart = null;
+}
 function pay(s, cost) {
+  if (cart) {
+    if (s.clean - cart.cost < cost) return false;
+    cart.cost = round2(cart.cost + cost); cart.n++;
+    return true;
+  }
   if (s.clean < cost) return false;
   s.clean = round2(s.clean - cost);
   if (s.today) s.today.upgradesSpent = round2((s.today.upgradesSpent || 0) + cost);
   return true;
+}
+function refund(s, back) {
+  if (cart) { cart.cost = round2(cart.cost - back); cart.n++; } else s.clean = round2(s.clean + back);
 }
 
 // ---------- Actions ----------
@@ -298,7 +322,7 @@ export function sellDecor(s, idx) {
   if (!it) return { msg: 'Nothing selected.' };
   const back = Math.round(DECOR[it.type].price * SELL_BACK);
   s.design.decor.splice(idx, 1);
-  s.clean = round2(s.clean + back);
+  refund(s, back);
   return { ok: true, msg: `Sold for £${back}.` };
 }
 
@@ -318,10 +342,17 @@ export function removeArt(s, key) {
   if (!type) return { msg: 'Nothing hanging there.' };
   delete s.design.art[key];
   const back = Math.round(ART[type].price * SELL_BACK);
-  s.clean = round2(s.clean + back);
+  refund(s, back);
   return { ok: true, msg: `Took it down and sold it for £${back}.` };
 }
 
+export function buyExpansionNow(s, id) {
+  const keep = cart; cart = null;
+  const r = buyExpansion(s, id);
+  cart = keep;
+  if (cart && r.ok) { const snap = JSON.parse(cart.snap); snap.expansions = { ...s.design.expansions }; cart.snap = JSON.stringify(snap); }
+  return r;
+}
 export function buyExpansion(s, id) {
   const e = EXPANSIONS[id];
   if (!e || s.design.expansions[id]) return { msg: 'Already yours.' };

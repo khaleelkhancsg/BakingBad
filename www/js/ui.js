@@ -13,7 +13,7 @@ const SPEED = Math.max(1, Number(params.get('speed')) || 1);
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
-const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop' };
+const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {} };
 let s = load() || G.newGame();
 
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
@@ -30,7 +30,14 @@ function load() {
     return d && d.v ? D.ensureDesign(G.migrate(d)) : null;
   } catch { return null; }
 }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* storage full or blocked */ } }
+function save() {
+  try {
+    const snap = D.cartSnapshot();
+    if (!snap) return localStorage.setItem(KEY, JSON.stringify(s));
+    const copy = JSON.parse(JSON.stringify(s)); copy.shops[snap.shop].design = snap.design; // unpaid design changes aren't kept
+    localStorage.setItem(KEY, JSON.stringify(copy));
+  } catch { /* storage full or blocked */ }
+}
 
 // ---------- Formatting ----------
 const money = v => (v < 0 ? '-£' : '£') + Math.abs(Math.round(v)).toLocaleString('en-GB');
@@ -119,10 +126,14 @@ function stockUpNeeds() {
   return { need, cost: Math.round(cost * 100) / 100 };
 }
 
+const basketTotal = () => Object.entries(ui.basket).reduce((a, [k, n]) => a + n * G.ingPrice(s, k), 0);
 function suppliesTab() {
-  const { cost } = stockUpNeeds();
-  let cards = pcard(`<div class="ptop"><span class="em">🧺</span><div><b>Stock up</b><small>3 batches of all ${G.menuOf(s).length} things on sale</small></div></div>
-    <div class="pbtns"><button class="small primary" data-act="stockup" ${!cost || s.clean < cost ? 'disabled' : ''}>${cost ? money2(cost) : 'All stocked'}</button></div>`, ibtn('stockup', 'x'), 'wide');
+  const { cost } = stockUpNeeds(), total = basketTotal(), items = Object.values(ui.basket).reduce((a, n) => a + n, 0);
+  let cards = pcard(`<div class="ptop"><span class="em">🛒</span><div><b>Basket</b><small>${items ? `${items} items · ${money2(total)}` : 'Add ingredients with + and check out here'}</small></div></div>
+    <div class="pbtns"><button class="small primary" data-act="checkout" ${items && s.clean >= total ? '' : 'disabled'}>${items && s.clean < total ? 'Not enough cash' : `Checkout${items ? ' · ' + money2(total) : ''}`}</button>
+      <button class="small" data-act="basket-clear" ${items ? '' : 'disabled'}>Clear</button></div>`, '', 'wide hired');
+  cards += pcard(`<div class="ptop"><span class="em">🧺</span><div><b>Stock up</b><small>3 batches of all ${G.menuOf(s).length} things on sale${cost ? ` · ${money2(cost)}` : ''}</small></div></div>
+    <div class="pbtns"><button class="small" data-act="stockup" ${cost ? '' : 'disabled'}>${cost ? 'Add to basket' : 'All stocked'}</button></div>`, ibtn('stockup', 'x'), 'wide');
   cards += Object.entries(INGREDIENTS).filter(([, ing]) => G.unlocked(s, ing.level) || ing.level <= s.level + 10).map(([k, ing]) => {
     if (!G.unlocked(s, ing.level)) {
       return pcard(`<div class="ptop"><span class="em">${ing.emoji}</span><div><b>${ing.name}</b><small>for new recipes</small></div></div>${lockTag(ing.level)}`, ibtn('ing', k), 'locked');
@@ -130,9 +141,11 @@ function suppliesTab() {
     const p = G.ingPrice(s, k), m = s.market[k];
     const tag = m >= 1.12 ? '<span class="up">▲</span>' : m <= 0.92 ? '<span class="down">▼</span>' : '';
     return pcard(`<div class="ptop"><span class="em">${ing.emoji}</span><div><b>${ing.name}</b><small>× ${s.inv[k]} · ${money2(p)} ${tag}</small></div></div>
-      <div class="pbtns">${[5, 20, 50].map(n => `<button class="small" data-act="buy" data-id="${k}" data-n="${n}" ${s.clean < p * n ? 'disabled' : ''}>+${n}</button>`).join('')}</div>`, ibtn('ing', k));
+      <div class="pbtns stepper"><button class="small" data-act="basket" data-id="${k}" data-n="-5" ${ui.basket[k] ? '' : 'disabled'}>−</button>
+        <b>${ui.basket[k] || 0}</b><button class="small" data-act="basket" data-id="${k}" data-n="5">+</button></div>
+      <small>${ui.basket[k] ? money2(ui.basket[k] * p) : '5 at a time'}</small>`, ibtn('ing', k), ui.basket[k] ? 'hired' : '');
   }).join('');
-  return { cards, hint: `Today's market (prices change at 6am). ▲ dear, ▼ cheap. Cooking buys what's missing for you.` };
+  return { cards, hint: `Today's market (prices change at 6am). ▲ dear, ▼ cheap. Fill the basket, then check out. Cooking buys anything missing for you.` };
 }
 
 function kitchenTab() {
@@ -913,6 +926,10 @@ function modalHTML() {
   else if (m.type === 'buyer') inner = buyerModal(m);
   else if (m.type === 'report') inner = reportModal(m);
   else if (m.type === 'away') inner = awayModal(m);
+  else if (m.type === 'confirm') {
+    inner = `<h2>Are you sure?</h2><p>${ui.confirm?.text || ''}</p>
+      <div class="row2" style="margin-top:10px"><button class="primary" data-act="confirm-yes">Yes, buy it</button><button data-act="confirm-no">No</button></div>`;
+  }
   else if (m.type === 'perks') {
     const pr = s.prestige;
     inner = `<h2>⭐ Prestige perks</h2><p class="mute">${pr.tokens} token${pr.tokens === 1 ? '' : 's'} to spend. Perks shape every fresh start and are kept for ever.</p><div class="mlist">${Object.entries(PERKS).map(([id, P]) => {
@@ -952,7 +969,7 @@ function modalHTML() {
       <div class="row2"><button class="violet" data-act="offer" data-id="yes">Hear him out</button><button data-act="offer" data-id="no">Not interested</button></div>`;
   }
   const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night');
-  const sticky = m.type === 'levelup' || m.type === 'offer';
+  const sticky = m.type === 'levelup' || m.type === 'offer' || m.type === 'confirm';
   return `<div class="modal-bg" data-act="${sticky ? 'noop' : 'close'}"><div class="modal ${night ? 'night' : ''}" data-act="noop">${inner}</div></div>`;
 }
 
@@ -1023,8 +1040,8 @@ function designScreen() {
   }
   return `<div class="designbar">
     <div class="drow"><div class="dcats">${cats.map(([id, label]) => `<button class="small ${dv.cat === id ? 'on' : ''}" data-act="d-cat" data-id="${id}">${label}</button>`).join('')}</div>
-      <button class="primary small" data-act="d-done">Done</button></div>
-    <div class="dinfo"><span>${hint}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
+      ${D.cartInfo()?.n ? `<button class="small" data-act="d-cancel">Cancel</button><button class="primary small" data-act="d-checkout" ${s.clean >= D.cartInfo().cost ? '' : 'disabled'}>${D.cartInfo().cost >= 0 ? `Checkout · ${money(D.cartInfo().cost)}` : `Done · +${money(-D.cartInfo().cost)}`}</button>` : '<button class="primary small" data-act="d-done">Done</button>'}</div>
+    <div class="dinfo"><span>${hint}${D.cartInfo()?.n ? ` <b>· ${D.cartInfo().n} change${D.cartInfo().n === 1 ? '' : 's'} in the basket</b>` : ''}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
     ${sel}
     <div class="catalog ${dv.cat === 'expand' ? 'exp' : ''}" data-key="design-${dv.cat}">${items}</div>
     ${extra ? `<div class="dextra">${extra}</div>` : ''}
@@ -1034,6 +1051,7 @@ function designScreen() {
 function designTap(info) {
   const dv = ui.design;
   let r = null;
+  D.startCart(s);
   if (info.kind === 'panel') {
     if (dv.cat === 'wall') r = D.paintWall(s, info.key, dv.item);
     else if (dv.cat === 'art') r = dv.item === 'remove' ? D.removeArt(s, info.key) : D.placeArt(s, info.key, dv.item);
@@ -1099,8 +1117,29 @@ function tapMachine(kind, idx) {
   ui.modal = { type: 'machine', kind, idx };
 }
 
+// Big purchases ask first
+function confirmText(a, d) {
+  const id = d.id;
+  if (a === 'buymachine') return `Buy another ${MACHINES[id].name.toLowerCase()} for ${money(G.machinePrice(s, id))}?`;
+  if (a === 'buylab') return `Buy a ${LAB_MACHINES[id].name.toLowerCase()} for 💜 ${money(G.machinePrice(s, id, true))}?`;
+  if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
+  if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
+  if (a === 'front-buy') return `Buy the ${FRONTS[id].name.toLowerCase()} for ${money(FRONTS[id].price)}?`;
+  if (a === 'van-buy') return `Buy another van for ${money(VANS.price * (1 + s.vans.count))}?`;
+  if (a === 'van-up') return id === 'level' ? `Bigger vans for ${money(VANS.capacityCost[s.vans.level + 1])}?` : `Better hidden compartments for 💜 ${money(VANS.hideCost[s.vans.hide + 1])}?`;
+  if (a === 'property') return `Buy ${PROPERTY[id].name.toLowerCase()} for ${money(PROPERTY[id].price)}?`;
+  if (a === 'upgrade') { const u = UPGRADES.find(x => x.id === id); return `Buy ${u.name.toLowerCase()} for ${u.cash === 'dirty' ? '💜 ' : ''}${money(u.cost)}?`; }
+  if (a === 'corner-buy') return `Take over ${CORNERS[id].name.toLowerCase()} for 💜 ${money(CORNERS[id].price)}?`;
+  if (a === 'learn') return `Learn ${ITEMS[id].name} for ${money(ITEMS[id].cost)}?`;
+  if (a === 'tier') { const lab = d.kind === 'night', m = (lab ? s.lab : s.machines)[Number(d.idx)]; return m ? `Upgrade to tier ${(m.tier || 0) + 1} for ${G.machineCash(m.type, lab) === 'dirty' ? '💜 ' : ''}${money(G.tierCost(m.type, m.tier || 0, lab))}?` : null; }
+  return null;
+}
 function act(el) {
   const a = el.dataset.act, id = el.dataset.id, t = s.clock;
+  if (!el.dataset.confirmed) {
+    const text = confirmText(a, el.dataset);
+    if (text) { ui.confirm = { text, data: { ...el.dataset }, back: ui.modal }; ui.modal = { type: 'confirm' }; render(true); return; }
+  }
   switch (a) {
     case 'noop': return;
     case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
@@ -1148,11 +1187,15 @@ function act(el) {
     case 'repair': G.repairMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
     case 'menu-toggle': G.toggleMenu(s, id); break;
     case 'price': G.setPriceLevel(s, id, el.dataset.lvl); break;
-    case 'buy': G.buyIngredient(s, id, Number(el.dataset.n)); break;
-    case 'stockup': {
-      const { need } = stockUpNeeds();
-      for (const [k, q] of Object.entries(need)) if (q > 0) G.buyIngredient(s, k, q, true);
-      showToast('Stocked up.', 'good');
+    case 'basket': { const n = Math.max(0, (ui.basket[id] || 0) + Number(el.dataset.n)); if (n) ui.basket[id] = n; else delete ui.basket[id]; break; }
+    case 'basket-clear': ui.basket = {}; break;
+    case 'stockup': { const { need } = stockUpNeeds(); for (const [k, q] of Object.entries(need)) if (q > 0) ui.basket[k] = Math.max(ui.basket[k] || 0, q); break; }
+    case 'checkout': {
+      const total = basketTotal();
+      if (s.clean < total) { showToast('Not enough clean cash.', 'bad'); break; }
+      for (const [k, n] of Object.entries(ui.basket)) G.buyIngredient(s, k, n, true);
+      showToast(`Bought ${Object.values(ui.basket).reduce((a, n) => a + n, 0)} ingredients for ${money2(total)}.`, 'good');
+      ui.basket = {};
       break;
     }
     // Business
@@ -1215,18 +1258,22 @@ function act(el) {
     case 'offer': G.answerOffer(s, id === 'yes'); ui.modal = null; if (id === 'yes') { G.viewShop(s, 0); ui.room = 'back'; ui.tab = 'back'; } break;
     case 'lvl-ok': s.levelUps.shift(); ui.modal = null; break;
     case 'close': ui.modal = null; break;
+    case 'confirm-yes': { const c = ui.confirm; ui.confirm = null; ui.modal = c?.back || null; if (c) act({ dataset: { ...c.data, confirmed: '1' } }); return; }
+    case 'confirm-no': ui.modal = ui.confirm?.back || null; ui.confirm = null; break;
     // Design
     case 'd-cat': Object.assign(ui.design, { cat: id, item: DESIGN_DEFAULT[id], sel: null, moving: null }); break;
     case 'd-item':
       if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
       Object.assign(ui.design, { item: id, sel: null, moving: null }); break;
-    case 'd-fill': { const r = ui.design.cat === 'floor' ? D.fillFloor(s, ui.design.item) : D.fillWalls(s, ui.design.item); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
+    case 'd-fill': { D.startCart(s); const r = ui.design.cat === 'floor' ? D.fillFloor(s, ui.design.item) : D.fillWalls(s, ui.design.item); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-move': if (ui.design.sel != null) ui.design.moving = ui.design.sel; break;
-    case 'd-rotate': if (ui.design.sel != null) D.rotateDecor(s, ui.design.sel); break;
-    case 'd-sell': if (ui.design.sel != null) { const r = D.sellDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
+    case 'd-rotate': if (ui.design.sel != null) { D.startCart(s); D.rotateDecor(s, ui.design.sel); } break;
+    case 'd-sell': if (ui.design.sel != null) { D.startCart(s); const r = D.sellDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
     case 'd-deselect': ui.design.sel = null; ui.design.moving = null; break;
-    case 'd-buyexp': { const r = D.buyExpansion(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
-    case 'd-done': ui.design = null; break;
+    case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
+    case 'd-done': D.checkoutCart(s); ui.design = null; break;
+    case 'd-checkout': { const r = D.checkoutCart(s); if (r.msg) showToast(r.msg, 'good'); ui.design = null; break; }
+    case 'd-cancel': D.cancelCart(s); showToast('Changes undone.', 'info'); ui.design = null; break;
     case 'restart':
       if (!confirm('Start a new game? This bakery will be lost.')) return;
       s = G.newGame(Date.now()); vt = Date.now(); ui.modal = null; ui.design = null; ui.room = 'shop'; ui.tab = null; ui.panel = null;

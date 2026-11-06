@@ -26,6 +26,14 @@ There's no in-game day. The clock in the corner is your clock.
   empty, food left done in a machine spoils, interest builds on missed payments, crew do their jobs, and buyers come and
   go at the back door. "While you were away" sums it up. Up to 14 days are played; anything longer is skipped.
 
+## Buying things
+
+- **Ingredients**: use − and + to fill the basket (Stock up adds three batches of everything on sale), then Checkout.
+- **Design**: tiles, wallpaper, decor and wall art show in the shop as you place them but are only paid for when you
+  press Checkout; Cancel puts everything back.
+- **Big purchases** (machines, tiers, expansions, shops, vans, fronts, corners, property, upgrades and recipes) ask
+  you to confirm first.
+
 ## The kitchen
 
 Every machine has its own menu. Tap one to cook, set prices, choose what's on sale and learn recipes. Each batch is one
