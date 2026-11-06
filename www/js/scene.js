@@ -1574,12 +1574,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     // (the terraces have their own railings) planters at their corners
     if (ex.front) { planter(-5.0, 7.15); planter(4.4, 7.15); }
     if (ex.side) { planter(7.15, -4.9); planter(7.15, 2.95); }
-    // Café parasols over the food carts
-    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) {
-      add(cyl(0.025, 0.025, 2.0, darkM, x, 0.3, 6.05, 6));
-      const pa = mesh(sg(new THREE.ConeGeometry(0.75, 0.32, 8)), awnM || sm(P.trim), x, 2.35, 6.05); add(pa);
-      add(sphere(0.05, goldM, x, 2.53, 6.05));
-    }
+    // (no parasols over the food carts: the shop's awning already hangs over them)
     // A glazed lean-to down the side for the stalls, on slim posts with a gutter
     if (ex.stalls) {
       const lt = mesh(sg(new THREE.BoxGeometry(2.45, 0.05, 7.4)), awnM || glass({ emissiveIntensity: 0.2 }), 5.95, 2.5, -1.05); lt.rotation.z = -0.22; add(lt);

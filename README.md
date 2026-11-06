@@ -296,8 +296,8 @@ Open **🎨 Design** any time:
   (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm. Zoom out and the corner
   buttons become a single 🏠 Outside button, which opens these as tabs (Paint, Walls, Windows, Door, Roof, Awning, Sign,
   Extras); zoom back in and Map, Design and Menu return.
-- **The building grows** when zoomed out: the front terrace gets a deeper awning and planters, the food carts café
-  parasols, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
+- **The building grows** when zoomed out: the front terrace gets a deeper awning (over the food carts) and
+  planters, the storeroom a deeper back block, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
   back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the
   flat upstairs adds a second storey to the stall.
 - **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for more machines.
