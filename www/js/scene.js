@@ -621,8 +621,10 @@ class Agent {
   }
   update(dt) {
     const pos = this.group.position;
-    const d = this.target.clone().sub(pos); d.y = 0;
-    const dist = d.length();
+    let d = this.target.clone().sub(pos); d.y = 0;
+    let dist = d.length();
+    // Following a path: move on to the next waypoint once this one is reached
+    while (dist <= 0.03 && this.path?.length) { this.target.copy(this.path.shift()); d = this.target.clone().sub(pos); d.y = 0; dist = d.length(); }
     let moving = false;
     if (dist > 0.03) {
       moving = true;
@@ -650,7 +652,7 @@ class Agent {
     const closed = this.blinkIn < 0.12;
     for (const e of p.eyes) e.scale.y = closed ? 0.15 : 1;
     if (this.blinkIn < 0) this.blinkIn = 2 + Math.random() * 3.5;
-    return dist <= 0.03;
+    return dist <= 0.03 && !this.path?.length;
   }
   turnTo(a, dt) {
     const r = this.group.rotation.y;
@@ -1286,6 +1288,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     };
     s.machines.forEach((m, i) => add(m, i, 'day'));
     s.lab.forEach((m, i) => add(m, i, 'night'));
+    navGrid = null;
   }
 
   // ---------- Particles (steam, smoke, vapour) ----------
@@ -1318,10 +1321,89 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const browsers = []; let browserId = 1;
 
   // You: the baker. Walks to whatever you tap.
-  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(-8.4, 0, -1.2) };
+  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(-7.7, 0, -2.6) };
   const baker = new Agent(scene, { skin: 1, shirt: 0, hair: 1, pants: 0, h: 1.02 }, 'baker', BAKER_HOME.shop.clone());
   baker.face = PI / 4;
   let bakerZone = 'shop', bakerJob = null, bakerIdle = 0;
+  // ---------- Walking around things: a grid over the floor, A* and a smoothed path ----------
+  const NAV = { x0: -11.6, x1: 6.9, z0: -4.45, z1: 6.9, c: 0.2 };
+  const NW = Math.ceil((NAV.x1 - NAV.x0) / NAV.c), NH = Math.ceil((NAV.z1 - NAV.z0) / NAV.c);
+  // Floor you can stand on: the shop, the back room, the door between them, the shop door and the terraces
+  const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-11.45, -4.85, -4.4, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
+    [4.85, 6.9, -4.4, 6.9], [-4.4, 6.9, 4.85, 6.9]];
+  const FIXED = [[-2.6, 3.5, 0.45, 1.45], [-11.45, -10.55, -1.95, -1.25], [-11.3, -10.5, 3.5, 4.3], [-7.5, -6.3, 0.62, 1.38], [-6.45, -5.55, -1.5, -0.9], [-11.4, -10.5, -3.2, -2.8]];
+  let navGrid = null;
+  const cellOf = (x, z) => [Math.floor((x - NAV.x0) / NAV.c), Math.floor((z - NAV.z0) / NAV.c)];
+  const centre = (i, j) => V3(NAV.x0 + (i + 0.5) * NAV.c, 0, NAV.z0 + (j + 0.5) * NAV.c);
+  function buildNav() {
+    const pad = 0.16, rects = FIXED.map(r => [r[0] - pad, r[1] + pad, r[2] - pad, r[3] + pad]);
+    for (const st of stations) {
+      const p = st.group.position, side = Math.abs(Math.sin(st.group.rotation.y)) > 0.5;
+      const hx = (side ? 0.42 : 0.55) + pad, hz = (side ? 0.55 : 0.42) + pad;
+      rects.push([p.x - hx, p.x + hx, p.z - hz, p.z + hz]);
+    }
+    navGrid = new Uint8Array(NW * NH);
+    for (let j = 0; j < NH; j++) for (let i = 0; i < NW; i++) {
+      const c = centre(i, j);
+      const ok = AREAS.some(a => c.x >= a[0] && c.x <= a[1] && c.z >= a[2] && c.z <= a[3]) && !rects.some(r => c.x > r[0] && c.x < r[1] && c.z > r[2] && c.z < r[3]);
+      navGrid[j * NW + i] = ok ? 1 : 0;
+    }
+  }
+  const walkable = (i, j) => i >= 0 && j >= 0 && i < NW && j < NH && navGrid[j * NW + i] === 1;
+  function nearestFree(i, j) {
+    if (walkable(i, j)) return [i, j];
+    for (let r = 1; r < 12; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) if (walkable(i + di, j + dj)) return [i + di, j + dj];
+    return null;
+  }
+  function clearLine(a, b) {
+    const n = Math.ceil(a.distanceTo(b) / (NAV.c * 0.5));
+    for (let k = 1; k < n; k++) { const p = a.clone().lerp(b, k / n); const [i, j] = cellOf(p.x, p.z); if (!walkable(i, j)) return false; }
+    return true;
+  }
+  function findPath(from, to) {
+    if (!navGrid) buildNav();
+    const a = nearestFree(...cellOf(from.x, from.z)), b = nearestFree(...cellOf(to.x, to.z));
+    if (!a || !b) return null;
+    const start = a[1] * NW + a[0], goal = b[1] * NW + b[0];
+    const g = new Float32Array(NW * NH).fill(Infinity), came = new Int32Array(NW * NH).fill(-1), done = new Uint8Array(NW * NH);
+    const h = k => Math.hypot(k % NW - b[0], Math.floor(k / NW) - b[1]);
+    g[start] = 0;
+    const open = [[h(start), start]];
+    while (open.length) {
+      let bi = 0; for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k;
+      const [, cur] = open.splice(bi, 1)[0];
+      if (cur === goal) break;
+      if (done[cur]) continue; done[cur] = 1;
+      const ci = cur % NW, cj = Math.floor(cur / NW);
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ni = ci + di, nj = cj + dj;
+        if (!walkable(ni, nj) || (di && dj && (!walkable(ci + di, cj) || !walkable(ci, cj + dj)))) continue;
+        const nk = nj * NW + ni, ng = g[cur] + (di && dj ? 1.414 : 1);
+        if (ng < g[nk]) { g[nk] = ng; came[nk] = cur; open.push([ng + h(nk), nk]); }
+      }
+    }
+    if (start !== goal && came[goal] < 0) return null;
+    const cells = [];
+    for (let k = goal; k !== -1 && k !== start; k = came[k]) cells.push(centre(k % NW, Math.floor(k / NW)));
+    cells.reverse();
+    // Smooth it: skip waypoints you can see past
+    const pts = [], at = from.clone().setY(0);
+    let i = 0;
+    while (i < cells.length) {
+      let j = cells.length - 1;
+      while (j > i && !clearLine(pts.length ? pts.at(-1) : at, cells[j])) j--;
+      pts.push(cells[j]); i = j + 1;
+    }
+    pts.push(to.clone().setY(0));
+    return pts;
+  }
+  // Walk somewhere, around machines and through doorways
+  function walkTo(agent, dest) {
+    const path = findPath(agent.group.position, dest);
+    if (!path) { agent.path = null; agent.target.copy(dest); return; }
+    agent.target.copy(path.shift()); agent.path = path;
+  }
 
   // Things flying through the air: fresh goods to the case, bags to the pile, coins from the till.
   const flyers = [];
@@ -1358,7 +1440,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     st.bounce = 1;
     const ry = st.group.rotation.y;
     const front = st.group.position.clone().add(V3(Math.sin(ry), 0, Math.cos(ry)).multiplyScalar(0.8));
-    baker.target.copy(front); baker.face = ry + PI;
+    walkTo(baker, front); baker.face = ry + PI;
     bakerJob = true; bakerIdle = 0;
     if (!collected) return;
     const from = st.anchorW.clone().add(V3(0, -0.5, 0));
@@ -1380,15 +1462,18 @@ export function createScene(canvas, overlayEl, { onPick }) {
 
   function syncPeople(s, dt, now) {
     // The baker follows the camera between rooms, works at each tapped station, then wanders home.
+    // The baker walks through the doorway when you switch rooms (or appears there if they were far off)
     if (view.zone !== bakerZone) {
       bakerZone = view.zone;
-      baker.group.position.copy(BAKER_HOME[bakerZone]); baker.target.copy(BAKER_HOME[bakerZone]); bakerJob = null;
+      bakerJob = null;
+      if (baker.group.position.distanceTo(BAKER_HOME[bakerZone]) > 12) { baker.group.position.copy(BAKER_HOME[bakerZone]); baker.target.copy(BAKER_HOME[bakerZone]); baker.path = null; }
+      else walkTo(baker, BAKER_HOME[bakerZone]);
     }
     const bakerThere = baker.update(dt);
     if (bakerJob && bakerThere) { baker.work = 0.6; bakerJob = null; bakerIdle = 0; }
     else if (!bakerJob && bakerThere) {
       bakerIdle += dt;
-      if (bakerIdle > 6 && baker.target.distanceTo(BAKER_HOME[bakerZone]) > 0.05) { baker.target.copy(BAKER_HOME[bakerZone]); baker.face = PI / 4; }
+      if (bakerIdle > 6 && baker.group.position.distanceTo(BAKER_HOME[bakerZone]) > 0.1 && !baker.path?.length) { walkTo(baker, BAKER_HOME[bakerZone]); baker.face = PI / 4; }
     }
 
     // Customers: in through the doorway, queue at the tray they want, out again (all from the live engine)

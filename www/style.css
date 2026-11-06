@@ -523,3 +523,10 @@ button.big { padding: 11px; font-size: 15px; }
 .place.night { background: rgba(169, 139, 224, .07); border-color: rgba(169, 139, 224, .18); }
 .place.new { border-style: dashed; }
 .place.locked { opacity: .5; }
+
+/* The menu, its sections and the corner buttons sit above the top bar */
+#app .hud { z-index: 5; }
+#app .designbar, #app .panel, #app .fabs { z-index: 8; }
+.panel { max-height: calc(100vh - 100px); overflow-y: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.panel::-webkit-scrollbar { display: none; }
+#app .modal-bg { z-index: 20; }

@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS, VANS, DELIVERY } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS, VANS, DELIVERY, PRESTIGE, PERKS } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -68,9 +68,7 @@ const unseenReport = () => s.reports.length && s.reports.at(-1).day > (s.seenRep
 
 function hudHTML() {
   const t = s.clock, d = G.daysToPayment(s);
-  const due = s.won
-    ? `<span class="badge ok">🏦 Debt cleared</span>`
-    : `<span class="badge ${d <= 2 ? 'warn' : ''}" data-act="tab" data-id="bank" title="Next bank payment">🏦 ${money(G.nextDue(s))} · ${d}d</span>`;
+  const due = s.won ? '' : `<span class="badge ${d <= 2 ? 'warn' : ''}" data-act="tab" data-id="bank" title="Next bank payment">🏦 ${money(G.nextDue(s))} · ${d}d</span>`;
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   const showDirty = s.labUnlocked || s.dirty > 0;
   const sub = `${s.shops.length > 1 ? G.shopDef(s).short + ' · ' : ''}${period(t)}${doorOpen(t) ? ' · back door open' : ''}`;
@@ -214,8 +212,8 @@ function backTab() {
   for (const [id, p] of [...prods, ...nextLocked]) {
     const open = G.unlocked(s, p.level), have = s.bags[id] || 0, cut = s.cut[id] || 'none';
     const kitBtns = !left ? `<div class="lockline">${kitNx ? `Dez sells ${kitNx.amount} kits a day from level ${kitNx.level}` : 'No more kits today'}</div>`
-      : `<button class="small violet" data-act="kit" data-id="dirty" data-type="${id}" ${s.dirty < G.kitPrice(id, 'dirty') ? 'disabled' : ''}>💜 Kit<small>${money(G.kitPrice(id, 'dirty'))}</small></button>
-         <button class="small" data-act="kit" data-id="clean" data-type="${id}" ${s.clean < G.kitPrice(id, 'clean') ? 'disabled' : ''}>💷 Kit<small>${money(G.kitPrice(id, 'clean'))}</small></button>`;
+      : `<button class="small violet" data-act="kit" data-id="dirty" data-type="${id}" ${s.dirty < G.kitPrice(id, 'dirty', s) ? 'disabled' : ''}>💜 Kit<small>${money(G.kitPrice(id, 'dirty', s))}</small></button>
+         <button class="small" data-act="kit" data-id="clean" data-type="${id}" ${s.clean < G.kitPrice(id, 'clean', s) ? 'disabled' : ''}>💷 Kit<small>${money(G.kitPrice(id, 'clean', s))}</small></button>`;
     cards += pcard(`<div class="ptop"><span class="em">${p.emoji}</span><div><b>${p.name}</b><small>${open || have ? `${have} bags${have ? ` · ${pct(s.purity[id] ?? 0.6)} pure` : ''} · ${s.kits[id] || 0} kits<br>${money(nowPrice(id))} a bag` : `${FAMILIES[p.family].name} · ${money(p.price)} a bag`}</small></div></div>
       ${!open ? lockTag(p.level) : `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${cut === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>
       <div class="pbtns">${kitBtns}<button class="small" data-act="dez" data-id="${id}" ${have ? '' : 'disabled'}>Dez<small>½ price</small></button></div>`}`, ibtn('product', id), `wide night ${open ? '' : 'locked'}`);
@@ -438,9 +436,11 @@ function bankTab() {
   cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>HMRC</b><small>≈ ${money(est.total)} due in ${daysToTax}d${s.vatRegistered ? ' · VAT registered' : ''}${s.hmrc > 1 ? `<br><span class="bad">Owed: ${money(s.hmrc)}</span>` : ''}</small></div></div>
     <div class="seg">${Object.entries(DECLARE).map(([k, d]) => `<button class="${(s.declare || 'full') === k ? 'on' : ''}" data-act="declare" data-id="${k}">${d.label}</button>`).join('')}</div>
     ${s.hmrc > 1 ? `<div class="pbtns"><button class="small danger" data-act="hmrc" ${s.clean >= 1 ? '' : 'disabled'}>Pay HMRC</button></div>` : ''}`, ibtn('tax', 'x'), 'wide');
+  const pt = G.prestigeTokens(s), pr = s.prestige;
+  cards += pcard(`<div class="ptop"><span class="em">⭐</span><div><b>Prestige</b><small>worth ${money(G.netWorth(s))} → ${pt} token${pt === 1 ? '' : 's'}${pr.tokens ? `<br>${pr.tokens} to spend` : ''}${pr.total ? ` · +${pct(PRESTIGE.tokenBonus * pr.total)} prices` : ''}</small></div></div>
+    <div class="pbtns"><button class="small" data-act="perks">Perks</button>${s.level >= PRESTIGE.level ? `<button class="small primary" data-act="prestige-ask" ${pt ? '' : 'disabled'}>Start again</button>` : `<span class="lock">🔒 Lv ${PRESTIGE.level}</span>`}</div>`, ibtn('prestige', 'x'), 'wide hired');
   cards += pcard(`<b>Daily reports</b><small>${s.reports.length ? `Last: ${dateStr(s.reports.at(-1).day)}` : 'The first comes at 6am'}</small>
     <div class="pbtns"><button class="small" data-act="report" ${s.reports.length ? '' : 'disabled'}>📋 Read</button></div>`, '');
-  cards += pcard(`<b>Start over</b><div class="pbtns"><button class="small danger" data-act="restart">New game</button></div>`, ibtn('bank', 'restart'));
   return { cards, hint: 'The bank takes its payment at 6am on payment day, automatically.' };
 }
 
@@ -556,7 +556,7 @@ function infoFor(kind, id) {
     const p = PRODUCTS[id], bags = Math.round(p.bags * (1 + G.eff(s, 'bags')));
     const rows = Object.entries(CUTS).map(([k, c]) => { const pur = Math.min(0.99, G.labPurity(s, null) * c.purity), n = Math.round(bags * c.bags), each = Math.round(p.price * purityMult(pur));
       return `<tr class="${(s.cut[id] || 'none') === k ? 'on' : ''}"><td>${c.label}</td><td>${n}</td><td>${pct(pur)}</td><td>${money(each)}</td><td>${money(n * each - p.kit)}</td></tr>`; }).join('');
-    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Kit', `💜 ${money(G.kitPrice(id, 'dirty'))} · 💷 ${money(G.kitPrice(id, 'clean'))}`) + line('Cooks in', mins(p.minutes))
+    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Kit', `💜 ${money(G.kitPrice(id, 'dirty', s))} · 💷 ${money(G.kitPrice(id, 'clean', s))}`) + line('Cooks in', mins(p.minutes))
       + line('List price', `${money(p.price)} a bag at 60% purity`) + (s.bags[id] ? line('Yours', `${s.bags[id]} bags at ${pct(s.purity[id] ?? 0.6)}: ${money(nowPrice(id))} each`) : '')
       + `<table class="itable"><tr><th>Cut</th><th>Bags</th><th>Purity</th><th>Each</th><th>Profit</th></tr>${rows}</table>`
       + (p.ing ? line('Also uses', Object.entries(p.ing).map(([k, q]) => `${q} ${INGREDIENTS[k].name.toLowerCase()}`).join(', ')) : '')
@@ -604,6 +604,13 @@ function infoFor(kind, id) {
       + line('Investigation chance', pct(G.investigateChance(s)), G.investigateChance(s) > 0.2 ? 'bad' : '')
       + line('Business rates', `${money(G.businessRates(s))} a day on your branches (the stall gets small business rates relief)`)
       + `<p class="mute">Corporation tax is ${pct(TAX.smallRate)} on profits up to ${money(TAX.smallLimit)} a week and ${pct(TAX.mainRate)} above ${money(TAX.mainLimit)}, with marginal relief between. Cold takeaway food and bread are zero-rated for VAT. Unpaid tax gets a ${pct(TAX.latePenalty)} penalty and interest, and HMRC collect what they can each morning. If an investigation finds undeclared income you pay it back twice over and it makes the papers. Laundering a lot compared with your real takings draws questions too.</p>`);
+  }
+  if (kind === 'prestige') {
+    const pr = s.prestige;
+    return T('⭐ Prestige', `<p>Hand the business on and start again from nothing: no shops, no machines, no cash, a fresh debt. In return you get prestige tokens for what the business was worth, to spend on perks that make every new start quicker.</p>`
+      + line('Net worth now', money(G.netWorth(s))) + line('Tokens if you prestige now', G.prestigeTokens(s), 'good')
+      + line('Tokens to spend', pr.tokens) + line('Tokens ever earned', `${pr.total} (+${pct(PRESTIGE.tokenBonus * pr.total)} on every sale and bag)`) + line('Times', pr.resets)
+      + `<p class="mute">Tokens grow with the square root of net worth (shops, machines, property, fronts, vans and cash, less debt): £1M is worth 10, £100M is worth 100. Prestige opens at level ${PRESTIGE.level}. Perks and token bonuses are kept for ever; everything else starts again, including milestones.</p>`);
   }
   if (kind === 'review') {
     const r = s.review;
@@ -673,7 +680,6 @@ function infoFor(kind, id) {
   }
   if (kind === 'bank' && id === 'restructure') return T('📑 Restructure the debt', `<p>When you're two or more payments behind, the bank will fold what you've missed into the loan for a ${CFG.restructureFee * 100}% fee. The interest stops and Grimshaw Recovery is called off. Once a month.</p>`);
   if (kind === 'bank' && id === 'pay') return T('Paying early', '<p>Extra payments come off what you owe straight away, clearing any missed payment first. Pay it all to finish the debt.</p>');
-  if (kind === 'bank' && id === 'restart') return T('Start over', '<p>Starts a brand-new game. This bakery, its money and its design are lost.</p>');
   if (kind === 'floor') {
     const f = D.FLOORS[id], { n, cost } = D.fillFloorCost(s, id);
     return T(`🟫 ${f.name}`, line('Price', `${money(f.price)} a square`) + line('Whole floor', n ? `${money(cost)} for ${n} squares` : 'already laid')
@@ -820,7 +826,7 @@ function machineModal(m) {
     rows = G.productsFor(mc.type).filter(id => PRODUCTS[id].level <= s.level + 10).map(id => {
       const p = PRODUCTS[id], open = G.unlocked(s, p.level), kits = s.kits[id] || 0;
       const right = !open ? `<span class="lock">🔒 Lv ${p.level}</span>`
-        : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < G.kitPrice(id, 'dirty') && s.clean < G.kitPrice(id, 'clean')))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${s.dirty >= G.kitPrice(id, 'dirty') ? '💜 ' + money(G.kitPrice(id, 'dirty')) : '💷 ' + money(G.kitPrice(id, 'clean'))})`}</button>`;
+        : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < G.kitPrice(id, 'dirty', s) && s.clean < G.kitPrice(id, 'clean', s)))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${s.dirty >= G.kitPrice(id, 'dirty', s) ? '💜 ' + money(G.kitPrice(id, 'dirty', s)) : '💷 ' + money(G.kitPrice(id, 'clean', s))})`}</button>`;
       const cut = CUTS[s.cut[id] || 'none'], pur = Math.min(0.99, G.labPurity(s, mc) * cut.purity);
       return `<div class="mrow ${open ? '' : 'locked'}">${ibtn('product', id)}<span class="em">${p.emoji}</span>
         <div class="grow"><b>${p.name}</b><small>${Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags)} bags · ≈${pct(pur)} pure · ${money(Math.round(p.price * purityMult(pur)))} a bag · ${mins(p.minutes * (1 - TIERS.labSpeed * (mc.tier || 0)))}</small>
@@ -907,7 +913,20 @@ function modalHTML() {
   else if (m.type === 'buyer') inner = buyerModal(m);
   else if (m.type === 'report') inner = reportModal(m);
   else if (m.type === 'away') inner = awayModal(m);
-  else if (m.type === 'milestones') {
+  else if (m.type === 'perks') {
+    const pr = s.prestige;
+    inner = `<h2>⭐ Prestige perks</h2><p class="mute">${pr.tokens} token${pr.tokens === 1 ? '' : 's'} to spend. Perks shape every fresh start and are kept for ever.</p><div class="mlist">${Object.entries(PERKS).map(([id, P]) => {
+      const lvl = G.perk(s, id), cost = G.perkCost(s, id);
+      return `<div class="mrow"><span class="em">${P.emoji}</span><div class="grow"><b>${P.name} ${lvl}/${P.max}</b><small>${P.desc}</small></div>
+        <div class="mright">${lvl >= P.max ? '<span class="lock good">Max</span>' : `<button class="small primary" data-act="perk" data-id="${id}" ${pr.tokens >= cost ? '' : 'disabled'}>${cost} ⭐</button>`}</div></div>`; }).join('')}</div>
+      <button class="big" data-act="close" style="margin-top:10px">Close</button>`;
+  } else if (m.type === 'prestige') {
+    const pt = G.prestigeTokens(s);
+    inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, decoration, crew member and penny. You start again at Aunt Rosa's stall with a fresh debt.</p>
+      <div class="card">${line('Net worth', money(G.netWorth(s)))}${line('Prestige tokens', `+${pt}`, 'good')}${line('Prices after', `+${pct(PRESTIGE.tokenBonus * (s.prestige.total + pt))} on everything`, 'good')}</div>
+      <p class="mute">Your perks and tokens carry over. Spend the tokens in Bank & tax → Perks once you've started again.</p>
+      <div class="row2" style="margin-top:10px"><button class="primary" data-act="prestige-go">Start again</button><button data-act="close">Not yet</button></div>`;
+  } else if (m.type === 'milestones') {
     inner = `<h2>🏆 Milestones</h2><div class="mlist">${MILESTONES.map(x => { const done = s.milestones[x.id], p = G.milestoneProgress(s, x);
       return `<div class="mrow ${done ? '' : 'unknown'}"><span class="em">${x.emoji}</span><div class="grow"><b>${x.name}</b><small>${done ? `Reached ${dateStr(done)}` : `${pct(p)} of the way`} · +${money(x.cash)}</small>
         ${done ? '' : `<span class="prog"><i style="width:${(p * 100).toFixed(1)}%"></i></span>`}</div><div class="mright">${done ? '<span class="lock good">✓</span>' : ''}</div></div>`; }).join('')}</div>
@@ -1170,6 +1189,10 @@ function act(el) {
     case 'order': G.deliverOrder(s, Number(id)); break;
     case 'order-drop': G.dropOrder(s, Number(id)); break;
     case 'milestones': ui.modal = { type: 'milestones' }; break;
+    case 'perks': ui.modal = { type: 'perks' }; break;
+    case 'perk': G.buyPerk(s, id); break;
+    case 'prestige-ask': ui.modal = { type: 'prestige' }; break;
+    case 'prestige-go': s = G.prestigeReset(s, Date.now()); vt = Date.now(); ui.modal = { type: 'perks' }; ui.design = null; ui.room = 'shop'; ui.tab = null; ui.panel = null; break;
     case 'dez': G.sellToDez(s, id, s.bags[id] || 0); break;
     case 'tier': G.upgradeMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
     case 'corner-buy': G.buyCorner(s, id); break;

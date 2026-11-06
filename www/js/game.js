@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -86,6 +86,62 @@ export function viewShop(s, i) { if (s.shops[i]) s.cur = i; }
 export const shopRent = s => s.shops.reduce((a, x, i) => a + (i === 0 && eff(s, 'noRent') ? 0 : SHOPS[x.id].rent), 0);
 export const businessRates = s => Math.round(s.shops.reduce((a, x, i) => a + (i === 0 ? 0 : SHOPS[x.id].rent * TAX.ratesShare), 0));
 
+// ---------- Prestige ----------
+export const perk = (s, id) => s.prestige?.perks?.[id] || 0;
+export const tokenBonus = s => 1 + PRESTIGE.tokenBonus * (s.prestige?.total || 0);
+// What the whole business is worth: cash anywhere, shops, machines, property, fronts and vans, less what you owe
+export function netWorth(s) {
+  let v = s.clean + s.dirty + (s.wash?.offshore || 0) + (s.wash?.art || []).reduce((a, x) => a + x.amount, 0);
+  for (const x of s.shops) {
+    v += SHOPS[x.id].price;
+    for (const m of x.machines) v += MACHINES[m.type].price * (1 + 0.5 * (m.tier || 0));
+    for (const m of x.lab) v += LAB_MACHINES[m.type].price * (1 + 0.5 * (m.tier || 0));
+  }
+  for (const id in s.property || {}) if (s.property[id]) v += PROPERTY[id].price;
+  for (const id in s.wash?.fronts || {}) v += FRONTS[id].price;
+  v += (s.vans?.count || 0) * VANS.price;
+  return Math.max(0, Math.round(v - s.balance - (s.hmrc || 0)));
+}
+export const prestigeTokens = s => Math.floor(Math.sqrt(netWorth(s) / PRESTIGE.per));
+export const prestigeReady = s => s.level >= PRESTIGE.level && prestigeTokens(s) > 0;
+export const perkCost = (s, id) => PERKS[id].cost * (perk(s, id) + 1);
+export function buyPerk(s, id) {
+  const P = PERKS[id];
+  if (!P) return;
+  if (perk(s, id) >= P.max) return say(`${P.name} is maxed out.`, 'bad');
+  const cost = perkCost(s, id);
+  if (s.prestige.tokens < cost) return say(`You need ${cost} prestige tokens.`, 'bad');
+  s.prestige.tokens -= cost; s.prestige.perks[id] = perk(s, id) + 1;
+  say(`${P.emoji} ${P.name} is now level ${s.prestige.perks[id]}.`, 'good');
+}
+// Hand it all on and start again: a brand-new game, plus the tokens and every perk you've bought
+export function prestigeReset(s, t = Date.now()) {
+  if (!prestigeReady(s)) { say(`Prestige opens at level ${PRESTIGE.level}, once the business is worth something.`, 'bad'); return s; }
+  const earned = prestigeTokens(s);
+  const pr = { ...(s.prestige || { tokens: 0, total: 0, resets: 0, perks: {} }) };
+  pr.perks = { ...(pr.perks || {}) };
+  pr.tokens = (pr.tokens || 0) + earned; pr.total = (pr.total || 0) + earned; pr.resets = (pr.resets || 0) + 1;
+  pr.best = Math.max(pr.best || 0, netWorth(s));
+  const n = newGame(t, pr);
+  n.feed.push({ t, text: `⭐ A fresh start. ${earned} prestige tokens earned (${pr.tokens} to spend in Bank & tax).`, kind: 'good' });
+  return n;
+}
+// The perks you own shape the fresh start
+function applyPerks(s) {
+  s.clean += 2500 * perk(s, 'savings');
+  s.balance = Math.max(0, CFG.debtTotal - 2500 * perk(s, 'credit'));
+  if (s.balance <= 0) s.won = true;
+  s.level = Math.min(CFG.maxLevel, 1 + 2 * perk(s, 'headstart'));
+  const known = 5 * perk(s, 'recipes');
+  for (const id in ITEMS) if (ITEMS[id].level <= known && !s.recipes.includes(id)) s.recipes.push(id);
+  if (perk(s, 'contacts')) {
+    s.labUnlocked = true; s.offerPending = false;
+    s.shops[0].lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
+    s.kits.homegrown = 2;
+  }
+  s.street = Math.min(100, s.street + 10 * perk(s, 'legend'));
+}
+
 // ---------- Small state helpers ----------
 export const has = (s, id) => !!s.upgrades[id];
 export function eff(s, key) { // the sum of every owned upgrade's and property's effect called key
@@ -98,7 +154,7 @@ export const unlocked = (s, level) => (s.level || 1) >= (level || 1);
 export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.level);
 export const recipeOf = id => ITEMS[id] || PRODUCTS[id];
 export const ingPrice = (s, ing) => round2(INGREDIENTS[ing].base * (s.market[ing] || 1));
-export const itemPrice = (s, id) => round2(ITEMS[id].price * shopDef(s).priceMult * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
+export const itemPrice = (s, id) => round2(ITEMS[id].price * shopDef(s).priceMult * tokenBonus(s) * PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult * (1 + eff(s, 'price')) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1));
 export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + q * ingPrice(s, k), 0));
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
@@ -121,6 +177,7 @@ export const labXp = id => { const p = PRODUCTS[id]; return Math.round(6 + p.min
 export const bagXp = id => Math.max(1, Math.round(PRODUCTS[id].price / 20));
 export function addXp(s, n) {
   if (!n) return;
+  n *= 1 + 0.1 * perk(s, 'learner');
   s.xp += n; s.today.xp += n; s.stats.xp += n;
   while (s.level < CFG.maxLevel && s.xp >= xpToNext(s.level)) {
     s.xp -= xpToNext(s.level);
@@ -150,7 +207,7 @@ export const machineCap = (s, type, lab = false) => { const M = TYPES(lab)[type]
 export const machineNextCap = (s, type, lab = false) => nextCap(TYPES(lab)[type].caps, s.level);
 export function machinePrice(s, type, lab = false) {
   const M = TYPES(lab)[type], extra = Math.max(0, machineCount(s, type, lab) - (M.free || 0));
-  return Math.round(M.price * (1 + MACHINE_PRICE_STEP * extra) / 10) * 10;
+  return Math.round(M.price * (1 + MACHINE_PRICE_STEP * extra) * (1 - 0.05 * perk(s, 'bulk')) / 10) * 10;
 }
 const designFor = s => s.design; // each shop's own expansions open its own spots, front and back
 const spotOpen = (s, spot, lab) => !spot.need || !!designFor(s, lab).expansions[spot.need];
@@ -307,7 +364,7 @@ export function startLab(s, idx, id, t, { quiet = false } = {}) {
     const cost = round2(short.reduce((a, [k, q]) => a + (q - s.inv[k]) * ingPrice(s, k), 0));
     if (short.length && s.clean < cost) { if (!quiet) say(`Not enough bakery stock for ${p.name}.`, 'bad'); return false; }
   }
-  if (!(s.kits[id] > 0) && !buyKit(s, s.dirty >= kitPrice(id, 'dirty') ? 'dirty' : 'clean', id, { quiet: true })) {
+  if (!(s.kits[id] > 0) && !buyKit(s, s.dirty >= kitPrice(id, 'dirty', s) ? 'dirty' : 'clean', id, { quiet: true })) {
     if (!quiet) say(`No ${p.name} kits, and Dez won't sell you one right now.`, 'bad');
     return false;
   }
@@ -465,7 +522,7 @@ export function customersPerHour(s, t) {
   const inStock = menuOf(s).filter(id => s.display[id] > 0).length;
   const variety = 1 + Math.min(CFG.varietyCap, CFG.varietyBonus * Math.max(0, inStock - 1));
   return (CFG.custBase + s.rep * CFG.custPerPop) * HOUR_TRADE[h] * nightApp * (1 + eff(s, 'cust')) * (s.event?.cust || 1)
-    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * reviewBoost(s, t);
+    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * (1 + 0.05 * perk(s, 'regulars')) * reviewBoost(s, t);
 }
 const tasteAt = t => { const h = localHour(t); return HOUR_TASTE.find(b => h < b.until).w; };
 const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
@@ -541,7 +598,7 @@ function courierArrives(s, t) {
     line: `Dez sent me. ${want} bags of ${PRODUCTS[product].name}, all at once, and I'm gone.`, arrive: t, patience: CFG.courierPatienceMin * MIN, look: newLook() });
   note(s, `📦 Dez's courier is at the back door for ${want} ${PRODUCTS[product].name}.`, 'info', t);
 }
-export const bagPrice = (s, b) => Math.round(PRODUCTS[b.product].price * purityMult(s.purity[b.product] ?? 0.6) * (b.courier ? CFG.courierPremium : 1));
+export const bagPrice = (s, b) => Math.round(PRODUCTS[b.product].price * purityMult(s.purity[b.product] ?? 0.6) * (b.courier ? CFG.courierPremium : 1) * tokenBonus(s) * (1 + 0.05 * perk(s, 'legend')));
 // You serve a buyer yourself: full price, your own read of them.
 export function serveBuyer(s, id, push = false, t = s.clock) {
   const b = s.door.find(x => x.id === id);
@@ -600,8 +657,8 @@ function unattended(s, b, t) {
   s.door = s.door.filter(x => x !== b);
   s.today.buyersLost++;
 }
-export const kitPrice = (product, cash) => Math.round(PRODUCTS[product].kit * (cash === 'clean' ? CFG.cleanKitMult : 1) / 10) * 10;
-export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) - s.today.kitsBought);
+export const kitPrice = (product, cash, s = null) => Math.round(PRODUCTS[product].kit * (cash === 'clean' ? CFG.cleanKitMult : 1) * (1 - 0.05 * (s ? perk(s, 'contacts') : 0)) / 10) * 10;
+export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) + 2 * perk(s, 'contacts') - s.today.kitsBought);
 export function buyKit(s, cash, product = 'homegrown', { quiet = false } = {}) {
   const p = PRODUCTS[product];
   if (!s.labUnlocked || !p) return false;
@@ -611,7 +668,7 @@ export function buyKit(s, cash, product = 'homegrown', { quiet = false } = {}) {
     if (!quiet) say(`Dez won't sell you more than ${capAt(CAPS.kits, s.level)} kits a day${nx ? `. Reach level ${nx.level} for ${nx.amount}` : ''}.`, 'bad');
     return false;
   }
-  const price = kitPrice(product, cash);
+  const price = kitPrice(product, cash, s);
   if (s[cash] < price) { if (!quiet) say(`Not enough ${cash} cash.`, 'bad'); return false; }
   s[cash] = round2(s[cash] - price);
   s.today.kitsBought++;
@@ -1127,7 +1184,7 @@ function rollMarket(s) {
   for (const k in INGREDIENTS) s.market[k] = round2(0.85 + rand() * 0.4);
   if (s.event?.flour) s.market.flour = round2(s.market.flour * s.event.flour);
 }
-export function newGame(t = Date.now()) {
+export function newGame(t = Date.now(), prestige = null) {
   const s = {
     v: SAVE_VERSION, created: t, clock: t, last: t, startDay: dayStart(t), nextId: 1,
     clean: CFG.startClean, dirty: 0, heat: 0, rep: 50,
@@ -1151,6 +1208,8 @@ export function newGame(t = Date.now()) {
   for (const id in ITEMS) s.priceLevel[id] = 'normal';
   s.display.sourdough = 20; s.display.croissant = 16; // Aunt Rosa's last bake
   rollMarket(s); s.event = null;
+  s.prestige = prestige || { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
+  if (prestige) { applyPerks(s); learnFree(s); }
   s.today = freshLedger(s, t);
   scheduleNight(s, t);
   return s;
@@ -1174,6 +1233,7 @@ export function migrate(s, t = Date.now()) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
+    s.prestige ??= { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
     s.taxWeek ??= freshTaxWeek(); s.wash ??= freshWash(); s.vans ??= { count: 0, level: 0, hide: 0, impounded: [] }; s.shipments ??= []; s.delivery ??= { on: false, riders: 0, out: 0 }; s.deliveries ??= []; s.taxWeek.washTaxed ??= 0; s.taxWeek.washSuspect ??= 0; s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
     if (s.today) { s.today.vatSales ??= 0; s.today.capex ??= 0; s.today.ordersDone ??= 0; s.today.ordersMissed ??= 0; }
     for (const x of s.shops) { for (const id in ITEMS) x.display[id] ??= 0; x.custAcc ||= 0; x.design.base ??= { floor: SHOPS[x.id].floor, wall: SHOPS[x.id].wall }; }

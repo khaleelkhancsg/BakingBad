@@ -160,6 +160,28 @@ a week and is paid from clean cash; see it building up in the 🏦 Bank tab.
   income you pay it back twice over and it makes the papers. Viv the accountant trims the bill and halves the chance.
 - **Unpaid tax** gets a 5% penalty and daily interest, and HMRC take what they can each morning.
 
+## Prestige
+
+From level 25, Menu → Bank & tax → Prestige lets you hand the business on and start again from nothing: no shops,
+machines, cash or crew, and a fresh debt at Aunt Rosa's stall. In return you get **prestige tokens** for what the
+business was worth (the square root of net worth over £10,000: £1M is worth 10, £100M is worth 100). Every token ever
+earned adds 1% to every sale and bag, for good. Spend tokens on perks that make each fresh start quicker:
+
+| Perk | Each level |
+|---|---|
+| 💰 Rosa's savings | start with £2,500 more |
+| 🏦 Good credit | inherit £2,500 less debt |
+| 🎓 Quick learner | +10% XP |
+| 🫶 Loyal regulars | +5% customers |
+| 📜 Family recipes | start knowing every recipe up to 5 levels higher |
+| 🏷️ Trade discount | machines 5% cheaper |
+| 🚀 A head start | start two levels higher |
+| 🤝 Old contacts | back room open from day one, 2 more kits a day, kits 5% cheaper |
+| 🕶️ Street legend | +10 street rep, +5% on every bag |
+
+Perks cost more tokens with each level. Perks and tokens carry over every reset; everything else (milestones
+included) starts again.
+
 ## Orders, milestones and critics
 
 - **📦 Special orders** arrive every few hours: a wedding wants 60 croissants by tonight, a festival crew wants 20 bags.

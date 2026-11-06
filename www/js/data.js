@@ -96,6 +96,22 @@ export const VANS = {
 export const DELIVERY = { level: 45, price: 1.1, copMult: 0.4, heatMult: 0.5, raidMult: 0.75, minutes: 45,
   stop: 0.015, stopPerHeat: 1 / 800, stingHeat: 10, stopHeat: 6, riderWage: 80, caps: [[45, 2], [55, 4], [70, 6], [85, 10]] };
 
+// Prestige: hand the business on and start again from nothing, with tokens for your net worth.
+// tokens = floor(sqrt(net worth / per)). Every token ever earned adds tokenBonus to all prices, for good.
+export const PRESTIGE = { level: 25, per: 10000, tokenBonus: 0.01 };
+// Perks bought with tokens: each makes the next fresh start quicker. cost: tokens for the next level = cost * (level + 1)
+export const PERKS = {
+  savings:  { name: "Rosa's savings",  emoji: '💰', max: 10, cost: 1, desc: 'Start with £2,500 more clean cash a level.' },
+  credit:   { name: 'Good credit',     emoji: '🏦', max: 8,  cost: 1, desc: 'The debt you inherit is £2,500 smaller a level.' },
+  learner:  { name: 'Quick learner',   emoji: '🎓', max: 10, cost: 2, desc: '+10% XP from everything, a level.' },
+  regulars: { name: 'Loyal regulars',  emoji: '🫶', max: 10, cost: 2, desc: '+5% customers at every shop, a level.' },
+  recipes:  { name: 'Family recipes',  emoji: '📜', max: 10, cost: 2, desc: 'Start knowing every recipe up to level 5 a level (you still need the machines).' },
+  bulk:     { name: 'Trade discount',  emoji: '🏷️', max: 6,  cost: 2, desc: 'Machines cost 5% less a level.' },
+  headstart:{ name: 'A head start',    emoji: '🚀', max: 10, cost: 3, desc: 'Start two levels higher a level.' },
+  contacts: { name: 'Old contacts',    emoji: '🤝', max: 5,  cost: 3, desc: 'The back room is open from day one, Dez sells you 2 more kits a day and 5% cheaper, a level.' },
+  legend:   { name: 'Street legend',   emoji: '🕶️', max: 5,  cost: 3, desc: '+10 starting street rep and +5% on every bag, a level.' },
+};
+
 // Special orders: a client wants a batch of something by a deadline and pays well for it
 export const CLIENTS = ['The Kingsmere Cricket Club', 'A wedding at St Mary\'s', 'An office leaving do', 'The primary school fete', 'A film crew on location',
   'The bowls club', 'A christening', 'The council canteen', 'A charity fun run', 'The rugby club bar', 'A hen party', 'The care home',
@@ -727,8 +743,8 @@ export const LAB_SPOTS = [
   { x: -10.25, z: -3.95, ry: 0 }, { x: -8.95, z: -3.95, ry: 0 }, { x: -7.7, z: -3.95, ry: 0 }, { x: -6.45, z: -3.95, ry: 0 },
   { x: -9.6, z: -1.2, ry: 0, need: 'bench' }, { x: -8.3, z: -1.2, ry: 0, need: 'bench' }, { x: -7.0, z: -1.2, ry: 0, need: 'bench2' },
   { x: -9.6, z: 0.1, ry: Math.PI, need: 'bench3' }, { x: -8.3, z: 0.1, ry: Math.PI, need: 'bench3' },
-  { x: -5.3, z: -3.0, ry: -Math.PI / 2, need: 'annex' }, { x: -5.3, z: 2.1, ry: -Math.PI / 2, need: 'annex' },
-  { x: -5.3, z: 3.4, ry: -Math.PI / 2, need: 'annex' }, { x: -6.6, z: 4.0, ry: Math.PI, need: 'annex' },
+  { x: -5.3, z: -3.0, ry: -Math.PI / 2, need: 'annex' }, { x: -5.3, z: 0.6, ry: -Math.PI / 2, need: 'annex' },
+  { x: -6.6, z: 4.0, ry: Math.PI, need: 'annex' }, { x: -8.0, z: 4.0, ry: Math.PI, need: 'annex' },
 ];
 
 export const EVENTS = [
