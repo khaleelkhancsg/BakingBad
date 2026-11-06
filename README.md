@@ -346,12 +346,16 @@ in `android/`. In the app:
 - it saves when it goes to the background. Saves live in the app's own storage, kept until you uninstall it or clear
   its data.
 
-Building needs JDK 21 and the Android SDK (platform 36 and build tools). With those installed and `ANDROID_HOME` set:
+Building needs JDK 21 and the Android SDK (platform 36, build tools 36, platform-tools). On this PC the SDK is in
+`C:\Users\khale\AppData\Local\Android\Sdk`, and `android/local.properties` (kept out of git) points the build at it.
+On another machine, install Android Studio or the command-line tools and set `sdk.dir` there. Then:
 
 ```
 npm run android:build
 ```
 
 That copies `www/` into the app and builds `android/app/build/outputs/apk/debug/app-debug.apk`, which can be
-sideloaded (`adb install -r` on that file, or copy it to the phone). `npm run android:sync` only copies `www/` across
+sideloaded: copy it to the phone and open it (allow installs from that app when asked), or with USB debugging on and
+the phone plugged in, `adb install -r android\app\build\outputs\apk\debug\app-debug.apk` (adb is in the SDK's
+`platform-tools` folder). Installing again over the top keeps the save. `npm run android:sync` only copies `www/` across
 (run it after changing the game); `npm run android:open` opens the project in Android Studio.
