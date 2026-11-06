@@ -17,10 +17,10 @@ export const CFG = {
   // Laundering
   launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, cashPileFree: 5000, cashPilePer: 5000, cashPileMax: 25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05, branchBuyers: 0.6,
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
-  nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.2, buyersMax: 12, buyersMaxPerLevel: 0.35, buyerPatienceMin: 3,
-  dealerCut: 0.2, streetMult: 1,
-  copBase: 0.03, copPerHeat: 1 / 500, copServedHeat: 15, copCrewHeat: 5, heatPerBag: 0.06,
-  heatDecayPerHour: 0.25, lieLowPerHour: 0.25, lieLowAfterHours: 12,
+  nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.4, buyersMax: 14, buyersMaxPerLevel: 0.6, buyerPatienceMin: 3,
+  dealerCut: 0.2, streetMult: 1, stockedPull: 5, swapChance: 0.5,
+  copBase: 0.03, copPerHeat: 1 / 500, copServedHeat: 15, copCrewHeat: 5, heatPerBag: 0.045,
+  heatDecayPerHour: 0.25, heatCoolPerLevel: 0.02, lieLowPerHour: 0.25, lieLowAfterHours: 12,
   raidAt: 60, inspectAt: 35, inspectChance: 0.2, inspectFine: 800,
   dealerArrestPerNight: 0.03, dealerArrestPerHeat: 1 / 400, dealerArrestHeat: 20,
   bribeCost: 600, bribeHeat: 15, bribeBackfire: 0.1, bribeBackfireHeat: 20,
@@ -540,7 +540,7 @@ export const LAB_MACHINES = {
 // Parody products (nothing here is a real recipe). share: how often buyers ask for it. heat: per cook.
 // cop: extra chance a buyer wanting it is undercover. ing: bakery stock it also uses (edibles).
 function P(machine, name, emoji, family, level, minutes, bags, list, extra = {}) {
-  const price = Math.round(list * 1.5); // dirty money comes easier than clean
+  const price = Math.round(list * 2); // dirty money comes easier than clean (and costs more to keep)
   return { machine, name, emoji, family, level, minutes, bags, price,
     kit: Math.round(0.3 * bags * price / 10) * 10,
     heat: Math.min(6, Math.round((0.4 + price / 120) * 10) / 10),
@@ -779,7 +779,7 @@ export const PROPERTY = {
 // Things that grow with your level instead of being bought one by one: [level, amount from that level].
 export const CAPS = {
   menu:      [[1, 4], [3, 5], [5, 6], [8, 7], [12, 8], [20, 9], [30, 10], [45, 11], [60, 12], [80, 13], [95, 14]],
-  kits:      [[1, 4], [5, 6], [9, 8], [13, 10], [25, 14], [40, 18], [60, 24], [80, 30]],
+  kits:      [[1, 4], [5, 8], [9, 12], [13, 16], [25, 24], [40, 32], [60, 44], [80, 60]],
   loan:      [[4, 1000], [8, 2000], [12, 3000], [25, 6000], [40, 10000], [60, 20000], [80, 40000]],
   decor:     [[1, 6], [3, 10], [5, 14], [7, 18], [9, 22], [12, 28], [15, 34], [18, 40], [24, 48], [30, 56], [40, 64], [55, 72], [75, 80], [90, 90]],
   campaigns: [[1, 1], [5, 2], [10, 3], [15, 4], [40, 5], [70, 6]],

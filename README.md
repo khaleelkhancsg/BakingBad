@@ -89,6 +89,10 @@ buyers at the back door after dark. The products are parodies of real ones; the 
   upgrades (scales, extractor hood, filters, purity tester), Doc and Pip.
 - **Cutting** (Pure, Light, Heavy) gives more bags from a cook, each worth less.
 - **Street rep** decides how many buyers come. Pure product raises it; cut or weak product and busts lower it.
+  Buyers mostly come for what you're known to have in stock; if you're out, Jay or Lena offers them something else
+  and about half take it.
+- **Heat** cools by itself a little faster every level (0.27 an hour at level 1, about 1.25 at level 50), so a bigger
+  operation can run without the police closing in, as long as you don't push it.
 - **Turf** (🗺️): buy corners around town, from the estate to penthouse parties. Give each a product and stock it; they
   sell while you're away, faster at night. Police sweeps and rival crews can take what's on a corner.
 - **Dez** buys anything you can't shift, at half price.

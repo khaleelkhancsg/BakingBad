@@ -571,6 +571,8 @@ export function repairMachine(s, idx, lab = false) {
   say(`${TYPES(lab)[m.type].name} repaired.`, 'good');
 }
 // Back-room cooks
+// How fast heat cools by itself: a little faster every level, as you learn the street and the street learns you
+export const heatCool = s => CFG.heatDecayPerHour + CFG.heatCoolPerLevel * (s.level || 1);
 export function startLab(s, idx, id, t, { quiet = false } = {}) {
   const m = s.lab[idx], p = PRODUCTS[id];
   if (!m || !p || m.job || m.broken || p.machine !== m.type) return false;
@@ -797,7 +799,8 @@ export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel
 export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level) && (!PRODUCTS[id].rare || (s.bags[id] || 0) > 0));
 function buyerArrives(s, t) {
   const choices = {};
-  for (const id of knownProducts(s)) choices[id] = PRODUCTS[id].share * ((s.bags[id] || 0) > 0 ? 2 : 1);
+  // Word gets round: buyers mostly come for what you're known to have
+  for (const id of knownProducts(s)) choices[id] = PRODUCTS[id].share * ((s.bags[id] || 0) > 0 ? CFG.stockedPull : 1);
   const product = weighted(choices) || 'homegrown';
   const cop = rand() < copChance(s, product);
   const offLine = cop ? rand() < 0.8 : rand() < 0.12;
@@ -866,6 +869,12 @@ export function turnAway(s, id) {
 }
 // Nobody served them in time: crew may step in, otherwise they leave.
 function unattended(s, b, t) {
+  // Out of what they came for: the crew offers something else, and some take it
+  if (!b.courier && !(s.bags[b.product] > 0) && (s.crew.host || s.crew.dealer) && rand() < CFG.swapChance) {
+    const alt = {}; for (const id in s.bags) if (s.bags[id] > 0 && PRODUCTS[id]) alt[id] = PRODUCTS[id].share * (PRODUCTS[id].family === PRODUCTS[b.product].family ? 3 : 1);
+    const id = weighted(alt);
+    if (id) { const pr = PRODUCTS[id].price; b.product = id; b.want = Math.min(b.want, pr <= 20 ? 4 : pr <= 60 ? 2 : 1); }
+  }
   const have = s.bags[b.product] || 0;
   if (b.courier) {
     if (s.crew.driver && have >= b.want) return sell(s, b, b.want, Math.round(b.want * bagPrice(s, b)), t, true);
@@ -1589,7 +1598,7 @@ function shared(s, t0, t1, mins) {
   s.street += (s.street > CFG.streetHome ? -1 : 1) * Math.min(Math.abs(s.street - CFG.streetHome), CFG.streetDrift * mins / 60);
   // Heat cools; popularity drifts back to the middle; marketing and PR add a little
   const lyingLow = t1 - (s.lastLab || 0) > CFG.lieLowAfterHours * HOUR;
-  s.heat = clamp(s.heat - (CFG.heatDecayPerHour * (s.crew.fixer ? 2 : 1) * backCool(s) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
+  s.heat = clamp(s.heat - (heatCool(s) * (s.crew.fixer ? 2 : 1) * backCool(s) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
   s.rep += (s.rep > CFG.popHome ? -1 : 1) * Math.min(Math.abs(s.rep - CFG.popHome), CFG.popDriftPerHour * mins / 60);
   let popDay = s.crew.pr ? CFG.prPopPerDay : 0;
   for (const c of activeCampaigns(s, t0)) popDay += CAMPAIGNS[c.id].pop || 0;

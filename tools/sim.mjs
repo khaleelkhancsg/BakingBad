@@ -174,7 +174,7 @@ function run(st, seed) {
       checkIn(s, st, t, next);
     }
     if (s.won && clearedDay == null) clearedDay = d + 1;
-    if (TRACE) { const r = s.reports.at(-1)?.ledger; if (r) console.log(`d${d + 1} Lv${s.level} £${Math.round(s.clean)} 💜${Math.round(s.dirty)} heat ${Math.round(s.heat)} pop ${Math.round(s.rep)} | sales £${Math.round(r.sales)} served ${r.served} missed ${r.missed} batches ${r.batches} burnt ${r.burnt} | lab ${r.labBatches} bags ${r.bagsSold} (crew ${r.crewSales}) cops ${r.copsServed} lost ${r.buyersLost} xp ${Math.round(r.xp)}${r.events.length ? ' | ' + r.events.map(e => e.text.slice(0, 40)).join(' / ') : ''}`); }
+    if (TRACE) { const r = s.reports.at(-1)?.ledger; if (r) console.log(`d${d + 1} Lv${s.level} £${Math.round(s.clean)} 💜${Math.round(s.dirty)} heat ${Math.round(s.heat)} pop ${Math.round(s.rep)} | sales £${Math.round(r.sales)} served ${r.served} missed ${r.missed} batches ${r.batches} burnt ${r.burnt} | night £${Math.round(r.nightSales)} kits ${r.kitsBought} stock ${Object.values(s.bags).reduce((a, b) => a + b, 0)} heat-cool ${G.heatCool ? G.heatCool(s).toFixed(2) : ''} lab ${r.labBatches} bags ${r.bagsSold} (crew ${r.crewSales}) cops ${r.copsServed} lost ${r.buyersLost} xp ${Math.round(r.xp)}${r.events.length ? ' | ' + r.events.map(e => e.text.slice(0, 40)).join(' / ') : ''}`); }
     if ([7, 30, 60, 90, 120, 180, 365].includes(d + 1)) marks[d + 1] = s.level;
   }
   return { level: s.level, clearedDay, busts: s.stats.busts, visits: s.stats.visits, clean: s.clean, dirty: s.dirty, rep: s.rep,
