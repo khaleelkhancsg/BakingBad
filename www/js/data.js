@@ -39,6 +39,65 @@ export const CFG = {
   maxCatchUpDays: 14,
 };
 
+// Tax, inspired by the UK system and squeezed into a week (the game's "tax year" would otherwise take a real year).
+// VAT: registered once declared takings pass the threshold; hot food and drinks are standard-rated, cold takeaway
+// food and bread are zero-rated. Corporation tax: the small profits rate, the main rate, and marginal relief between.
+// Employer National Insurance on day-crew wages above the secondary threshold. Business rates on each shop, with
+// small business rates relief for the stall.
+export const TAX = {
+  vatRate: 0.2, vatThreshold: 90000, vatGroups: ['savory', 'drink'],
+  smallRate: 0.19, mainRate: 0.25, smallLimit: 1000, mainLimit: 5000,   // weekly profit bands
+  niRate: 0.15, niThreshold: 100,                                       // employer NI on weekly day wages
+  ratesShare: 0.4,                                                      // business rates: a share of each branch's rent
+  taxDay: 3, latePenalty: 0.05, interestDaily: 0.003, collectShare: 0.5,
+  accountantSave: 0.1, investigateBase: 0.03, investigateUnder: 0.7, investigateLaunder: 0.25,
+  evasionPenalty: 1, evasionPop: 10,
+};
+// How much of the profit you tell HMRC about
+export const DECLARE = { full: { label: 'All of it', share: 1 }, most: { label: '90%', share: 0.9 }, some: { label: '75%', share: 0.75 }, half: { label: 'Half', share: 0.5 } };
+
+// Special orders: a client wants a batch of something by a deadline and pays well for it
+export const CLIENTS = ['The Kingsmere Cricket Club', 'A wedding at St Mary\'s', 'An office leaving do', 'The primary school fete', 'A film crew on location',
+  'The bowls club', 'A christening', 'The council canteen', 'A charity fun run', 'The rugby club bar', 'A hen party', 'The care home',
+  'The tech start-up upstairs', 'A golden wedding anniversary', 'The market traders\' breakfast', 'A wake (Rosa would approve)'];
+export const DEZ_CLIENTS = ['A festival crew', 'Some lads from the docks', 'A uni house party', 'A footballer\'s birthday', 'The casino back room',
+  'A yacht party', 'A band on tour', 'Somebody\'s cousin from out of town', 'A warehouse rave', 'A very quiet accountant'];
+export const ORDERS = { caps: [[3, 1], [10, 2], [25, 3], [50, 4], [75, 5]], everyHours: 3, minHours: 4, maxHours: 20,
+  bakeryPay: 1.8, dezPay: 1.6, xpMult: 2, missPop: 2, missStreet: 3, heat: 2 };
+
+// Milestones: one-off rewards (clean cash and XP)
+export const MILESTONES = [
+  { id: 'firstsale',  emoji: '🥐', name: 'Open for business', stat: 'served', n: 1, cash: 50 },
+  { id: 'served1k',   emoji: '🧺', name: 'A thousand customers', stat: 'served', n: 1000, cash: 500 },
+  { id: 'served25k',  emoji: '🛒', name: 'A local favourite', stat: 'served', n: 25000, cash: 5000 },
+  { id: 'served250k', emoji: '🏙️', name: 'Known all over town', stat: 'served', n: 250000, cash: 50000 },
+  { id: 'served2m',   emoji: '🌍', name: 'A national treasure', stat: 'served', n: 2000000, cash: 500000 },
+  { id: 'debtfree',   emoji: '🎉', name: 'Debt free', stat: 'won', n: 1, cash: 2000 },
+  { id: 'lv10',       emoji: '🔟', name: 'Level 10', stat: 'level', n: 10, cash: 1000 },
+  { id: 'lv25',       emoji: '🎖️', name: 'Level 25', stat: 'level', n: 25, cash: 10000 },
+  { id: 'lv50',       emoji: '🏅', name: 'Level 50', stat: 'level', n: 50, cash: 100000 },
+  { id: 'lv75',       emoji: '🥈', name: 'Level 75', stat: 'level', n: 75, cash: 500000 },
+  { id: 'lv99',       emoji: '🥇', name: 'Level 99', stat: 'level', n: 99, cash: 5000000 },
+  { id: 'recipes25',  emoji: '📖', name: 'Twenty-five recipes', stat: 'recipes', n: 25, cash: 2000 },
+  { id: 'recipes100', emoji: '📚', name: 'A hundred recipes', stat: 'recipes', n: 100, cash: 50000 },
+  { id: 'recipes205', emoji: '🧑‍🍳', name: 'Every recipe', stat: 'recipes', n: 205, cash: 2000000 },
+  { id: 'shop2',      emoji: '☕', name: 'A second shop', stat: 'shops', n: 2, cash: 5000 },
+  { id: 'shop5',      emoji: '👑', name: 'An empire of cake', stat: 'shops', n: 5, cash: 1000000 },
+  { id: 'decor10',    emoji: '🪴', name: 'Homely', stat: 'decor', n: 10, cash: 1000 },
+  { id: 'orders10',   emoji: '📦', name: 'Reliable', stat: 'orders', n: 10, cash: 3000 },
+  { id: 'orders100',  emoji: '🚚', name: 'Never late', stat: 'orders', n: 100, cash: 60000 },
+  { id: 'critic5',    emoji: '⭐', name: 'Five stars', stat: 'fivestars', n: 1, cash: 10000 },
+  { id: 'bags100',    emoji: '💜', name: 'Side hustle', stat: 'bags', n: 100, cash: 1000 },
+  { id: 'bags10k',    emoji: '🕶️', name: 'Kingpin', stat: 'bags', n: 10000, cash: 100000 },
+  { id: 'washed100k', emoji: '🧼', name: 'Squeaky clean', stat: 'laundered', n: 100000, cash: 10000 },
+  { id: 'corners3',   emoji: '🗺️', name: 'Turf war', stat: 'corners', n: 3, cash: 10000 },
+  { id: 'taxpaid',    emoji: '🧾', name: 'Model taxpayer', stat: 'taxPaid', n: 100000, cash: 20000 },
+  { id: 'survived',   emoji: '🚔', name: 'Bounced back', stat: 'busts', n: 1, cash: 500 },
+];
+// A food critic turns up now and then; the review depends on what's in the case, the decor and popularity
+export const CRITIC = { chance: 0.12, boostHours: 48, boost: [0.6, 0.85, 1, 1.15, 1.35], pop: [-8, -3, 0, 4, 10],
+  names: ['Gillian Crust of The Courier', 'Marcus Fennel (Eat Out)', 'A food blogger with 2M followers', 'The Evening Herald\'s critic', 'Someone from the Guide'] };
+
 // What the day looks like: customers per hour multiplier by local hour (0..23)
 export const HOUR_TRADE = [0.12, 0.08, 0.06, 0.06, 0.08, 0.2, 0.6, 1.2, 1.4, 1.1, 1.0, 1.1, 1.4, 1.4, 1.1, 1.0, 1.0, 1.1, 0.9, 0.8, 0.6, 0.45, 0.3, 0.18];
 // Who wants what by hour block

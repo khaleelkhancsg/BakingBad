@@ -109,6 +109,31 @@ Each shop has its own machines, case, menu and design, pays its own rent, and th
 every one). Each shop you own brings 5% more customers to all of them. Switch shops from the button in the top bar or
 the 🏪 Shops tab, which also has property. The back room is only at the stall.
 
+## Tax
+
+Inspired by the UK system, but settled weekly (a real tax year would take a real year). HMRC's bill comes at 6am once
+a week and is paid from clean cash; see it building up in the 🏦 Bank tab.
+
+- **VAT (20%)** once your declared takings pass £90,000. Hot food and drinks are standard-rated; cold takeaway food and
+  bread are zero-rated, as in the UK.
+- **Corporation tax**: 19% on small profits, 25% above the main limit, with marginal relief in between. Ingredients,
+  rent, wages, machines and everything else you spend on the business count against profit.
+- **Employer National Insurance (15%)** on day-crew wages above the threshold.
+- **Business rates** on every branch; the stall gets small business rates relief.
+- **Laundered money is declared income**, so it's taxed too.
+- **Declaring less** (90%, 75% or half) cuts the bill but raises the chance of an investigation. If HMRC find undeclared
+  income you pay it back twice over and it makes the papers. Viv the accountant trims the bill and halves the chance.
+- **Unpaid tax** gets a 5% penalty and daily interest, and HMRC take what they can each morning.
+
+## Orders, milestones and critics
+
+- **📦 Special orders** arrive every few hours: a wedding wants 60 croissants by tonight, a festival crew wants 20 bags.
+  Deliver from any shop's case (or the back room) before the deadline for a big payment and XP. Miss one and popularity
+  (or street rep) suffers. Grace delivers bakery orders for you; Lenny delivers Dez's jobs.
+- **🏆 Milestones** pay a one-off reward: your first thousand customers, every recipe, five shops, a kingpin's worth of bags.
+- **📝 Food critics** turn up without warning. A full case, charm and popularity win stars; the review moves customer
+  numbers for two days.
+
 ## More to spend on
 
 - **Machine tiers**: every machine, in the kitchens and the back room, upgrades five times. Kitchen tiers cook faster

@@ -13,9 +13,9 @@ const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 // When the bot looks at the game (local hours). Everything else happens while it's away.
 const CHECKINS = [8, 12.5, 17.5, 21.5];
 const STRATS = {
-  honest:  { crook: false },
-  careful: { crook: true, coolAt: 40, bribeAt: 45, serveHinted: false, launder: 1.0 },
-  greedy:  { crook: true, coolAt: 75, bribeAt: 65, serveHinted: true, launder: 1.3 },
+  honest:  { crook: false, declare: 'full' },
+  careful: { crook: true, declare: 'most', coolAt: 40, bribeAt: 45, serveHinted: false, launder: 1.0 },
+  greedy:  { crook: true, declare: 'half', coolAt: 75, bribeAt: 65, serveHinted: true, launder: 1.3 },
 };
 
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -56,6 +56,9 @@ function placeSomeDecor(s) {
 
 function checkIn(s, st, t, next) {
   if (s.offerPending) G.answerOffer(s, st.crook);
+  G.setDeclare(s, st.declare);
+  for (const o of [...s.orders]) G.deliverOrder(s, o.id, t, true);
+  if (s.hmrc > 1) G.payHmrc(s);
   s.levelUps.length = 0;
   const reserve = G.daysToPayment(s) <= 2 ? G.nextDue(s) + 200 : 300;
   const spare = () => s.clean - reserve;
@@ -162,7 +165,7 @@ function run(st, seed) {
   }
   return { level: s.level, clearedDay, busts: s.stats.busts, visits: s.stats.visits, clean: s.clean, dirty: s.dirty, rep: s.rep,
     bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.shops.reduce((a, x) => a + x.machines.length, 0), shops: s.shops.length, laundered: s.stats.totalLaundered, lab: s.lab.length, recipes: s.recipes.length, marks,
-    served: s.stats.served, missed: s.stats.missed, strikes: s.strikes };
+    served: s.stats.served, missed: s.stats.missed, strikes: s.strikes, tax: s.stats.taxPaid || 0, orders: s.stats.orders || 0, miles: Object.keys(s.milestones).length };
 }
 
 const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
@@ -177,6 +180,7 @@ for (const [name, st] of Object.entries(STRATS)) {
   console.log(`  level ${avg(res.map(r => r.level)).toFixed(1)} (${Math.min(...res.map(r => r.level))}–${Math.max(...res.map(r => r.level))})   ${marks}`);
   console.log(`  debt cleared ${cleared.length}/${RUNS}${cleared.length ? `, median day ${med(cleared)}` : ''} · missed payments ${avg(res.map(r => r.strikes)).toFixed(1)} · heavies ${avg(res.map(r => r.visits)).toFixed(1)} · busts ${avg(res.map(r => r.busts)).toFixed(1)}`);
   console.log(`  clean £${Math.round(avg(res.map(r => r.clean))).toLocaleString('en-GB')} · dirty £${Math.round(avg(res.map(r => r.dirty))).toLocaleString('en-GB')} · popularity ${avg(res.map(r => r.rep)).toFixed(0)} · takings £${Math.round(avg(res.map(r => r.sales))).toLocaleString('en-GB')} · bags ${Math.round(avg(res.map(r => r.bags)))}`);
+  console.log(`  tax paid £${Math.round(avg(res.map(r => r.tax))).toLocaleString('en-GB')} · orders ${Math.round(avg(res.map(r => r.orders)))} · milestones ${avg(res.map(r => r.miles)).toFixed(0)}`);
   console.log(`  served ${Math.round(avg(res.map(r => r.served)))} / missed ${Math.round(avg(res.map(r => r.missed)))} · shops ${avg(res.map(r => r.shops)).toFixed(1)} · laundered £${Math.round(avg(res.map(r => r.laundered))).toLocaleString('en-GB')} · machines ${avg(res.map(r => r.machines)).toFixed(1)} + lab ${avg(res.map(r => r.lab)).toFixed(1)} · recipes ${avg(res.map(r => r.recipes)).toFixed(0)}`);
 }
 console.log(`\n(${((Date.now() - t0) / 1000).toFixed(1)} s)`);

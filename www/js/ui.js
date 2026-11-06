@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -92,6 +92,9 @@ function hudHTML() {
       ${G.sealed(s, t) ? `<span class="badge warn" title="The back room is sealed">🚧 ${mins((s.sealedUntil - t) / MIN)}</span>` : ''}
       ${s.arrears > 0 && !s.won ? `<span class="badge warn" data-act="tab" data-id="bank" title="Behind with the bank">🔨 ${money(s.arrears)}</span>` : ''}
       ${camp.length ? `<span class="badge" data-act="tab" data-id="marketing" title="Marketing running">📣 ${camp.map(c => CAMPAIGNS[c.id].emoji).join('')}</span>` : ''}
+      ${s.hmrc > 1 ? `<span class="badge warn" data-act="tab" data-id="bank" title="Owed to HMRC">🧾 ${money(s.hmrc)}</span>` : ''}
+      ${s.review && s.review.until > t ? `<span class="badge" data-act="info" data-kind="review" data-id="x" title="Latest review">📝 ${s.review.stars}⭐</span>` : ''}
+      ${s.orders.length ? `<span class="badge" data-act="tab" data-id="orders" title="Special orders">📦 ${s.orders.length}</span>` : ''}
       ${unseenReport() ? `<span class="badge ok" data-act="report" title="Yesterday's report">📋 Report</span>` : ''}
     </div>
   </header>`;
@@ -265,6 +268,22 @@ function turfTab() {
   return { cards, hint: `Corners sell while you're away: faster at night, and faster with a good street rep. ${out} bags out on the street.${s.crew.runner ? ' Kai keeps them stocked.' : ' Kai the runner (Crew) restocks them for you.'}` };
 }
 
+function ordersTab() {
+  const t = s.clock;
+  let cards = '';
+  for (const o of s.orders) {
+    const dez = o.kind === 'dez', it = (dez ? PRODUCTS : ITEMS)[o.item], have = G.orderStock(s, o);
+    cards += pcard(`<div class="ptop"><span class="em">${it.emoji}</span><div><b>${o.client}</b><small>${o.qty} × ${it.name} · ${mins((o.until - t) / MIN)} left<br>pays ${dez ? '💜' : '💷'} ${money(o.pay)} · ${o.xp} XP</small></div></div>
+      <div class="pbtns"><button class="small ${dez ? 'violet' : 'primary'}" data-act="order" data-id="${o.id}" ${have >= o.qty ? '' : 'disabled'}>${have >= o.qty ? 'Deliver' : `${have}/${o.qty}`}</button>
+      <button class="small" data-act="order-drop" data-id="${o.id}">Turn down</button></div>`, '', `wide ${dez ? 'night' : ''}`);
+  }
+  if (!s.orders.length) cards += pcard(`<div class="ptop"><span class="em">📭</span><div><b>No orders right now</b><small>${G.orderCap(s) ? 'New ones come in every few hours.' : 'Orders start at level 3.'}</small></div></div>`, '', 'wide');
+  const done = MILESTONES.filter(m => s.milestones[m.id]).length;
+  cards += pcard(`<div class="ptop"><span class="em">🏆</span><div><b>Milestones</b><small>${done} of ${MILESTONES.length} reached</small></div></div>
+    <div class="pbtns"><button class="small" data-act="milestones">See them</button></div>`, '', 'wide');
+  return { cards, hint: `Special orders: deliver from the case (any shop) or the back room before time runs out. Grace delivers bakery orders and Lenny delivers Dez's jobs for you. Up to ${G.orderCap(s)} at once.` };
+}
+
 function shopsTab() {
   let cards = '';
   Object.entries(SHOPS).forEach(([id, d]) => {
@@ -331,6 +350,10 @@ function bankTab() {
       ${G.restructureReady(s) ? `<div class="pbtns"><button class="small" data-act="restructure">Fold in · ${money(s.arrears * CFG.restructureFee)} fee</button></div>`
         : `<div class="lockline">${s.behind < 2 ? 'Available two payments behind' : 'Once a month'}</div>`}`, ibtn('bank', 'restructure'), 'wide');
   }
+  const est = G.taxEstimate(s), daysToTax = ((TAX.taxDay - G.dayIndex(s, s.clock)) % 7 + 7) % 7 || 7;
+  cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>HMRC</b><small>≈ ${money(est.total)} due in ${daysToTax}d${s.vatRegistered ? ' · VAT registered' : ''}${s.hmrc > 1 ? `<br><span class="bad">Owed: ${money(s.hmrc)}</span>` : ''}</small></div></div>
+    <div class="seg">${Object.entries(DECLARE).map(([k, d]) => `<button class="${(s.declare || 'full') === k ? 'on' : ''}" data-act="declare" data-id="${k}">${d.label}</button>`).join('')}</div>
+    ${s.hmrc > 1 ? `<div class="pbtns"><button class="small danger" data-act="hmrc" ${s.clean >= 1 ? '' : 'disabled'}>Pay HMRC</button></div>` : ''}`, ibtn('tax', 'x'), 'wide');
   cards += pcard(`<b>Daily reports</b><small>${s.reports.length ? `Last: ${dateStr(s.reports.at(-1).day)}` : 'The first comes at 6am'}</small>
     <div class="pbtns"><button class="small" data-act="report" ${s.reports.length ? '' : 'disabled'}>📋 Read</button></div>`, '');
   cards += pcard(`<b>Start over</b><div class="pbtns"><button class="small danger" data-act="restart">New game</button></div>`, ibtn('bank', 'restart'));
@@ -454,6 +477,23 @@ function infoFor(kind, id) {
       + line('You have', `${s.bags[id] || 0} bags, ${s.kits[id] || 0} kits`)
       + '<p class="mute">Purity comes from the machine\'s tier, back-room upgrades, Doc and Pip. Cutting makes more bags but each is worth less, and buyers notice: weak product hurts your street rep. Pricier products have fewer buyers and draw more attention.</p>');
   }
+  if (kind === 'tax') {
+    const e = G.taxEstimate(s), w = s.taxWeek;
+    return T('🧾 Tax this week', `<p>Settled every week at 6am. Declaring less pays less, until HMRC looks.</p>`
+      + line('Takings so far', money(w.sales + s.today.sales)) + line('Laundered (counts as takings)', money(w.laundered + s.today.laundered))
+      + line('You declare', `${DECLARE[s.declare || 'full'].label}${e.hidden ? ` (hiding ${money(e.hidden)})` : ''}`, e.hidden ? 'bad' : '')
+      + line('VAT', s.vatRegistered ? `${money(e.vat)} (20% on hot food and drinks)` : `not registered until ${money(TAX.vatThreshold)} declared (${money(s.stats.declared || 0)} so far)`)
+      + line('Corporation tax', `${money(e.corp)} on ${money(e.profit)} profit`) + line('Employer NI', `${money(e.ni)} on day-crew wages`)
+      + (e.saved ? line('Viv saves you', money(e.saved), 'good') : '') + line('Estimated bill', money(e.total), 'bad')
+      + line('Investigation chance', pct(G.investigateChance(s)), G.investigateChance(s) > 0.2 ? 'bad' : '')
+      + line('Business rates', `${money(G.businessRates(s))} a day on your branches (the stall gets small business rates relief)`)
+      + `<p class="mute">Corporation tax is ${pct(TAX.smallRate)} on profits up to ${money(TAX.smallLimit)} a week and ${pct(TAX.mainRate)} above ${money(TAX.mainLimit)}, with marginal relief between. Cold takeaway food and bread are zero-rated for VAT. Unpaid tax gets a ${pct(TAX.latePenalty)} penalty and interest, and HMRC collect what they can each morning. If an investigation finds undeclared income you pay it back twice over and it makes the papers. Laundering a lot compared with your real takings draws questions too.</p>`);
+  }
+  if (kind === 'review') {
+    const r = s.review;
+    return T(`📝 ${'⭐'.repeat(r.stars)}`, `<p>${r.by} came by.</p>` + line('Customers', `×${CRITIC.boost[r.stars - 1]} for ${mins((r.until - s.clock) / MIN)} more`)
+      + '<p class="mute">Critics turn up without warning. A full case, plenty of charm and good popularity win stars.</p>');
+  }
   if (kind === 'street') {
     return T(`🗣️ Street rep ${Math.round(s.street)}`, line('Buyers after dark', `≈ ${Math.round(G.buyersPerHour(s))} an hour`) + line('Corners sell', `×${(0.5 + s.street / 100).toFixed(2)}`)
       + `<p><b>Goes up</b><br><small>Selling pure product (above 65%).</small></p><p><b>Goes down</b><br><small>Selling cut or weak product, and getting busted (-${CFG.streetBust}). It drifts back to ${CFG.streetHome}.</small></p>`);
@@ -551,13 +591,13 @@ function tabsList() {
   const tabs = [['kitchen', '🍳 Kitchen'], ['supplies', '🧺 Supplies'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['back', `💜 Back room${s.door.length ? ` (${s.door.length})` : ''}`]);
   if (s.labUnlocked && s.level >= 6) tabs.push(['turf', '🗺️ Turf']);
-  tabs.push(['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['shops', '🏪 Shops'], ['bank', '🏦 Bank']);
+  tabs.push(['orders', `📦 Orders${s.orders.length ? ` (${s.orders.length})` : ''}`], ['marketing', '📣 Marketing'], ['design', '🎨 Design'], ['shops', '🏪 Shops'], ['bank', '🏦 Bank']);
   return tabs;
 }
 function dockHTML() {
   const tabs = tabsList();
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'kitchen';
-  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, back: backTab, turf: turfTab, shops: shopsTab, orders: ordersTab, marketing: marketingTab, bank: bankTab }[ui.tab]();
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's stall</h2>
       <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
@@ -661,10 +701,12 @@ function reportModal(m) {
     <div class="card">${line('Takings', money(t.sales), 'good')}${line('Customers served / missed', `${t.served} / ${t.missed}`)}
       ${t.pricedOut ? line('Put off by prices', t.pricedOut, 'meh') : ''}${line('Batches', t.batches)}${t.burnt ? line('Spoiled in a machine', t.burnt, 'bad') : ''}
       ${line('Ingredients bought', '-' + money(t.ingSpent))}${t.upgradesSpent ? line('Spent on the business', '-' + money(t.upgradesSpent)) : ''}
-      ${line('Rent and wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
+      ${line('Rent, rates and wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
       ${t.income ? line('Property income', money(t.income), 'good') : ''}${t.laundered ? line('Laundered', money(t.laundered)) : ''}
       ${t.interest ? line('Interest on arrears', '-' + money(t.interest), 'bad') : ''}${line('XP earned', `+${Math.round(t.xp)}`, 'good')}</div>
     ${night}${t.events.slice(-12).map(e => `<div class="card ${e.kind === 'bad' ? 'alert' : ''}">${e.text}</div>`).join('')}
+    ${r.tax ? `<div class="card"><h3>🧾 HMRC</h3>${line('VAT', money(r.tax.vat))}${line('Corporation tax', money(r.tax.corp))}${line('Employer NI', money(r.tax.ni))}${line('Total', money(r.tax.total), 'bad')}</div>` : ''}
+    ${t.ordersDone || t.ordersMissed ? `<div class="card">${line('Orders delivered', t.ordersDone || 0, 'good')}${t.ordersMissed ? line('Orders missed', t.ordersMissed, 'meh') : ''}</div>` : ''}
     <div class="row2" style="margin-top:8px"><button data-act="report-nav" data-id="-1" ${m.i > 0 ? '' : 'disabled'}>‹ Earlier</button>
       <button data-act="report-nav" data-id="1" ${m.i < s.reports.length - 1 ? '' : 'disabled'}>Later ›</button></div>
     <button class="big" data-act="close" style="margin-top:8px">Close</button>`;
@@ -697,6 +739,12 @@ function modalHTML() {
   else if (m.type === 'buyer') inner = buyerModal(m);
   else if (m.type === 'report') inner = reportModal(m);
   else if (m.type === 'away') inner = awayModal(m);
+  else if (m.type === 'milestones') {
+    inner = `<h2>🏆 Milestones</h2><div class="mlist">${MILESTONES.map(x => { const done = s.milestones[x.id], p = G.milestoneProgress(s, x);
+      return `<div class="mrow ${done ? '' : 'unknown'}"><span class="em">${x.emoji}</span><div class="grow"><b>${x.name}</b><small>${done ? `Reached ${dateStr(done)}` : `${pct(p)} of the way`} · +${money(x.cash)}</small>
+        ${done ? '' : `<span class="prog"><i style="width:${(p * 100).toFixed(1)}%"></i></span>`}</div><div class="mright">${done ? '<span class="lock good">✓</span>' : ''}</div></div>`; }).join('')}</div>
+      <button class="big" data-act="close" style="margin-top:10px">Close</button>`;
+  }
   else if (m.type === 'launder') {
     const max = Math.floor(s.dirty), v = Math.min(max, m.amount ?? Math.min(max, G.launderLeft(s)));
     const h = G.launderHeatFor(s, v);
@@ -933,6 +981,11 @@ function act(el) {
     case 'kit': if (G.buyKit(s, id, el.dataset.type)) showToast(`+1 ${PRODUCTS[el.dataset.type].name} kit`, 'good'); break;
     case 'bribe': G.bribe(s); break;
     case 'cut': G.setCut(s, id, el.dataset.cut); break;
+    case 'declare': G.setDeclare(s, id); break;
+    case 'hmrc': G.payHmrc(s); break;
+    case 'order': G.deliverOrder(s, Number(id)); break;
+    case 'order-drop': G.dropOrder(s, Number(id)); break;
+    case 'milestones': ui.modal = { type: 'milestones' }; break;
     case 'dez': G.sellToDez(s, id, s.bags[id] || 0); break;
     case 'tier': G.upgradeMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
     case 'corner-buy': G.buyCorner(s, id); break;

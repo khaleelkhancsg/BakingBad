@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 4;
@@ -83,6 +83,7 @@ export function buyShop(s, id) {
 }
 export function viewShop(s, i) { if (s.shops[i]) s.cur = i; }
 export const shopRent = s => s.shops.reduce((a, x, i) => a + (i === 0 && eff(s, 'noRent') ? 0 : SHOPS[x.id].rent), 0);
+export const businessRates = s => Math.round(s.shops.reduce((a, x, i) => a + (i === 0 ? 0 : SHOPS[x.id].rent * TAX.ratesShare), 0));
 
 // ---------- Small state helpers ----------
 export const has = (s, id) => !!s.upgrades[id];
@@ -189,6 +190,7 @@ export function buyMachine(s, type, lab = false) {
   const cost = machinePrice(s, type, lab), cash = machineCash(type, lab);
   if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad');
   s[cash] = round2(s[cash] - cost);
+  if (cash === 'clean') s.today.capex += cost;
   const free = freeSpots(s, lab);
   const spot = lab ? free[0] : (free.find(i => SPOTS[i].wall === MACHINE_WALL[type]) ?? free[0]);
   kitchenList(s, lab).push({ type, spot, job: null, last: null, broken: false });
@@ -278,6 +280,7 @@ export function upgradeMachine(s, idx, lab = false) {
   const cost = tierCost(m.type, tier, lab), cash = machineCash(m.type, lab);
   if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad');
   s[cash] = round2(s[cash] - cost);
+  if (cash === 'clean') s.today.capex += cost;
   m.tier = tier + 1;
   say(`${TYPES(lab)[m.type].name} upgraded to tier ${m.tier}.`, 'good');
 }
@@ -456,7 +459,7 @@ export function customersPerHour(s, t) {
   const inStock = menuOf(s).filter(id => s.display[id] > 0).length;
   const variety = 1 + Math.min(CFG.varietyCap, CFG.varietyBonus * Math.max(0, inStock - 1));
   return (CFG.custBase + s.rep * CFG.custPerPop) * HOUR_TRADE[h] * nightApp * (1 + eff(s, 'cust')) * (s.event?.cust || 1)
-    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1));
+    * charmBonus(s) * (1 + campaignBoost(s, t)) * scandalFactor(s, t) * variety * shopDef(s).cust * (1 + CFG.prestigeCust * (s.shops.length - 1)) * reviewBoost(s, t);
 }
 const tasteAt = t => { const h = localHour(t); return HOUR_TASTE.find(b => h < b.until).w; };
 const newLook = () => ({ skin: Math.floor(rand() * 5), shirt: Math.floor(rand() * 10), hair: Math.floor(rand() * 6),
@@ -487,10 +490,11 @@ function customerVisit(s, t, showIt) {
   qty = Math.min(qty, s.display[id]);
   s.display[id] -= qty;
   let rev = qty * itemPrice(s, id), xp = qty * saleXp(id);
+  if (TAX.vatGroups.includes(g)) td.vatSales += rev;
   // Plenty of people grab a drink with their food
   if (g !== 'drink' && rand() < CFG.drinkAddOn) {
     const drinks = stock.filter(x => ITEMS[x].group === 'drink' && s.display[x] > 0);
-    if (drinks.length) { const d = pick(drinks); s.display[d]--; rev += itemPrice(s, d); xp += saleXp(d); td.itemsSold++; }
+    if (drinks.length) { const d = pick(drinks); s.display[d]--; rev += itemPrice(s, d); td.vatSales += itemPrice(s, d); xp += saleXp(d); td.itemsSold++; }
   }
   rev = round2(rev);
   s.clean = round2(s.clean + rev);
@@ -639,6 +643,166 @@ export function launder(s, amount, quiet = false) {
   if (!quiet) say(`£${amount.toLocaleString('en-GB')} through the tills: £${got.toLocaleString('en-GB')} comes out clean${h ? ` (that looked off: heat +${h})` : ''}.`, h ? 'bad' : 'good');
 }
 
+// ---------- Tax (UK-style, settled weekly) ----------
+// What you've told HMRC about this tax week so far, and the bill it adds up to
+export const declareShare = s => DECLARE[s.declare || 'full'].share;
+export function corpTax(profit) {
+  if (profit <= 0) return 0;
+  if (profit <= TAX.smallLimit) return profit * TAX.smallRate;
+  if (profit >= TAX.mainLimit) return profit * TAX.mainRate;
+  // Marginal relief: the effective rate climbs smoothly from the small rate to the main rate
+  const f = (profit - TAX.smallLimit) / (TAX.mainLimit - TAX.smallLimit);
+  return profit * (TAX.smallRate + f * (TAX.mainRate - TAX.smallRate));
+}
+export function taxEstimate(s, extraDay = true) {
+  const w = { ...s.taxWeek };
+  if (extraDay) addDayToTaxWeek(w, s.today, s);
+  const share = declareShare(s);
+  const declared = w.sales + w.laundered, vatable = (w.vatSales + w.laundered) * share;
+  const vat = s.vatRegistered || s.stats.declared + declared * share >= TAX.vatThreshold ? vatable * TAX.vatRate / (1 + TAX.vatRate) : 0;
+  const profit = Math.max(0, declared * share - vat + w.income - w.costs);
+  const corp = corpTax(profit);
+  const ni = Math.max(0, w.wages - TAX.niThreshold) * TAX.niRate;
+  const save = s.crew.accountant ? TAX.accountantSave : 0;
+  const total = Math.round((vat + corp + ni) * (1 - save));
+  return { vat: Math.round(vat), corp: Math.round(corp), ni: Math.round(ni), profit: Math.round(profit), declared: Math.round(declared * share), hidden: Math.round(declared * (1 - share)), total, saved: Math.round((vat + corp + ni) * save) };
+}
+function addDayToTaxWeek(w, td) {
+  w.sales += td.sales; w.vatSales += td.vatSales; w.laundered += td.laundered; w.income += td.income;
+  w.costs += td.ingSpent + td.upgradesSpent + td.capex + td.rent + td.wages; w.wages += td.wages;
+}
+const freshTaxWeek = () => ({ sales: 0, vatSales: 0, laundered: 0, income: 0, costs: 0, wages: 0 });
+export function setDeclare(s, k) { if (DECLARE[k]) s.declare = k; }
+export const investigateChance = s => Math.min(0.9, (TAX.investigateBase + TAX.investigateUnder * (1 - declareShare(s))
+  + TAX.investigateLaunder * Math.min(1, s.taxWeek.laundered / Math.max(1, s.taxWeek.sales + s.taxWeek.laundered)) + s.heat / 500) * (s.crew.accountant ? 0.5 : 1));
+function settleTax(s, t) {
+  const est = taxEstimate(s, false), w = s.taxWeek;
+  s.stats.declared = (s.stats.declared || 0) + est.declared;
+  if (!s.vatRegistered && s.stats.declared >= TAX.vatThreshold) { s.vatRegistered = true; note(s, `🧾 Your takings passed £${TAX.vatThreshold.toLocaleString('en-GB')}: you're registered for VAT. Hot food and drinks now carry 20%.`, 'info', t); }
+  let line = `🧾 HMRC: £${est.total.toLocaleString('en-GB')} this week (VAT £${est.vat.toLocaleString('en-GB')}, corporation tax £${est.corp.toLocaleString('en-GB')}, NI £${est.ni.toLocaleString('en-GB')}).`;
+  const paid = Math.min(est.total, Math.max(0, Math.floor(s.clean)));
+  s.clean = round2(s.clean - paid); s.stats.taxPaid = (s.stats.taxPaid || 0) + paid;
+  if (paid < est.total) {
+    const owed = Math.round((est.total - paid) * (1 + TAX.latePenalty));
+    s.hmrc = (s.hmrc || 0) + owed;
+    line += ` Couldn't pay it all: £${owed.toLocaleString('en-GB')} owed, with a penalty and interest.`;
+  }
+  // An investigation looks at what you didn't declare, and at money that came from nowhere
+  if (rand() < investigateChance(s)) {
+    if (est.hidden > 0) {
+      const back = Math.round(corpTax(est.hidden) + est.hidden * TAX.vatRate / (1 + TAX.vatRate));
+      const bill = Math.round(back * (1 + TAX.evasionPenalty));
+      s.hmrc = (s.hmrc || 0) + bill;
+      s.rep = clamp(s.rep - TAX.evasionPop, 0, 100);
+      s.scandalUntil = Math.max(s.scandalUntil, t + 48 * HOUR);
+      s.heat = clamp(s.heat + 10, 0, 100);
+      note(s, `🕵️ HMRC investigated your books and found £${est.hidden.toLocaleString('en-GB')} you didn't declare: £${bill.toLocaleString('en-GB')} in back tax and penalties. It made the papers.`, 'bad', t);
+    } else if (w.laundered > w.sales * 0.5) {
+      s.heat = clamp(s.heat + 8, 0, 100);
+      note(s, '🕵️ HMRC went through the books. Everything was declared, but they asked a lot of questions about where the money came from. Heat +8.', 'bad', t);
+    } else note(s, '🕵️ HMRC went through the books and found everything in order.', 'good', t);
+  }
+  note(s, line, paid < est.total ? 'bad' : 'info', t);
+  s.taxWeek = freshTaxWeek();
+  return est;
+}
+export function payHmrc(s) {
+  const n = Math.min(Math.round(s.hmrc || 0), Math.floor(s.clean));
+  if (n <= 0) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - n); s.hmrc -= n; s.stats.taxPaid = (s.stats.taxPaid || 0) + n;
+  say(`Paid HMRC £${n.toLocaleString('en-GB')}.`, 'good');
+}
+
+// ---------- Special orders ----------
+export const orderCap = s => capAt(ORDERS.caps, s.level);
+function bakeryOrder(s, t) {
+  const sellable = s.recipes.filter(id => s.shops.some(x => SHOPS[x.id].machines.includes(ITEMS[id].machine) && x.machines.some(m => m.type === ITEMS[id].machine)));
+  if (!sellable.length) return null;
+  const id = pick(sellable), r = ITEMS[id];
+  const qty = Math.round(r.servings * (1 + rand() * 2));
+  const hours = ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours));
+  return { id: s.nextId++, kind: 'bakery', item: id, qty, client: pick(CLIENTS), until: t + hours * HOUR,
+    pay: Math.round(qty * r.price * ORDERS.bakeryPay), xp: Math.round(qty * saleXp(id) * ORDERS.xpMult) };
+}
+function dezOrder(s, t) {
+  const known = knownProducts(s);
+  if (!known.length) return null;
+  const id = pick(known), p = PRODUCTS[id];
+  const qty = Math.max(4, Math.round(p.bags * (0.8 + rand() * 1.5)));
+  const hours = ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours));
+  return { id: s.nextId++, kind: 'dez', item: id, qty, client: pick(DEZ_CLIENTS), until: t + hours * HOUR,
+    pay: Math.round(qty * p.price * ORDERS.dezPay), xp: Math.round(qty * bagXp(id) * ORDERS.xpMult) };
+}
+function newOrders(s, t) {
+  while (s.orders.length < orderCap(s)) {
+    const o = s.labUnlocked && rand() < 0.4 ? dezOrder(s, t) : bakeryOrder(s, t);
+    if (!o) break;
+    s.orders.push(o);
+  }
+}
+export const orderStock = (s, o) => (o.kind === 'dez' ? s.bags[o.item] || 0 : s.shops.reduce((a, x) => a + (x.display[o.item] || 0), 0));
+export function deliverOrder(s, oid, t = s.clock, quiet = false) {
+  const o = s.orders.find(x => x.id === oid);
+  if (!o) return false;
+  if (orderStock(s, o) < o.qty) { if (!quiet) say(`You need ${o.qty} ${(o.kind === 'dez' ? PRODUCTS : ITEMS)[o.item].name} (you have ${orderStock(s, o)}).`, 'bad'); return false; }
+  if (o.kind === 'dez') {
+    s.bags[o.item] -= o.qty; s.dirty += o.pay; s.stats.nightCash = (s.stats.nightCash || 0) + o.pay;
+    s.heat = clamp(s.heat + ORDERS.heat, 0, 100); s.street = clamp(s.street + 2, 0, 100);
+  } else {
+    let left = o.qty;
+    for (const x of s.shops) { const n = Math.min(left, x.display[o.item] || 0); x.display[o.item] -= n; left -= n; }
+    s.clean = round2(s.clean + o.pay); s.today.sales = round2(s.today.sales + o.pay); s.stats.totalSales = round2(s.stats.totalSales + o.pay);
+    if (TAX.vatGroups.includes(ITEMS[o.item].group)) s.today.vatSales += o.pay;
+    s.rep = clamp(s.rep + 1, 0, 100);
+  }
+  s.orders = s.orders.filter(x => x !== o);
+  s.today.ordersDone++; s.stats.orders = (s.stats.orders || 0) + 1;
+  addXp(s, o.xp);
+  const msg = `📦 ${o.client}: ${o.qty} ${(o.kind === 'dez' ? PRODUCTS : ITEMS)[o.item].name} delivered. +£${o.pay.toLocaleString('en-GB')}${o.kind === 'dez' ? ' dirty' : ''}.`;
+  if (quiet) note(s, msg, 'good', t); else say(msg, 'good');
+  return true;
+}
+export function dropOrder(s, oid) { s.orders = s.orders.filter(x => x.id !== oid); }
+function runOrders(s, t) {
+  for (const o of [...s.orders]) {
+    // Grace (bakery) and Lenny (back room) deliver anything that's ready
+    if ((o.kind === 'bakery' && s.crew.manager) || (o.kind === 'dez' && s.crew.driver)) if (orderStock(s, o) >= o.qty) { deliverOrder(s, o.id, t, true); continue; }
+    if (t >= o.until) {
+      s.orders = s.orders.filter(x => x !== o); s.today.ordersMissed++;
+      if (o.kind === 'dez') s.street = clamp(s.street - ORDERS.missStreet, 0, 100); else s.rep = clamp(s.rep - ORDERS.missPop, 0, 100);
+      note(s, `⌛ ${o.client} gave up on their order.`, 'info', t);
+    }
+  }
+  if (t - (s.lastOrderAt || 0) >= ORDERS.everyHours * HOUR) { s.lastOrderAt = t; newOrders(s, t); }
+}
+
+// ---------- Milestones ----------
+const statOf = (s, k) => ({ served: s.stats.served || 0, won: s.won ? 1 : 0, level: s.level, recipes: s.recipes.length, shops: s.shops.length,
+  decor: s.shops.reduce((a, x) => a + x.design.decor.length, 0), orders: s.stats.orders || 0, fivestars: s.stats.fiveStars || 0,
+  bags: s.stats.totalBags || 0, laundered: s.stats.totalLaundered || 0, corners: Object.keys(s.corners).length, taxPaid: s.stats.taxPaid || 0, busts: s.stats.busts || 0 })[k];
+export const milestoneProgress = (s, m) => Math.min(1, statOf(s, m.stat) / m.n);
+function checkMilestones(s, t) {
+  for (const m of MILESTONES) {
+    if (s.milestones[m.id] || statOf(s, m.stat) < m.n) continue;
+    s.milestones[m.id] = t;
+    s.clean = round2(s.clean + m.cash);
+    addXp(s, Math.round(m.cash / 10));
+    note(s, `${m.emoji} Milestone: ${m.name}! +£${m.cash.toLocaleString('en-GB')}`, 'good', t);
+  }
+}
+
+// ---------- The food critic ----------
+export const reviewBoost = (s, t = s.clock) => ((s.review && s.review.until > t) ? CRITIC.boost[s.review.stars - 1] : 1);
+function criticVisits(s, t) {
+  const stocked = menuOf(s).filter(id => s.display[id] > 0).length, slots = menuSlots(s);
+  const score = 0.4 * (stocked / Math.max(1, slots)) + 0.3 * Math.min(1, (charmBonus(s) - 1) / 0.3) + 0.3 * (s.rep / 100) + (rand() - 0.5) * 0.2;
+  const stars = clamp(Math.round(score * 5 + 0.5), 1, 5);
+  s.review = { stars, until: t + CRITIC.boostHours * HOUR, by: pick(CRITIC.names) };
+  s.rep = clamp(s.rep + CRITIC.pop[stars - 1], 0, 100);
+  if (stars === 5) s.stats.fiveStars = (s.stats.fiveStars || 0) + 1;
+  note(s, `📝 ${s.review.by} reviewed ${shopDef(s).name}: ${'⭐'.repeat(stars)}${stars <= 2 ? ' The case was half empty.' : stars >= 4 ? ' Queues out of the door for days.' : ''}`, stars >= 4 ? 'good' : stars <= 2 ? 'bad' : 'info', t);
+}
+
 // ---------- Marketing ----------
 export const campaignCap = s => capAt(CAPS.campaigns, s.level);
 export const activeCampaigns = (s, t = s.clock) => s.campaigns.filter(c => c.until > t);
@@ -716,7 +880,8 @@ function freshLedger(s, t) {
   return { day: dayStart(t), sales: 0, itemsSold: 0, served: 0, missed: 0, pricedOut: 0, batches: 0, labBatches: 0, burnt: 0,
     ingSpent: 0, upgradesSpent: 0, laundered: 0, launderHeat: 0, nightSales: 0, bagsSold: 0, crewSales: 0, buyersServed: 0,
     buyersLost: 0, buyersTurned: 0, copsServed: 0, copsTurned: 0, couriers: 0, pushedAway: 0, kitsBought: 0, xp: 0, interest: 0,
-    rent: 0, wages: 0, nightWages: 0, income: 0, peakHeat: s.heat || 0, bribe: null, jayWorked: false, cornerSales: 0, cornerCash: 0, events: [] };
+    rent: 0, wages: 0, nightWages: 0, income: 0, peakHeat: s.heat || 0, bribe: null, jayWorked: false, cornerSales: 0, cornerCash: 0,
+    vatSales: 0, capex: 0, ordersDone: 0, ordersMissed: 0, events: [] };
 }
 function rollMarket(s) {
   s.event = null;
@@ -735,6 +900,7 @@ export function newGame(t = Date.now()) {
     level: 1, xp: 0, levelUps: [],
     recipes: [...START_RECIPES], priceLevel: {}, shops: [makeShop('stall')], cur: 0,
     lab: [], kits: {}, bags: {}, purity: {}, cut: {}, door: [], street: CFG.streetStart, corners: {},
+    taxWeek: freshTaxWeek(), declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
@@ -766,6 +932,8 @@ export function migrate(s, t = Date.now()) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
+    s.taxWeek ??= freshTaxWeek(); s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
+    if (s.today) { s.today.vatSales ??= 0; s.today.capex ??= 0; s.today.ordersDone ??= 0; s.today.ordersMissed ??= 0; }
     for (const x of s.shops) { for (const id in ITEMS) x.display[id] ??= 0; x.custAcc ||= 0; x.design.base ??= { floor: SHOPS[x.id].floor, wall: SHOPS[x.id].wall }; }
     for (const m of s.lab) m.tier ??= 0;
     for (const o of [s.kits, s.bags]) for (const id in o) if (!PRODUCTS[id]) delete o[id];
@@ -818,6 +986,7 @@ export function advance(s, now, { live: watching = false } = {}) {
     if (t === roll) rollover(s, roll);
   }
   s.last = now; s.clock = now;
+  checkMilestones(s, now);
   liveMode = false;
 }
 
@@ -827,6 +996,10 @@ function span(s, t0, t1, showIt) {
   const watching = s.cur || 0;
   eachShop(s, i => shopSpan(s, t0, t1, mins, showIt && i === watching));
   shared(s, t0, t1, mins);
+  runOrders(s, t1);
+  if (s.criticAt && t1 >= s.criticAt) { s.criticAt = null; const keep = s.cur; s.cur = Math.floor(rand() * s.shops.length); criticVisits(s, t1); s.cur = keep; }
+  // HMRC interest on unpaid tax
+  if (s.hmrc > 0) s.hmrc += s.hmrc * TAX.interestDaily * mins / 1440;
 }
 function shopSpan(s, t0, t1, mins, showIt) {
   // Kitchen: crew collect, food spoils if left too long
@@ -970,7 +1143,7 @@ function rollover(s, t) {
   // The accountant puts the safe amount through before the books close
   if (s.crew.accountant && s.dirty > 0) launder(s, Math.min(s.dirty, launderLeft(s)), true);
   // Bills
-  const rent = shopRent(s), dayWages = crewWages(s, 'day'), income = eff(s, 'income');
+  const rent = shopRent(s) + businessRates(s), dayWages = crewWages(s, 'day'), income = eff(s, 'income');
   td.rent = rent; td.wages = dayWages; td.income = income;
   s.clean = round2(s.clean + income);
   const bill = rent + dayWages;
@@ -1063,8 +1236,17 @@ function rollover(s, t) {
   // Safety net: broke with nothing to bake
   const canBake = s.recipes.some(id => canMake(s, id) && s.shops.some(x => x.machines.some(m => m.type === ITEMS[id].machine && !m.broken)));
   if (s.clean < 30 && !canBake) { s.clean = round2(s.clean + CFG.hardshipGrant); note(s, `🤝 The market traders' association chips in £${CFG.hardshipGrant} so you can buy flour and start again.`, 'good', t); }
+  // Tax: the day goes on the books; once a week HMRC settles up
+  addDayToTaxWeek(s.taxWeek, td);
+  let tax = null;
+  if (di > 0 && di % 7 === TAX.taxDay) tax = settleTax(s, t);
+  if (s.hmrc > 1) {
+    const take = Math.min(Math.round(s.hmrc), Math.floor(Math.max(0, s.clean) * TAX.collectShare));
+    if (take > 0) { s.clean = round2(s.clean - take); s.hmrc -= take; s.stats.taxPaid = (s.stats.taxPaid || 0) + take; note(s, `🧾 HMRC collected £${take.toLocaleString('en-GB')} of what you owe them.`, 'bad', t); }
+  }
+  if (!s.criticAt && rand() < CRITIC.chance) s.criticAt = t + (2 + rand() * 14) * HOUR;
   // File yesterday's report and open a new day
-  s.reports.push({ day: td.day, ledger: td, payment, level: s.level });
+  s.reports.push({ day: td.day, ledger: td, payment, tax, level: s.level });
   if (s.reports.length > 10) s.reports.shift();
   s.today = freshLedger(s, t);
   scheduleNight(s, t);
