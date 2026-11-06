@@ -669,6 +669,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, smallScreen ? 1.5 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.autoUpdate = false; // redrawn every other frame in frame()
   renderer.toneMapping = THREE.NeutralToneMapping; // keeps the pastel colours, softens hot spots
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
@@ -1219,6 +1220,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const insideOnly = new THREE.Group(); scene.add(insideOnly); // the door canopy and post sign: the zoomed-out building has its own
   let outSig = '';
   const stripeTex = (a, b) => canvasTex(64, 16, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? b : a; c.fillRect(i * 8, 0, 8, h); } }, [4, 1]);
+  // Free the canvas textures (and their one-off materials) of a group about to be rebuilt; cached materials have no canvas map
+  function disposeMaps(root) {
+    root.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) if (m?.map?.isCanvasTexture) { m.map.dispose(); m.dispose(); } });
+  }
+  const dropFrom = (list, items) => { for (const m of items) { const i = list.indexOf(m); if (i >= 0) list.splice(i, 1); } items.length = 0; };
+  const outGlows = [];
   function syncOutside(s) {
     const o = s.design.outside || { paint: 'cream', canopy: 'none', sign: 'none', extras: {} };
     const ex = s.design.expansions || {};
@@ -1227,6 +1234,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     outSig = sig;
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream;
     extWain.color.set(P.color); extTrim.color.set(P.trim);
+    disposeMaps(outsideGroup); disposeMaps(insideOnly); dropFrom(lampGlows, outGlows); dropFrom(glowMats, outGlows);
     outsideGroup.clear(); shopSideLights.clear(); insideOnly.clear();
     const addIn = m => { m.traverse?.(x => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); insideOnly.add(m); return m; };
     const add = m => { m.traverse?.(x => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); outsideGroup.add(m); return m; };
@@ -1254,8 +1262,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (E.benchout) { const g = new THREE.Group(); g.add(box(1.2, 0.06, 0.38, '#a8703f', 0, 0.42, 0)); g.add(box(1.2, 0.32, 0.05, '#a8703f', 0, 0.5, -0.18)); for (const dx of [-0.5, 0.5]) g.add(box(0.06, 0.42, 0.34, '#2b2d36', dx, 0, 0)); g.position.set(5.85, 0, 6.45); g.rotation.y = PI; add(g); }
     if (E.bikes) { for (let k = 0; k < 3; k++) { const r = mesh(geo('bikeloop', () => new THREE.TorusGeometry(0.3, 0.025, 6, 14, PI)), mat('#8d939c', { metalness: 0.6 }), -6.6 + k * 0.45, 0, 5.6); r.rotation.y = PI / 2; add(r); } }
     if (E.bunting) { const cols = ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a', '#ffffff']; for (let k = 0; k < 18; k++) { const f = mesh(geo('flag', () => new THREE.ConeGeometry(0.11, 0.22, 3)), mat(cols[k % 5]), -4.3 + k * 0.5, 2.78, -4.35); f.rotation.x = PI; add(f); } }
-    if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); }
-    if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
+    if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); outGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); }
+    if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); outGlows.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
   }
   // ---------- Zoomed out: the whole building from outside ----------
   // Rebuilt from the shop's outside design (paint, wall finish, windows, door, roof, awning, sign) and grows with
@@ -1263,7 +1271,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // back-room benches extractor fans, the annex a raised roof, and the flat upstairs a whole second storey.
   const shellGroup = new THREE.Group(); shellGroup.visible = false; scene.add(shellGroup);
   let shellMats = [], shellGlassMats = [], shellGeos = [];
-  const sm = (color, extra = {}) => { const m = smat({ color, roughness: 0.85, transparent: true, opacity: 0, ...extra }); shellMats.push(m); return m; };
+  let smCache = new Map();
+  const sm = (color, extra = {}) => {
+    const key = extra.map || extra.emissiveMap ? null : color + JSON.stringify(extra);
+    if (key && smCache.has(key)) return smCache.get(key);
+    const m = smat({ color, roughness: 0.85, transparent: true, opacity: 0, ...extra }); shellMats.push(m);
+    if (key) smCache.set(key, m);
+    return m;
+  };
   const sg = g => { shellGeos.push(g); return g; };
   const shade = (hex, k) => { const c = new THREE.Color(hex); c.r = Math.min(1, c.r * k); c.g = Math.min(1, c.g * k); c.b = Math.min(1, c.b * k); return '#' + c.getHexString(); };
   // Wall finishes, drawn as a 1 m tile so each wall can repeat it by its own size
@@ -1335,7 +1350,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const m of shellMats) { m.map?.dispose(); m.dispose(); }
     for (const g of shellGeos) g.dispose();
     for (const m of shellGlassMats) { const i = windows.indexOf(m); if (i >= 0) windows.splice(i, 1); }
-    shellMats = []; shellGlassMats = []; shellGeos = [];
+    shellMats = []; shellGlassMats = []; shellGeos = []; smCache = new Map();
+    const wallCache = new Map();
 
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy], S = D.OUT_SIGN[o.sign];
     const R = D.OUT_ROOF[o.roof] || D.OUT_ROOF.felt, DR = D.OUT_DOOR[o.door] || D.OUT_DOOR.wood, WS = o.window || 'plain';
@@ -1343,10 +1359,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const finishDraw = finishCanvas(o.finish || 'render', paint);
     const wallImg = canvasTex(128, 128, finishDraw);
     const glossy = o.finish === 'tiles' || o.finish === 'marble';
-    const wallMat = (w, h) => { const t = wallImg.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); return sm('#ffffff', { map: t, roughness: glossy ? 0.35 : 0.9 }); };
+    const wallMat = (w, h) => { const key = `${Math.max(1, Math.round(w))}x${Math.max(1, Math.round(h))}`; if (wallCache.has(key)) return wallCache.get(key); const m = wallMat0(w, h); wallCache.set(key, m); return m; };
+    const wallMat0 = (w, h) => { const t = wallImg.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); return sm('#ffffff', { map: t, roughness: glossy ? 0.35 : 0.9 }); };
     const trimM = sm(P.trim), darkM = sm('#2b2d36'), steelM = sm('#8d939c', { metalness: 0.4, roughness: 0.4 });
     const goldM = sm('#d4af37', { metalness: 0.7, roughness: 0.3 });
-    const glass = (extra = {}) => { const m = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.6, roughness: 0.2, ...extra }); shellGlassMats.push(m); windows.push(m); return m; };
+    const glass = (extra = {}) => { const m = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.6, roughness: 0.2, ...extra }); if (!shellGlassMats.includes(m)) { shellGlassMats.push(m); windows.push(m); } return m; };
     const glassM = glass();
     const stainedM = WS === 'stained' ? (() => { const t = canvasTex(96, 64, stainedCanvas); return glass({ color: '#ffffff', map: t, emissiveMap: t }); })() : null;
     const frameM = WS === 'neon' ? sm('#ff4fa3', { emissive: '#ff4fa3', emissiveIntensity: 1.4 }) : WS === 'gold' ? goldM : trimM;
@@ -1418,7 +1435,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const dc = DR.color;
     sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 2.88); sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 4.52); sb(0.14, 0.12, 1.76, frameM, 4.8, 2.22, 3.7);
     if (o.door === 'revolving') {
-      const drum = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide }); shellGlassMats.push(drum); windows.push(drum);
+      const drum = glass({ emissiveIntensity: 0.4, side: THREE.DoubleSide });
       for (const t0 of [PI * 0.15, PI * 1.15]) { const c = mesh(sg(new THREE.CylinderGeometry(0.75, 0.75, 2.1, 20, 1, true, t0, PI * 0.7)), drum, 5.45, 1.05, 3.7, false); shellGroup.add(c); }
       for (let k = 0; k < 2; k++) { const wing = box(1.45, 2.0, 0.04, glassM, 5.45, 0.02, 3.7); wing.rotation.y = k * PI / 2 + PI / 4; shellGroup.add(wing); }
       add(cyl(0.82, 0.82, 0.16, goldM, 5.45, 2.1, 3.7, 24)); add(cyl(0.8, 0.8, 0.03, steelM, 5.45, 0.01, 3.7, 24));
@@ -1460,7 +1477,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       for (const sgn of [1, -1]) { const sl = mesh(sg(new THREE.BoxGeometry(10.0, 0.14, L)), roofM, 0, ROOF + rise / 2, sgn * half / 2); sl.rotation.x = sgn * a; add(sl); }
       add(mesh(sg(new THREE.CylinderGeometry(0.1, 0.1, 10.1, 8)), sm(shade(roofCol, 0.7)), 0, ROOF + rise + 0.04, 0)).rotation.z = PI / 2;
       const tri = new THREE.Shape(); tri.moveTo(-4.75, 0); tri.lineTo(4.75, 0); tri.lineTo(0, rise * 0.95); tri.closePath();
-      const gableM = wallMat(5, 2); gableM.side = THREE.DoubleSide;
+      const gableM = wallMat0(5, 2); gableM.side = THREE.DoubleSide;
       for (const x of [4.77, -4.77]) { const gm = mesh(sg(new THREE.ShapeGeometry(tri)), gableM, x, ROOF, 0, false); gm.rotation.y = PI / 2; shellGroup.add(gm); }
       // A round window in the gable, and a chimney
       const ow = mesh(sg(new THREE.CircleGeometry(0.35, 18)), stainedM || glassM, 4.8, ROOF + 0.8, 0, false); ow.rotation.y = PI / 2; shellGroup.add(ow);
@@ -1543,6 +1560,31 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       for (const z of [-4.7, -3.25, -1.75, -0.25, 1.25, 2.6]) sb(0.07, 2.2, 0.07, darkM, 7.12, 0, z);
       sb(0.12, 0.08, 7.5, trimM, 4.86, 2.72, -1.05);
     }
+    // One mesh per material: a couple of dozen draw calls instead of a few hundred
+    mergeStatic(shellGroup);
+    for (const g of shellGeos) g.dispose();
+    shellGeos = [];
+    shellGroup.traverse(o => { if (o.isMesh) shellGeos.push(o.geometry); });
+  }
+  const FOOTPRINT = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85), new THREE.Vector3(4.85, 3.2, 4.85)), cullBox = new THREE.Box3();
+  let culled = [], cullT = 0;
+  function cullInside(on, dt) {
+    if (!on) { if (culled.length) { for (const o of culled) o.layers.set(0); culled = []; } cullT = 0; return; }
+    if ((cullT -= dt) > 0) return;
+    cullT = 0.5; // people walk in and out, so look again twice a second
+    for (const o of culled) o.layers.set(0);
+    culled = [];
+    scene.updateMatrixWorld();
+    const walk = o => {
+      if (o === shellGroup || o.isLight || o.isCamera) return;
+      if ((o.isMesh || o.isSprite) && !o.isInstancedMesh && o.geometry) {
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        cullBox.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+        if (FOOTPRINT.containsBox(cullBox)) { o.layers.set(1); culled.push(o); }
+      }
+      for (const c of o.children) walk(c);
+    };
+    walk(scene);
   }
   // Zooming out past the normal view fades the building in; zooming back in shows the inside again
   function updateShell(s, dt) {
@@ -1555,6 +1597,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (shellK > 0.01) buildShell(s);
     shellGroup.visible = shellK > 0.01;
     insideOnly.visible = shellK < 0.5;
+    cullInside(shellK > 0.98, dt);
     const solid = shellK > 0.98;
     for (const m of shellMats) {
       m.opacity = shellK;
@@ -1572,7 +1615,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const sig = JSON.stringify([ex, o.paint, o.canopy]);
     if (sig === expSig) return;
     expSig = sig;
-    expGroup.clear();
+    disposeMaps(expGroup); expGroup.clear();
     const add = m => { m.traverse?.(x => { if (x.isMesh) x.receiveShadow = true; }); expGroup.add(m); return m; };
     const plank = mat('#b88452'), steel = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
     if (ex.island) { add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -2.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.65)); }
@@ -1765,8 +1808,30 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   let stationSig = '';
   let stations = [];
   const stationAt = (kind, idx) => stations.find(st => st.kind === kind && st.idx === idx);
+  const stationGlows = [];
+  // ---- 4: merge each machine's still parts into one mesh per material. Which parts move is found by running its
+  // animation through idle, cooking, done and spoiling and seeing what changed; those (and everything under them) stay apart.
+  function mergeStation(st, kind, type) {
+    const g = st.group;
+    const snap = o => `${o.position.x}|${o.position.y}|${o.position.z}|${o.rotation.x}|${o.rotation.y}|${o.rotation.z}|${o.scale.x}|${o.scale.y}|${o.scale.z}|${o.visible}|${o.material?.uuid}`;
+    const before = new Map(); g.traverse(o => before.set(o, snap(o)));
+    const pool = kind === 'day' ? Object.keys(ITEMS).filter(id => ITEMS[id].machine === type) : Object.keys(PRODUCTS).filter(id => PRODUCTS[id].machine === type);
+    const items = pool.length ? pool.filter((_, k) => k % Math.max(1, Math.floor(pool.length / 4)) === 0).slice(0, 4) : [null];
+    const moved = new Set();
+    try {
+      for (const item of items) for (const sl of [{ item: null }, { item, t: 1, dur: 10, done: false, left: 9, over: 0, spoilIn: 999 },
+        { item, t: 10, dur: 10, done: true, left: 0, over: 5, spoilIn: 300 }, { item, t: 10, dur: 10, done: true, left: 0, over: 60, spoilIn: 20 }]) {
+        for (const now of [1.3, 2.9]) { st.update(sl, 0.05, now); for (const [o, v] of before) if (v !== snap(o)) moved.add(o); }
+      }
+      st.update({ item: null }, 0, 0);
+    } catch { return; } // anything odd: leave this machine as it was
+    g.traverse(o => { if (o.parent && o.parent !== g && (moved.has(o.parent) || o.parent.userData.keep)) o.userData.keep = true; if (moved.has(o)) o.userData.keep = true; });
+    for (const o of before.keys()) if (!o.isMesh && !o.isGroup && o !== g) o.userData.keep = true;
+    mergeStatic(g);
+  }
   function rebuildStations(s) {
     for (const st of stations) { scene.remove(st.group); const i = pickables.indexOf(st.group); if (i >= 0) pickables.splice(i, 1); }
+    dropFrom(glowMats, stationGlows);
     stations = [];
     const add = (m, idx, kind) => {
       const M = kind === 'day' ? MACHINES[m.type] : LAB_MACHINES[m.type];
@@ -1779,15 +1844,16 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         const chrome = mat('#d9dde3', { metalness: 0.7, roughness: 0.25 }), gold = mat('#d4af37', { metalness: 0.7, roughness: 0.3 });
         st.group.add(box(w + 0.04, 0.05, d + 0.04, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2, 0.06, (bb.max.z + bb.min.z) / 2));
         if (tier >= 2) st.group.add(box(w + 0.04, 0.04, d + 0.04, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2, 0.2, (bb.max.z + bb.min.z) / 2));
-        if (tier >= 3) { const gm = emissiveMat('#1d1528', kind === 'day' ? '#ffb454' : '#b58cff'); glowMats.push(gm); st.group.add(box(w * 0.8, 0.035, 0.02, gm, (bb.max.x + bb.min.x) / 2, top - 0.08, bb.max.z + 0.012, false)); }
+        if (tier >= 3) { const gm = emissiveMat('#1d1528', kind === 'day' ? '#ffb454' : '#b58cff'); glowMats.push(gm); stationGlows.push(gm); st.group.add(box(w * 0.8, 0.035, 0.02, gm, (bb.max.x + bb.min.x) / 2, top - 0.08, bb.max.z + 0.012, false)); }
         if (tier >= 5) st.group.add(mesh(geo('tierstar', () => new THREE.OctahedronGeometry(0.09, 0)), gold, (bb.max.x + bb.min.x) / 2, bb.max.y + 0.12, (bb.max.z + bb.min.z) / 2));
         const plate = box(0.34, 0.1, 0.02, '#2b2d36', (bb.max.x + bb.min.x) / 2, 0.3, bb.max.z + 0.012, false); st.group.add(plate);
         for (let k = 0; k < tier; k++) st.group.add(sphere(0.022, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2 - 0.12 + k * 0.06, 0.35, bb.max.z + 0.03, false));
       }
+      st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      mergeStation(st, kind, m.type);
       st.group.position.set(pl.x, 0, pl.z);
       st.group.rotation.y = pl.ry;
       st.group.userData = { act: 'machine', kind, idx };
-      st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       scene.add(st.group);
       st.group.updateMatrixWorld(true);
       st.anchorW = st.group.localToWorld(st.anchor.clone());
@@ -1800,6 +1866,19 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     s.lab.forEach((m, i) => add(m, i, 'night'));
     navGrid = null;
     if (s.labUnlocked && !pickables.includes(innerDoor)) pickables.push(innerDoor);
+  }
+
+  // Anything small (cups, fruit, knobs, pips, bulbs) gets no shadow: it barely shows and each one is another draw in the
+  // shadow pass. Checked once a second for new things; each object is only looked at once.
+  let shadowT = 0, frameNo = 0;
+  const _sph = new THREE.Sphere();
+  function trimShadows(root) {
+    root.traverse(o => {
+      if (!o.isMesh || !o.castShadow || o.userData.shadowChecked) return;
+      o.userData.shadowChecked = true;
+      if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
+      if (o.geometry.boundingSphere.radius * o.matrixWorld.getMaxScaleOnAxis() < 0.15) o.castShadow = false;
+    });
   }
 
   // ---------- Particles (steam, smoke, vapour) ----------
@@ -2361,10 +2440,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       hood.update(dt, now, cur.nightK);
       updateCamera(dt);
       updateShell(s, dt);
+      if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
+      if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera);
       updateOverlay(s, now);
     },
     poke, sold,
-    debug: { scene, camera, cam, view },
+    debug: { scene, camera, cam, view, renderer },
   };
 }

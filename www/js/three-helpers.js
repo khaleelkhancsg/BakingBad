@@ -66,13 +66,14 @@ export function canvasTex(w, h, draw, repeat) {
 // Meshes with several materials, instanced meshes and anything marked userData.keep are left alone.
 export function mergeStatic(root) {
   root.updateMatrixWorld(true);
+  const toRoot = root.matrixWorld.clone().invert(), rel = new THREE.Matrix4();
   const buckets = new Map();
   const merged = [];
   root.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.keep) return;
     const key = o.material.uuid + (o.castShadow ? '|s' : '|n');
     if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, geos: [] });
-    const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld);
+    const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(rel.multiplyMatrices(toRoot, o.matrixWorld));
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
     g.morphAttributes = {};
