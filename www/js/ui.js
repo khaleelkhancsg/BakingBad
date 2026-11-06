@@ -557,7 +557,7 @@ function buyerModal(m) {
   const canPush = !b.courier && G.feature(s, 'haggle') && qty;
   const left = Math.max(0, (b.arrive + b.patience - s.clock) / 1000);
   return `<h2>${b.courier ? '📦' : '👤'} ${b.name}</h2><div class="quote">"${b.line}"</div>
-    ${b.hint ? `<p class="meh">${s.crew.lookout ? '👀 Ash doesn\'t like the look of this one.' : '📷 The camera doesn\'t like the look of this one.'}</p>` : ''}
+    ${b.hint ? `<p class="meh">${s.crew.lookout ? '👀 Ash doesn\'t like the look of this one.' : G.has(s, 'camera') ? '📷 The camera doesn\'t like the look of this one.' : '🤔 Something about this one feels off.'}</p>` : ''}
     ${line('Wants', `${b.want} × ${p.emoji} ${p.name} at ${money(price)}${b.courier ? ', all at once' : ''}`)}
     ${line('You have', `${have} bags`, have >= (b.courier ? b.want : 1) ? '' : 'bad')}
     ${line('Waits', `${secs(left)} more${s.crew.dealer && !b.courier ? ', then Jay serves them' : ''}`)}
