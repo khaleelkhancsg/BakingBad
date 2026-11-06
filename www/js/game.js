@@ -4,7 +4,7 @@
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
          PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT } from './data.js';
-import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
+import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
 
 export const SAVE_VERSION = 5;
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -1589,7 +1589,7 @@ function shared(s, t0, t1, mins) {
   s.street += (s.street > CFG.streetHome ? -1 : 1) * Math.min(Math.abs(s.street - CFG.streetHome), CFG.streetDrift * mins / 60);
   // Heat cools; popularity drifts back to the middle; marketing and PR add a little
   const lyingLow = t1 - (s.lastLab || 0) > CFG.lieLowAfterHours * HOUR;
-  s.heat = clamp(s.heat - (CFG.heatDecayPerHour * (s.crew.fixer ? 2 : 1) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
+  s.heat = clamp(s.heat - (CFG.heatDecayPerHour * (s.crew.fixer ? 2 : 1) * backCool(s) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
   s.rep += (s.rep > CFG.popHome ? -1 : 1) * Math.min(Math.abs(s.rep - CFG.popHome), CFG.popDriftPerHour * mins / 60);
   let popDay = s.crew.pr ? CFG.prPopPerDay : 0;
   for (const c of activeCampaigns(s, t0)) popDay += CAMPAIGNS[c.id].pop || 0;
@@ -1730,7 +1730,7 @@ function rollover(s, t) {
   const hot = td.peakHeat + cashPileHeat(s);
   const raid = hot >= CFG.raidAt && rand() < (hot - 50) / 100 * (1 - eff(s, 'tipoff')) * (s.crew.copper ? 0.6 : 1) * (s.delivery.on ? DELIVERY.raidMult : 1);
   const product = Object.values(s.bags).reduce((a, b) => a + b, 0) + Object.values(s.kits).reduce((a, b) => a + b, 0);
-  if (raid && (product > 0 || (s.packageUntil || 0) > t) && rand() < (hot - 60) / 60 * (1 - eff(s, 'hide')) * ((s.packageUntil || 0) > t ? 1.6 : 1)) bust(s, t, (s.packageUntil || 0) > t ? 'A dawn raid found Dez\'s package in the back room.' : 'A dawn raid found product in the back room.');
+  if (raid && (product > 0 || (s.packageUntil || 0) > t) && rand() < (hot - 60) / 60 * (1 - eff(s, 'hide') - backHide(s)) * ((s.packageUntil || 0) > t ? 1.6 : 1)) bust(s, t, (s.packageUntil || 0) > t ? 'A dawn raid found Dez\'s package in the back room.' : 'A dawn raid found product in the back room.');
   else if (raid) {
     const lost = Math.round(s.dirty * (has(s, 'safe') ? CFG.safeRaidShare : 0.5));
     for (const id in s.bags) s.bags[id] = 0;
@@ -1809,7 +1809,7 @@ function rollover(s, t) {
   const premium = Object.keys(INSURANCE).filter(k => s.insurance[k]).reduce((a, k) => a + insurancePremium(s, k), 0);
   if (premium) { s.clean = round2(Math.max(0, s.clean - premium)); td.rent += premium; }
   for (const r of Object.keys(CREW)) if (s.crew[r]) {
-    const st = staffOf(s, r); st.loyalty = Math.min(100, st.loyalty + LOYALTY.perDay);
+    const st = staffOf(s, r); st.loyalty = Math.min(100, st.loyalty + LOYALTY.perDay + (CREW[r].shift === 'night' ? backLoyalty(s) : 0));
     if (CREW[r].shift === 'night' && st.loyalty < LOYALTY.informAt && rand() < LOYALTY.informChance) {
       addEvidence(s, CASE.informant, t); note(s, `🐀 ${CREW[r].name} has been talking to ${CASE.detective}. Evidence +${CASE.informant}. A bonus might buy some loyalty back.`, 'bad', t);
     }

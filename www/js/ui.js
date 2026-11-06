@@ -687,6 +687,17 @@ function infoFor(kind, id) {
       + line('Tokens to spend', pr.tokens) + line('Tokens ever earned', `${pr.total} (+${pct(PRESTIGE.tokenBonus * pr.total)} on every sale and bag)`) + line('Times', pr.resets)
       + `<p class="mute">Tokens grow with the square root of net worth (shops, machines, property, fronts, vans and cash, less debt): £1M is worth 10, £100M is worth 100. Prestige opens at level ${PRESTIGE.level}. Perks and token bonuses are kept for ever; everything else starts again, including milestones.</p>`);
   }
+  if (kind === 'backstats') {
+    const st = D.backStats(s);
+    return T('💜 The back rooms\' decor', '<p>What you put in your back rooms (all of them, added together) does more than look good.</p>'
+      + line('😌 Comfort', `${st.comfort}: night crew gain +${D.backLoyalty(s).toFixed(1)} loyalty a day`) + line('🫥 Cover', `${st.cover}: raids find product ${pct(D.backHide(s))} less often`)
+      + line('🛡️ Security', `${st.security}: heat cools ${pct(D.backCool(s) - 1)} faster`) + '<p class="mute">Bought with dirty cash. Each back room has its own floor, walls and decor.</p>');
+  }
+  if (kind === 'bdecor') {
+    const d = D.BACK_DECOR[id];
+    return T(`${d.emoji} ${d.name}`, line('Price', `💜 ${money(d.price)}`) + (d.comfort ? line('Comfort', `+${d.comfort} (crew loyalty)`) : '') + (d.cover ? line('Cover', `+${d.cover} (hides product from raids)`) : '')
+      + (d.security ? line('Security', `+${d.security} (heat cools faster)`) : '') + line('Sells back for', `💜 ${money(Math.round(d.price * D.SELL_BACK))}`) + line('Unlocks at', `level ${d.level}`));
+  }
   if (kind === 'case') {
     return T(`🕵️ ${CASE.detective}'s case`, `<p>A detective is building a case against you. When it reaches 100% it goes to court: big fines, everything seized, the back rooms sealed for ${CASE.courtSealDays} days and most of the night crew sent down.</p>`
       + line('Evidence', `${Math.round(s.case.evidence)}%`) + line('Builds from', 'stings, seized vans and deliveries, corner sweeps, raids, informants, HMRC finds')
@@ -1057,7 +1068,7 @@ function modalHTML() {
 
 // ---------- Design mode ----------
 const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null };
-const openDesign = () => { ui.design = ui.room === 'back' ? { cat: 'expand', item: null, sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
+const openDesign = () => { ui.design = ui.room === 'back' ? { cat: 'bdecor', item: 'crates', sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
 
 function swatch(id, f, on, kind) {
   const [a, b] = f.colors, open = D.levelOk(s, f);
@@ -1073,7 +1084,8 @@ function emojiItem(id, d, on, kind) {
 
 function designScreen() {
   const dv = ui.design;
-  const cats = dv.back ? [['expand', '💜 Back-room layout']] : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
+  if (dv.back) return backDesignScreen();
+  const cats = dv.back ? [] : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
   if (dv.cat === 'floor') {
@@ -1130,10 +1142,63 @@ function designScreen() {
   </div>`;
 }
 
+// The back room's design: whole-room floor and walls, decor on its grid, and its layout expansions
+function backDesignScreen() {
+  const dv = ui.design, b = D.backOf(s), st = D.backStats(s);
+  const cats = [['bdecor', '🛋️ Decor'], ['bfloor', '🟫 Floor'], ['bwall', '🧱 Walls'], ['expand', '➕ Layout']];
+  let items = '', hint = '', sel = '';
+  const priceTag = p => (p ? `💜 ${money(p)}` : 'free');
+  if (dv.cat === 'bfloor' || dv.cat === 'bwall') {
+    const T = dv.cat === 'bfloor' ? D.BACK_FLOORS : D.BACK_WALLS, cur = dv.cat === 'bfloor' ? b.floor : b.wall;
+    items = Object.entries(T).map(([id, f]) => { const open = D.levelOk(s, f);
+      return `<div class="ditem ${cur === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="${dv.cat === 'bfloor' ? 'b-floor' : 'b-wall'}" data-id="${id}" data-level="${f.level}" role="button">
+        <span class="sw" style="background:linear-gradient(135deg, ${f.color} 0 50%, ${f.lower || f.color} 50% 100%)"></span><small>${f.name}</small><small class="price">${open ? priceTag(f.price) : `🔒 Lv ${f.level}`}</small></div>`; }).join('');
+    hint = `Tap a style to do the whole back room. Paid in dirty cash.`;
+  } else if (dv.cat === 'bdecor') {
+    items = Object.entries(D.BACK_DECOR).map(([id, d]) => { const open = D.levelOk(s, d), fx = [d.comfort ? `😌${d.comfort}` : '', d.cover ? `🫥${d.cover}` : '', d.security ? `🛡️${d.security}` : ''].filter(Boolean).join(' ');
+      return `<div class="ditem ${dv.item === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="d-item" data-id="${id}" data-level="${d.level}" role="button">${ibtn('bdecor', id)}
+        <span class="em">${d.emoji}</span><small>${d.name}</small><small class="price">${open ? `${priceTag(d.price)} · ${fx}` : `🔒 Lv ${d.level}`}</small></div>`; }).join('');
+    const it = dv.sel != null ? b.decor[dv.sel] : null;
+    hint = dv.moving != null ? 'Tap a green square to move it there.' : it ? 'Move it, turn it, or sell it back for half.' : dv.item ? `Tap a green square to place the ${D.BACK_DECOR[dv.item].name.toLowerCase()}.` : 'Pick something, or tap a piece in the room to move it.';
+    hint += ` <span class="mute">(${b.decor.length}/${D.backDecorCap(s)} placed)</span>`;
+    if (it) { const d = D.BACK_DECOR[it.type]; sel = `<div class="dsel">${d.emoji} <b>${d.name}</b>
+      <button class="small" data-act="b-move">${dv.moving != null ? 'Moving…' : 'Move'}</button><button class="small" data-act="b-rotate">Turn</button>
+      <button class="small danger" data-act="b-sell">Sell 💜 ${money(Math.round(d.price * D.SELL_BACK))}</button><button class="small" data-act="d-deselect">✕</button></div>`; }
+  } else {
+    hint = `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more machines.`;
+    items = Object.entries(D.EXPANSIONS).filter(([, e]) => e.labSpots).map(([id, e]) => {
+      const owned = s.design.expansions[id];
+      const btn = owned ? '<span class="good">✓ Yours</span>' : !D.levelOk(s, e) ? `<span class="lock">🔒 Lv ${e.level}</span>`
+        : e.needs && !s.design.expansions[e.needs] ? `<span class="lock">needs ${D.EXPANSIONS[e.needs].name.toLowerCase()}</span>`
+        : `<button class="small primary" data-act="d-buyexp" data-id="${id}" ${s.clean < e.price ? 'disabled' : ''}>${money(e.price)}</button>`;
+      return `<div class="dexp ${owned ? 'owned' : ''}">${ibtn('exp', id)}<b>${e.name}</b><small>${e.labSpots} back-room spots</small>${btn}</div>`;
+    }).join('');
+  }
+  const c = D.cartInfo();
+  const pay = c?.n ? `<button class="small" data-act="d-cancel">Cancel</button><button class="primary small" data-act="d-checkout" ${s.clean >= c.cost && s.dirty >= (c.dirty || 0) ? '' : 'disabled'}>Checkout${c.dirty ? ` · 💜 ${money(c.dirty)}` : ''}${c.cost ? ` · ${money(c.cost)}` : ''}</button>` : '<button class="primary small" data-act="d-done">Done</button>';
+  return `<div class="designbar night">
+    <div class="drow"><div class="dcats">${cats.map(([id, label]) => `<button class="small ${dv.cat === id ? 'on' : ''}" data-act="d-cat" data-id="${id}">${label}</button>`).join('')}</div>${pay}</div>
+    <div class="dinfo"><span>${hint}${c?.n ? ` <b>· ${c.n} change${c.n === 1 ? '' : 's'} in the basket</b>` : ''}</span><span class="charm" data-act="info" data-kind="backstats" data-id="x">😌 ${st.comfort} · 🫥 ${st.cover} · 🛡️ ${st.security}</span></div>
+    ${sel}
+    <div class="catalog ${dv.cat === 'expand' ? 'exp' : ''}" data-key="bdesign-${dv.cat}">${items}</div>
+  </div>`;
+}
+
 function designTap(info) {
   const dv = ui.design;
   let r = null;
   D.startCart(s);
+  if (dv.back) {
+    if (info.kind === 'bdecor') { dv.sel = info.idx; dv.item = null; dv.cat = 'bdecor'; }
+    else if (info.kind === 'bcell' && dv.cat === 'bdecor') {
+      if (dv.moving != null) { r = D.moveBackDecor(s, dv.moving, info.bx, info.bz); if (r.ok) dv.moving = null; }
+      else if (dv.item) r = D.placeBackDecor(s, dv.item, info.bx, info.bz);
+      else { const i = D.backDecorAt(s, info.bx, info.bz); dv.sel = i >= 0 ? i : null; }
+    }
+    if (r?.msg) showToast(r.msg, r.ok ? 'good' : 'bad');
+    save(); render();
+    return;
+  }
   if (info.kind === 'panel') {
     if (dv.cat === 'wall') r = D.paintWall(s, info.key, dv.item);
     else if (dv.cat === 'art') r = dv.item === 'remove' ? D.removeArt(s, info.key) : D.placeArt(s, info.key, dv.item);
@@ -1377,6 +1442,13 @@ function act(el) {
     case 'd-deselect': ui.design.sel = null; ui.design.moving = null; break;
     case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-done': D.checkoutCart(s); ui.design = null; break;
+    case 'b-floor': case 'b-wall': {
+      if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
+      D.startCart(s); const r = a === 'b-floor' ? D.setBackFloor(s, id) : D.setBackWall(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break;
+    }
+    case 'b-move': if (ui.design.sel != null) ui.design.moving = ui.design.sel; break;
+    case 'b-rotate': if (ui.design.sel != null) { D.startCart(s); D.rotateBackDecor(s, ui.design.sel); } break;
+    case 'b-sell': if (ui.design.sel != null) { D.startCart(s); const r = D.sellBackDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
     case 'd-checkout': { const r = D.checkoutCart(s); if (r.msg) showToast(r.msg, 'good'); ui.design = null; break; }
     case 'd-cancel': D.cancelCart(s); showToast('Changes undone.', 'info'); ui.design = null; break;
     case 'restart':

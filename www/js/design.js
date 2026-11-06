@@ -1,4 +1,4 @@
-import { CAPS, capAt, nextCap, SPOTS } from './data.js';
+import { CAPS, capAt, nextCap, SPOTS, LAB_SPOTS } from './data.js';
 
 // Designing the bakery: floor tiles per square, wallpaper per wall panel, decorations on free squares,
 // wall art on panels, and terrace expansions. No DOM here; actions return { ok, msg }.
@@ -104,6 +104,115 @@ export const EXPANSIONS = {
   annex:   { level: 44, name: 'The annex',     desc: 'Knock through to the storeroom: room for 4 more back-room machines.', price: 40000, labSpots: 4, needs: 'bench3' },
 };
 export const SELL_BACK = 0.5;
+
+// ---------- The back room's own look (paid in dirty cash) ----------
+// Whole-room floors and walls, and decorations on a 7 x 9 grid of squares. Decor does something:
+// comfort keeps the night crew loyal, cover hides product from raids, security cools the heat.
+export const BACK_FLOORS = {
+  concrete: { level: 1,  name: 'Bare concrete',   price: 0,     color: '#595b62' },
+  rubber:   { level: 6,  name: 'Rubber matting',  price: 600,   color: '#2b2d36' },
+  plate:    { level: 12, name: 'Chequer plate',   price: 1500,  color: '#8d939c' },
+  tiles:    { level: 18, name: 'White tiles',     price: 2500,  color: '#dfe3ea' },
+  epoxy:    { level: 30, name: 'Lab epoxy',       price: 6000,  color: '#c9d6e3' },
+  wood:     { level: 40, name: 'Reclaimed boards', price: 9000, color: '#6b4a2e' },
+  neon:     { level: 60, name: 'Glow floor',      price: 25000, color: '#3a1d5c' },
+};
+export const BACK_WALLS = {
+  block:    { level: 1,  name: 'Breeze block',    price: 0,     color: '#41464f', lower: '#30343b' },
+  brick:    { level: 6,  name: 'Painted brick',   price: 600,   color: '#7a3b33', lower: '#5a2a24' },
+  white:    { level: 14, name: 'Clean white',     price: 1800,  color: '#d9dde3', lower: '#aab1bb' },
+  black:    { level: 22, name: 'Matte black',     price: 3500,  color: '#1d1f25', lower: '#121318' },
+  graffiti: { level: 32, name: 'Graffiti',        price: 7000,  color: '#2e6b5a', lower: '#3a2a55' },
+  padded:   { level: 48, name: 'Soundproof foam', price: 15000, color: '#3b3f4a', lower: '#2b2d36' },
+  gold:     { level: 75, name: 'Gold leaf',       price: 60000, color: '#b8902a', lower: '#6b5310' },
+};
+export const BACK_DECOR = {
+  crates:    { level: 1,  name: 'Bread crates',     emoji: '📦', price: 150,   cover: 1 },
+  poster:    { level: 2,  name: 'Band posters',     emoji: '🎸', price: 200,   comfort: 1 },
+  minifridge:{ level: 4,  name: 'Mini fridge',      emoji: '🧊', price: 400,   comfort: 1 },
+  dartboard: { level: 6,  name: 'Dartboard',        emoji: '🎯', price: 500,   comfort: 1 },
+  sofa:      { level: 8,  name: 'Old sofa',         emoji: '🛋️', price: 900,   comfort: 2 },
+  shelving:  { level: 10, name: 'Flour shelving',   emoji: '🗄️', price: 1200,  cover: 2 },
+  cctv:      { level: 12, name: 'CCTV monitors',    emoji: '📺', price: 2000,  security: 2 },
+  tv:        { level: 15, name: 'Big telly',        emoji: '📺', price: 2500,  comfort: 2 },
+  plantb:    { level: 16, name: 'Grow-light plant', emoji: '🪴', price: 1500,  comfort: 1 },
+  arcadeb:   { level: 20, name: 'Arcade cabinet',   emoji: '🕹️', price: 4000,  comfort: 3 },
+  safe2:     { level: 24, name: 'Wall safe',        emoji: '🔐', price: 5000,  cover: 2, security: 1 },
+  pooltable: { level: 28, name: 'Pool table',       emoji: '🎱', price: 8000,  comfort: 4 },
+  fakewall:  { level: 34, name: 'False wall',       emoji: '🧱', price: 12000, cover: 4 },
+  steeldoor: { level: 40, name: 'Reinforced door',  emoji: '🚪', price: 15000, security: 3 },
+  fishtank:  { level: 46, name: 'Fish tank',        emoji: '🐠', price: 18000, comfort: 4 },
+  jukeboxb:  { level: 54, name: 'Jukebox',          emoji: '🎵', price: 25000, comfort: 4 },
+  panicroom: { level: 64, name: 'Panic room',       emoji: '🛡️', price: 60000, security: 5, cover: 3 },
+  goldsofa:  { level: 80, name: 'Gold velvet sofa', emoji: '👑', price: 150000, comfort: 8 },
+};
+export const BACK_GRID = { cols: 7, rows: 9, x0: -11.1, z0: -4.0, size: 1 };
+export const backCellCenter = (bx, bz) => ({ x: BACK_GRID.x0 + bx * BACK_GRID.size, z: BACK_GRID.z0 + bz * BACK_GRID.size });
+// Squares that stay clear: machine spots, the doors, where buyers stand, the existing clutter
+const BACK_BLOCKS = [[-11.0, 2.2, 1.0], [-5.0, 3.1, 1.0], [-10.1, 2.9, 0.6], [-10.1, 1.5, 0.6], [-9.0, 3.4, 0.6], [-9.0, 2.1, 0.6], [-7.9, 3.0, 0.6], [-7.9, 1.7, 0.6],
+  [-11.0, -1.6, 0.6], [-10.9, 3.9, 0.6], [-6.9, 1.0, 0.7], [-6.0, -1.2, 0.6], [-11.2, -3.0, 0.5], [-7.7, -2.6, 0.5]];
+export function backCellBlocked(bx, bz) {
+  const { x, z } = backCellCenter(bx, bz);
+  if (LAB_SPOTS.some(p => Math.abs(p.x - x) < 0.85 && Math.abs(p.z - z) < 0.85)) return true;
+  return BACK_BLOCKS.some(([bxp, bzp, r]) => Math.abs(bxp - x) < r && Math.abs(bzp - z) < r);
+}
+export function backOf(s) {
+  s.design.back ||= { floor: 'concrete', wall: 'block', decor: [] };
+  return s.design.back;
+}
+export const backDecorAt = (s, bx, bz, ignore = -1) => backOf(s).decor.findIndex((d, i) => i !== ignore && d.bx === bx && d.bz === bz);
+export const backDecorCap = s => Math.max(4, Math.floor(decorCap(s) / 2));
+function payDirty(s, cost) {
+  if (cart) { if (s.dirty - cart.dirty < cost) return false; cart.dirty = round2(cart.dirty + cost); cart.n++; return true; }
+  if (s.dirty < cost) return false;
+  s.dirty = round2(s.dirty - cost); return true;
+}
+export function setBackFloor(s, id) {
+  const f = BACK_FLOORS[id]; if (!f) return { msg: '' };
+  if (!levelOk(s, f)) return lockMsg(f);
+  if (backOf(s).floor === id) return { msg: 'Already down.' };
+  if (!payDirty(s, f.price)) return { msg: 'Not enough dirty cash.' };
+  backOf(s).floor = id; return { ok: true, msg: `${f.name} laid.` };
+}
+export function setBackWall(s, id) {
+  const f = BACK_WALLS[id]; if (!f) return { msg: '' };
+  if (!levelOk(s, f)) return lockMsg(f);
+  if (backOf(s).wall === id) return { msg: 'Already up.' };
+  if (!payDirty(s, f.price)) return { msg: 'Not enough dirty cash.' };
+  backOf(s).wall = id; return { ok: true, msg: `${f.name} on the walls.` };
+}
+export function placeBackDecor(s, type, bx, bz) {
+  const d = BACK_DECOR[type]; if (!d) return { msg: 'Pick something to place first.' };
+  if (!levelOk(s, d)) return lockMsg(d);
+  if (backOf(s).decor.length >= backDecorCap(s)) return { msg: `The back room has room for ${backDecorCap(s)} things at your level.` };
+  if (backCellBlocked(bx, bz)) return { msg: 'That square has to stay clear (machines, doors or buyers).' };
+  if (backDecorAt(s, bx, bz) >= 0) return { msg: 'Something is already there.' };
+  if (!payDirty(s, d.price)) return { msg: 'Not enough dirty cash.' };
+  backOf(s).decor.push({ type, bx, bz, rot: 0 });
+  return { ok: true, msg: `Placed: ${d.name}` };
+}
+export function moveBackDecor(s, idx, bx, bz) {
+  const it = backOf(s).decor[idx]; if (!it) return { msg: '' };
+  if (backCellBlocked(bx, bz) || backDecorAt(s, bx, bz, idx) >= 0) return { msg: 'You can\u2019t put it there.' };
+  it.bx = bx; it.bz = bz; return { ok: true, msg: 'Moved.' };
+}
+export function rotateBackDecor(s, idx) { const it = backOf(s).decor[idx]; if (it) it.rot = ((it.rot || 0) + 1) % 4; }
+export function sellBackDecor(s, idx) {
+  const it = backOf(s).decor[idx]; if (!it) return { msg: '' };
+  const back = Math.round(BACK_DECOR[it.type].price * SELL_BACK);
+  backOf(s).decor.splice(idx, 1);
+  if (cart) { cart.dirty = round2(cart.dirty - back); cart.n++; } else s.dirty = round2(s.dirty + back);
+  return { ok: true, msg: `Sold for £${back}.` };
+}
+// What every back room's decor adds up to, across the business
+export function backStats(s) {
+  const out = { comfort: 0, cover: 0, security: 0 };
+  for (const x of s.shops || []) for (const it of x.design?.back?.decor || []) { const d = BACK_DECOR[it.type]; if (!d) continue; out.comfort += d.comfort || 0; out.cover += d.cover || 0; out.security += d.security || 0; }
+  return out;
+}
+export const backHide = s => Math.min(0.4, backStats(s).cover * 0.03);
+export const backCool = s => 1 + Math.min(0.5, backStats(s).security * 0.04);
+export const backLoyalty = s => Math.min(3, backStats(s).comfort * 0.15);
 export const REPAIR_TILE = 8, REPAIR_PANEL = 12; // fixing damage costs at least this, even with a free style
 export const decorCap = s => capAt(CAPS.decor, s.level || 1);
 export const levelOk = (s, item) => (s.level || 1) >= (item?.level || 1);
@@ -211,15 +320,18 @@ export function canPlace(s, type, cx, cz, ignore = -1) {
 const round2 = v => Math.round(v * 100) / 100;
 // The design basket: changes show in the shop straight away but are only paid for at checkout (or undone)
 let cart = null;
-export const cartInfo = () => cart && { cost: cart.cost, n: cart.n };
-export function startCart(s) { if (!cart) cart = { cost: 0, n: 0, snap: JSON.stringify(s.design), shop: s.cur || 0 }; }
+export const cartInfo = () => cart && { cost: cart.cost, dirty: cart.dirty, n: cart.n };
+export function startCart(s) { if (!cart) cart = { cost: 0, dirty: 0, n: 0, snap: JSON.stringify(s.design), shop: s.cur || 0 }; }
 export const cartSnapshot = () => cart && { shop: cart.shop, design: JSON.parse(cart.snap) };
 export function checkoutCart(s) {
   if (!cart) return { msg: '' };
   const c = cart; cart = null;
-  s.clean = round2(s.clean - c.cost);
+  s.clean = round2(s.clean - c.cost); s.dirty = round2(s.dirty - (c.dirty || 0));
   if (s.today && c.cost > 0) s.today.upgradesSpent = round2((s.today.upgradesSpent || 0) + c.cost);
-  return { ok: true, msg: c.cost >= 0 ? `Paid £${Math.round(c.cost).toLocaleString('en-GB')} for ${c.n} change${c.n === 1 ? '' : 's'}.` : `Got £${Math.round(-c.cost).toLocaleString('en-GB')} back.` };
+  const parts = [];
+  if (c.cost) parts.push(c.cost > 0 ? `£${Math.round(c.cost).toLocaleString('en-GB')}` : `got £${Math.round(-c.cost).toLocaleString('en-GB')} back`);
+  if (c.dirty) parts.push(c.dirty > 0 ? `💜 £${Math.round(c.dirty).toLocaleString('en-GB')}` : `got 💜 £${Math.round(-c.dirty).toLocaleString('en-GB')} back`);
+  return { ok: true, msg: `${c.n} change${c.n === 1 ? '' : 's'}: ${parts.join(', ') || 'free'}.` };
 }
 export function cancelCart(s) {
   if (!cart) return;

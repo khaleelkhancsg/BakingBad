@@ -173,6 +173,18 @@ a week and is paid from clean cash; see it building up in the 🏦 Bank tab.
   income you pay it back twice over and it makes the papers. Viv the accountant trims the bill and halves the chance.
 - **Unpaid tax** gets a 5% penalty and daily interest, and HMRC take what they can each morning.
 
+## Designing the back rooms
+
+In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the same basket and checkout):
+
+- **Floor** and **Walls**: whole-room styles, from bare concrete and breeze block to lab epoxy, soundproof foam and gold leaf.
+- **Decor** on the back room's free squares (machine spots, the doors and where buyers stand stay clear). Pieces do
+  something, added up across all your back rooms:
+  - 😌 **Comfort** (sofas, a big telly, a pool table, a fish tank, a jukebox): the night crew gain loyalty faster.
+  - 🫥 **Cover** (bread crates, flour shelving, a wall safe, a false wall): raids find product less often (up to 40% less).
+  - 🛡️ **Security** (CCTV monitors, a reinforced door, a panic room): heat cools faster (up to 50%).
+- **Layout**: the back room's benches, cellar and annex for more machine spots.
+
 ## Prestige
 
 From level 25, Menu → Bank & tax → Prestige lets you hand the business on and start again from nothing: no shops,

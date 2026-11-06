@@ -727,6 +727,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   statics.add(box(9.25, 0.45, 9.25, '#c7bfb2', 0, -0.45, 0, false));
   const backFloor = mesh(new THREE.PlaneGeometry(6.9, 9), smat({ map: concreteTex, roughness: 0.95 }), -8.15, 0.001, 0, false);
   backFloor.rotation.x = -PI / 2; statics.add(backFloor);
+  const backFloorOrig = backFloor.material;
   statics.add(box(7.15, 0.45, 9.25, '#a79f95', -8.15, -0.45, 0, false));
 
   // Walls
@@ -1118,9 +1119,49 @@ export function createScene(canvas, overlayEl, { onPick }) {
       g.add(sphere(0.07, fountainWater, 0, 1.0, 0, false));
     } else if (type === 'sacks') {
       for (const [x, z] of [[-0.15, 0.05], [0.2, -0.05]]) { const sk = sphere(0.28, '#e9dcc1', x, 0.27, z); sk.scale.set(1, 1.1, 0.8); g.add(sk); }
+    } else if (type === 'crates') {
+      for (const [x, y, z] of [[-0.2, 0, 0], [0.2, 0, 0.05], [0, 0.32, 0]]) g.add(box(0.38, 0.3, 0.34, '#c9a46a', x, y, z));
+    } else if (type === 'sofa' || type === 'goldsofa') {
+      const c = type === 'goldsofa' ? '#8a1f4a' : '#5a4a6a';
+      g.add(box(1.1, 0.4, 0.55, c, 0, 0, 0)); g.add(box(1.1, 0.45, 0.15, c, 0, 0.4, -0.22));
+      for (const dx of [-0.5, 0.5]) g.add(box(0.12, 0.25, 0.55, c, dx, 0.4, 0));
+      if (type === 'goldsofa') g.add(box(1.14, 0.04, 0.6, mat('#d4af37', { metalness: 0.6, roughness: 0.3 }), 0, 0.4, 0));
+    } else if (type === 'tv' || type === 'cctv') {
+      g.add(box(0.7, 0.5, 0.4, '#2b2d36', 0, 0, 0));
+      const screenM = emissiveMat('#0d1420', type === 'cctv' ? '#5fd38d' : '#6fb8e0');
+      if (type === 'cctv') for (let k = 0; k < 4; k++) g.add(box(0.3, 0.22, 0.03, screenM, -0.16 + (k % 2) * 0.32, 0.6 + Math.floor(k / 2) * 0.26, 0.05));
+      else g.add(box(1.0, 0.6, 0.05, screenM, 0, 0.55, 0.05));
+    } else if (type === 'shelving') {
+      for (const dx of [-0.45, 0.45]) g.add(box(0.05, 1.6, 0.4, '#8d939c', dx, 0, 0));
+      for (const y of [0.25, 0.75, 1.25]) { g.add(box(0.9, 0.04, 0.4, '#8d939c', 0, y, 0)); for (let k = 0; k < 3; k++) { const sk = sphere(0.14, '#e9dcc1', -0.28 + k * 0.28, y + 0.16, 0); sk.scale.set(1, 0.9, 0.8); g.add(sk); } }
+    } else if (type === 'pooltable') {
+      g.add(box(1.4, 0.7, 0.8, '#5a3520', 0, 0, 0)); g.add(box(1.3, 0.04, 0.7, '#2f7a4a', 0, 0.71, 0));
+      for (const [x, z, c] of [[0.2, 0.1, '#ffffff'], [-0.3, -0.1, '#e8c02b'], [-0.35, 0.1, '#c8323c']]) g.add(sphere(0.04, c, x, 0.77, z));
+    } else if (type === 'fishtank') {
+      g.add(box(1.0, 0.6, 0.4, '#2b2d36', 0, 0, 0));
+      g.add(box(0.95, 0.55, 0.38, smat({ color: '#6fb8e0', transparent: true, opacity: 0.45, roughness: 0.1 }), 0, 0.6, 0, false));
+      for (const [x, y, c] of [[-0.2, 0.85, '#ff9a3d'], [0.15, 0.75, '#ffd447']]) { const f = sphere(0.05, c, x, y, 0); f.scale.set(1.6, 1, 0.6); g.add(f); }
+    } else if (type === 'fakewall' || type === 'steeldoor' || type === 'panicroom') {
+      const c = type === 'fakewall' ? '#41464f' : '#6b7079';
+      g.add(box(0.95, 2.0, 0.25, c, 0, 0, 0));
+      if (type !== 'fakewall') { g.add(box(0.06, 0.06, 0.06, '#d4af37', 0.3, 1.0, 0.14)); for (const y of [0.4, 1.6]) g.add(box(0.9, 0.05, 0.27, '#4a4d54', 0, y, 0)); }
+    } else {
+      // Anything without a model of its own: a small plinth with its picture on a stand
+      g.add(cyl(0.3, 0.34, 0.12, '#3a3046', 0, 0, 0, 16));
+      g.add(cyl(0.02, 0.02, 0.6, '#2b2d36', 0, 0.12, 0, 6, false));
+      const sp = new THREE.Sprite(emojiSprite(type)); sp.scale.set(0.7, 0.7, 0.7); sp.position.y = 1.05; g.add(sp);
     }
     g.traverse(o => { if (o.isMesh) o.receiveShadow = true; });
     return g;
+  }
+  const spriteMats = new Map();
+  function emojiSprite(type) {
+    if (spriteMats.has(type)) return spriteMats.get(type);
+    const emoji = (D.DECOR[type] || D.BACK_DECOR[type] || {}).emoji || '✨';
+    const tex = canvasTex(128, 128, c => { c.font = '96px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(emoji, 64, 70); });
+    const m = new THREE.SpriteMaterial({ map: tex, transparent: true });
+    spriteMats.set(type, m);
+    return m;
   }
   function artModel(type, key) {
     const g = new THREE.Group();
@@ -1149,6 +1190,44 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const decorGroup = new THREE.Group(); scene.add(decorGroup);
   const artBack = new THREE.Group(); scene.add(artBack);
   const artLeft = new THREE.Group(); partition.add(artLeft);
+  const backDecorGroup = new THREE.Group(); scene.add(backDecorGroup);
+  const backFloorMats = {};
+  let backSig = '';
+  function syncBack(s) {
+    const b = s.design.back || { floor: 'concrete', wall: 'block', decor: [] };
+    const sig = JSON.stringify(b);
+    if (sig === backSig) return;
+    backSig = sig;
+    const f = D.BACK_FLOORS[b.floor] || D.BACK_FLOORS.concrete;
+    if (b.floor === 'concrete') backFloor.material = backFloorOrig;
+    else backFloor.material = backFloorMats[b.floor] ||= (b.floor === 'neon' ? smat({ color: f.color, emissive: '#7b3fd6', emissiveIntensity: 0.35, roughness: 0.4 }) : smat({ color: f.color, roughness: b.floor === 'epoxy' || b.floor === 'tiles' ? 0.35 : 0.85 }));
+    const w = D.BACK_WALLS[b.wall] || D.BACK_WALLS.block;
+    backWall.color.set(w.color); backWain.color.set(w.lower);
+    backDecorGroup.clear();
+    b.decor.forEach((it, idx) => {
+      const m = decorModel(it.type), { x, z } = D.backCellCenter(it.bx, it.bz);
+      m.position.set(x, 0, z); m.rotation.y = (it.rot || 0) * PI / 2;
+      m.userData = { act: 'design', kind: 'bdecor', idx };
+      m.traverse(o => { if (o.isMesh) o.castShadow = true; });
+      backDecorGroup.add(m);
+    });
+  }
+  // Design overlay for the back room: green where decor can go
+  const ovBack = canvasOf(7 * TS, 9 * TS);
+  const ovBackMesh = mesh(new THREE.PlaneGeometry(7, 9), ovMatB(ovBack), D.BACK_GRID.x0 + 3, 0.02, D.BACK_GRID.z0 + 4, false);
+  ovBackMesh.rotation.x = -PI / 2; ovBackMesh.visible = false; scene.add(ovBackMesh);
+  function ovMatB(t) { return new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }); }
+  let ovBackSig = '';
+  function paintBackOverlay(s) {
+    const c = ovBack.ctx, b = s.design.back || { decor: [] };
+    c.clearRect(0, 0, 7 * TS, 9 * TS);
+    for (let bz = 0; bz < 9; bz++) for (let bx = 0; bx < 7; bx++) {
+      const blocked = D.backCellBlocked(bx, bz), used = b.decor.some(d => d.bx === bx && d.bz === bz);
+      c.fillStyle = blocked ? 'rgba(229,122,131,.18)' : used ? 'rgba(233,178,119,.25)' : 'rgba(121,201,154,.28)';
+      c.fillRect(bx * TS + 2, bz * TS + 2, TS - 4, TS - 4);
+    }
+    ovBack.tex.needsUpdate = true;
+  }
   function rebuildDecor(s) {
     decorGroup.clear(); artBack.clear(); artLeft.clear();
     s.design.decor.forEach((it, idx) => {
@@ -1218,6 +1297,18 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function syncDesign(s, now) {
     const d = s.design;
     if (!d) return;
+    syncBack(s);
+    const bdv = view.design?.back ? view.design : null;
+    ovBackMesh.visible = !!bdv && bdv.cat === 'bdecor';
+    if (bdv) {
+      const sig = JSON.stringify([d.back?.decor, bdv.cat]);
+      if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s); }
+      const sel = bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
+      selRing.visible = !!sel;
+      if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
+      overlay.visible = false;
+      return;
+    }
     const ds = JSON.stringify([d.floor, d.wall, d.expansions]);
     if (ds !== designSig) { designSig = ds; paintDesign(s); }
     const dcs = JSON.stringify([d.decor, d.art]);
@@ -1241,6 +1332,20 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const dRay = new THREE.Raycaster();
   function designPick(x, y) {
     dRay.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
+    if (view.design.back) {
+      const hits = dRay.intersectObjects([backDecorGroup, backFloor], true);
+      for (const h of hits) {
+        let o = h.object;
+        while (o && o.userData?.kind !== 'bdecor' && o.parent) o = o.parent;
+        if (o?.userData?.kind === 'bdecor') { onPick({ ...o.userData }); return; }
+        if (h.object === backFloor) {
+          const bx = Math.round((h.point.x - D.BACK_GRID.x0) / D.BACK_GRID.size), bz = Math.round((h.point.z - D.BACK_GRID.z0) / D.BACK_GRID.size);
+          if (bx >= 0 && bx < 7 && bz >= 0 && bz < 9) onPick({ act: 'design', kind: 'bcell', bx, bz });
+          return;
+        }
+      }
+      return;
+    }
     const wallMode = view.design.cat === 'wall' || view.design.cat === 'art';
     if (wallMode) {
       const hits = dRay.intersectObjects([backPaper, leftPaper], false);
