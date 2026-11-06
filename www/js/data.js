@@ -53,9 +53,8 @@ export const CFG = {
 Object.assign(CFG, {
   levelBase: 200, levelStep: 120, maxLevel: 20, levelCash: 10,
   xpPerSecond: 0.25,          // a batch is worth its total stage time x this (longer recipes, more XP)
-  xpBag: 2, xpGoldBag: 4, xpVelvetBatch: 8, xpGoldBatch: 14, xpCourier: 30, xpDealerBag: 1, xpRival: 20, xpCoffee: 1,
-  menuSlots: 6, caseSlotsExtra: 2,
-  coffeeChance: 0.35, coffeePrice: 2.2, cashierBonus: 0.1,
+  xpBag: 2, xpGoldBag: 4, xpVelvetBatch: 8, xpGoldBatch: 14, xpCourier: 30, xpDealerBag: 1, xpRival: 20,
+  cashierBonus: 0.1, drinkAddOn: 0.35, // share of food customers who also grab a drink
   // Night features
   pushMult: 1.35, pushRefuse: 0.35,                                       // haggling (level 3)
   courierChance: 0.6, courierMin: 8, courierMax: 12, courierPrice: 45, courierHeat: 3, courierPatience: 40, // courier orders (level 5)
@@ -64,48 +63,94 @@ Object.assign(CFG, {
   lookoutCatch: 0.7, lookoutFalse: 0.08,
   safeRaidShare: 0.2, vanArrestMult: 0.5,
   // Bank
-  loanAmount: 1000, loanFee: 0.2, loanEvery: 7,
+  loanFee: 0.2, loanEvery: 7,
 });
 
 export const INGREDIENTS = {
-  flour:     { name: 'Flour',     emoji: '🌾', base: 1.5 },
-  butter:    { name: 'Butter',    emoji: '🧈', base: 2.0 },
-  sugar:     { name: 'Sugar',     emoji: '🍬', base: 0.8 },
-  eggs:      { name: 'Eggs',      emoji: '🥚', base: 1.2 },
-  chocolate: { name: 'Chocolate', emoji: '🍫', base: 2.5 },
-  fruit:     { name: 'Fruit',     emoji: '🍓', base: 2.0 },
-  cream:     { name: 'Cream',     emoji: '🥛', base: 2.2, level: 6 },
-  nuts:      { name: 'Nuts',      emoji: '🥜', base: 3.0, level: 11 },
+  flour:     { name: 'Flour',      emoji: '🌾', base: 1.5 },
+  butter:    { name: 'Butter',     emoji: '🧈', base: 2.0 },
+  sugar:     { name: 'Sugar',      emoji: '🍬', base: 0.8 },
+  eggs:      { name: 'Eggs',       emoji: '🥚', base: 1.2 },
+  chocolate: { name: 'Chocolate',  emoji: '🍫', base: 2.5 },
+  fruit:     { name: 'Fruit',      emoji: '🍓', base: 2.0 },
+  milk:      { name: 'Milk',       emoji: '🥛', base: 1.0 },
+  beans:     { name: 'Coffee beans', emoji: '🫘', base: 2.4, level: 4 },
+  leaves:    { name: 'Tea leaves', emoji: '🍃', base: 1.4, level: 5 },
+  cream:     { name: 'Cream',      emoji: '🫙', base: 2.2, level: 6 },
+  meat:      { name: 'Meat & fish', emoji: '🥩', base: 3.2, level: 7 },
+  nuts:      { name: 'Nuts',       emoji: '🥜', base: 3.0, level: 11 },
+  cheese:    { name: 'Cheese',     emoji: '🧀', base: 2.6, level: 11 },
+  ice:       { name: 'Ice',        emoji: '🧊', base: 0.6, level: 12 },
 };
 
-// group decides who wants it: bread (mornings), pastry (all day), sweet (afternoons)
-export const ITEMS = {
-  sourdough: { name: 'Sourdough',     emoji: '🍞', group: 'bread',  price: 7,   yield: 4, ing: { flour: 3 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 6, proof: 14, bake: 12 } },
-  croissant: { name: 'Croissants',    emoji: '🥐', group: 'pastry', price: 3.5, yield: 6, ing: { flour: 1, butter: 2 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 8, proof: 12, bake: 9 } },
-  cookies:   { name: 'Cookies',       emoji: '🍪', group: 'sweet',  price: 2.5, yield: 8, ing: { flour: 1, sugar: 1, chocolate: 1 },
-               stages: ['mix', 'bake'],          times: { mix: 4, bake: 7 } },
-  donuts:    { name: 'Donuts',        emoji: '🍩', group: 'sweet',  price: 2.5, yield: 8, ing: { flour: 1, sugar: 1, eggs: 1 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 5, proof: 8, bake: 5 } },
-  tart:      { name: 'Fruit tarts',   emoji: '🥧', group: 'pastry', price: 5.5, yield: 4, ing: { flour: 1, butter: 1, fruit: 2 },
-               stages: ['mix', 'bake'],          times: { mix: 7, bake: 14 } },
-  bun:       { name: 'Cinnamon buns', emoji: '🥨', group: 'sweet',  price: 3.5, yield: 6, ing: { flour: 1, butter: 1, sugar: 1 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 6, proof: 10, bake: 8 } },
-  baguette:  { name: 'Baguettes',     emoji: '🥖', group: 'bread',  price: 3.0, yield: 6, ing: { flour: 2 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 5, proof: 10, bake: 8 } },
-  muffin:    { name: 'Muffins',       emoji: '🧁', group: 'sweet',  price: 2.8, yield: 8, ing: { flour: 1, sugar: 1, eggs: 1, fruit: 1 },
-               stages: ['mix', 'bake'],          times: { mix: 5, bake: 9 } },
-  caramel:   { name: 'Crème caramel', emoji: '🍮', group: 'sweet',  price: 4.5, yield: 6, ing: { eggs: 2, cream: 1, sugar: 1 },
-               stages: ['mix', 'bake'],          times: { mix: 6, bake: 12 } },
-  cheesecake:{ name: 'Cheesecake',    emoji: '🍰', group: 'pastry', price: 6.0, yield: 6, ing: { cream: 2, sugar: 1, butter: 1, fruit: 1 },
-               stages: ['mix', 'bake'],          times: { mix: 7, bake: 16 } },
-  honeyroll: { name: 'Honey nut rolls', emoji: '🍯', group: 'sweet', price: 4.0, yield: 6, ing: { flour: 1, nuts: 1, sugar: 1, butter: 1 },
-               stages: ['mix', 'proof', 'bake'], times: { mix: 6, proof: 10, bake: 9 } },
-  layercake: { name: 'Layer cake',    emoji: '🎂', group: 'pastry', price: 12,  yield: 3, ing: { flour: 2, eggs: 2, cream: 2, sugar: 2, fruit: 1 },
-               stages: ['mix', 'bake'],          times: { mix: 9, bake: 22 } },
+// Each machine has its own recipes. caps: [level, how many you may own from that level].
+// free: how many you start with. burns/spoil: what happens if a finished batch is left too long.
+export const MACHINES = {
+  oven:     { name: 'Oven',              plural: 'ovens',              emoji: '🔥', level: 1,  price: 800,  free: 2, caps: [[1, 2], [5, 3], [14, 4]], verb: 'Baking',   burns: true, spoil: 'burnt' },
+  mixer:    { name: 'Mixer',             plural: 'mixers',             emoji: '🥣', level: 1,  price: 500,  free: 1, caps: [[1, 1], [8, 2]],          verb: 'Mixing' },
+  fryer:    { name: 'Fryer',             plural: 'fryers',             emoji: '🍳', level: 2,  price: 700,  free: 0, caps: [[2, 1]],                  verb: 'Frying',   burns: true, spoil: 'burnt' },
+  drinks:   { name: 'Drinks machine',    plural: 'drinks machines',    emoji: '☕', level: 4,  price: 900,  free: 0, caps: [[4, 1]],                  verb: 'Brewing' },
+  icecream: { name: 'Ice cream machine', plural: 'ice cream machines', emoji: '🍦', level: 7,  price: 1100, free: 0, caps: [[7, 1]],                  verb: 'Churning', burns: true, spoil: 'melted' },
+  grill:    { name: 'Sandwich grill',    plural: 'grills',             emoji: '🥪', level: 11, price: 1000, free: 0, caps: [[11, 1]],                 verb: 'Grilling', burns: true, spoil: 'burnt' },
 };
-export const START_RECIPES = ['sourdough', 'croissant', 'cookies', 'donuts'];
+export const MACHINE_PRICE_STEP = 0.35; // each extra machine of a kind costs 35% more than the last
+// Where machines stand: five along the back wall, five along the left wall.
+export const SPOTS = [
+  { x: -2.75, z: -4.0, ry: 0, wall: 'back' }, { x: -1.6, z: -4.0, ry: 0, wall: 'back' }, { x: -0.45, z: -4.0, ry: 0, wall: 'back' },
+  { x: 0.7, z: -4.0, ry: 0, wall: 'back' }, { x: 1.85, z: -4.0, ry: 0, wall: 'back' },
+  { x: -3.95, z: -3.0, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: -1.9, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: -0.8, ry: Math.PI / 2, wall: 'left' },
+  { x: -3.95, z: 0.3, ry: Math.PI / 2, wall: 'left' }, { x: -3.95, z: 1.4, ry: Math.PI / 2, wall: 'left' },
+];
+export const MACHINE_WALL = { oven: 'back', fryer: 'back', grill: 'back', mixer: 'left', drinks: 'left', icecream: 'left' };
+
+// Recipes. machine: which machine makes it. time: seconds on that machine. cost: price to learn it (0 = comes with the machine).
+// group decides who wants it and when: bread (mornings), pastry (all day), sweet (afternoons),
+// drink (all day, busiest early), savory (lunchtime), cold (afternoons, heatwaves).
+const R = (machine, name, emoji, group, price, yieldN, time, ing, level = 1, cost = 0) =>
+  ({ machine, name, emoji, group, price, yield: yieldN, ing, level, cost, stages: [machine], times: { [machine]: time } });
+export const ITEMS = {
+  sourdough:  R('oven', 'Sourdough', '🍞', 'bread', 7, 4, 20, { flour: 3 }),
+  croissant:  R('oven', 'Croissants', '🥐', 'pastry', 3.5, 6, 16, { flour: 1, butter: 2 }),
+  cookies:    R('oven', 'Cookies', '🍪', 'sweet', 2.5, 8, 9, { flour: 1, sugar: 1, chocolate: 1 }),
+  baguette:   R('oven', 'Baguettes', '🥖', 'bread', 3, 6, 12, { flour: 2 }, 2, 150),
+  tart:       R('oven', 'Fruit tarts', '🥧', 'pastry', 5.5, 4, 14, { flour: 1, butter: 1, fruit: 2 }, 3, 250),
+  muffin:     R('oven', 'Muffins', '🧁', 'sweet', 2.8, 8, 11, { flour: 1, sugar: 1, eggs: 1, fruit: 1 }, 4, 300),
+  bun:        R('oven', 'Cinnamon buns', '🥨', 'sweet', 3.5, 6, 14, { flour: 1, butter: 1, sugar: 1 }, 5, 250),
+  cheesecake: R('oven', 'Cheesecake', '🍰', 'pastry', 6, 6, 18, { cream: 2, sugar: 1, butter: 1, fruit: 1 }, 9, 700),
+  honeyroll:  R('oven', 'Honey nut rolls', '🍯', 'sweet', 4, 6, 16, { flour: 1, nuts: 1, sugar: 1, butter: 1 }, 12, 900),
+  layercake:  R('oven', 'Layer cake', '🎂', 'pastry', 12, 3, 26, { flour: 2, eggs: 2, cream: 2, sugar: 2, fruit: 1 }, 15, 1500),
+  pancakes:   R('mixer', 'Pancakes', '🥞', 'pastry', 3, 6, 8, { flour: 1, eggs: 1, milk: 1 }),
+  waffles:    R('mixer', 'Waffles', '🧇', 'sweet', 3.5, 6, 10, { flour: 1, eggs: 1, milk: 1, sugar: 1 }, 3, 250),
+  caramel:    R('mixer', 'Crème caramel', '🍮', 'sweet', 4.5, 6, 14, { eggs: 2, cream: 1, sugar: 1 }, 6, 500),
+  mousse:     R('mixer', 'Chocolate mousse', '🍫', 'sweet', 5, 6, 12, { chocolate: 2, cream: 1, eggs: 1 }, 10, 800),
+  donuts:     R('fryer', 'Donuts', '🍩', 'sweet', 2.5, 8, 8, { flour: 1, sugar: 1, eggs: 1 }, 2),
+  dumplings:  R('fryer', 'Dumplings', '🥟', 'savory', 4.5, 8, 12, { flour: 1, meat: 1 }, 7, 600),
+  tempura:    R('fryer', 'Tempura', '🍤', 'savory', 6, 6, 10, { flour: 1, eggs: 1, meat: 1 }, 11, 900),
+  coffee:     R('drinks', 'Coffee', '☕', 'drink', 2.2, 10, 4, { beans: 1, milk: 1 }, 4),
+  tea:        R('drinks', 'Tea', '🍵', 'drink', 1.8, 10, 4, { leaves: 1 }, 5, 150),
+  juice:      R('drinks', 'Fresh juice', '🧃', 'drink', 2.5, 8, 6, { fruit: 2 }, 6, 250),
+  bubbletea:  R('drinks', 'Bubble tea', '🧋', 'drink', 4, 8, 9, { leaves: 1, milk: 1, sugar: 1 }, 9, 600),
+  softserve:  R('icecream', 'Soft serve', '🍦', 'cold', 3, 8, 6, { milk: 2, sugar: 1 }, 7),
+  sundae:     R('icecream', 'Sundaes', '🍨', 'cold', 4.5, 6, 9, { cream: 1, sugar: 1, chocolate: 1 }, 8, 400),
+  shavedice:  R('icecream', 'Shaved ice', '🍧', 'cold', 3.5, 8, 7, { ice: 2, fruit: 1, sugar: 1 }, 12, 600),
+  toastie:    R('grill', 'Toasties', '🥪', 'savory', 4.5, 6, 8, { flour: 1, cheese: 1 }, 11),
+  hotdog:     R('grill', 'Hot dogs', '🌭', 'savory', 4, 8, 10, { flour: 1, meat: 1 }, 12, 400),
+  bagel:      R('grill', 'Bagels', '🥯', 'bread', 3, 6, 12, { flour: 2, cheese: 1 }, 13, 500),
+};
+export const START_RECIPES = ['sourdough', 'croissant', 'cookies', 'pancakes'];
+
+// Things that grow with your level instead of being bought one by one.
+// Each is [level, amount from that level].
+export const CAPS = {
+  menu:  [[1, 4], [3, 5], [5, 6], [8, 7], [12, 8]],       // different things on sale at once (the case has 8 trays)
+  kits:  [[1, 4], [5, 6], [9, 8], [13, 10]],              // kits Dez will sell you a day
+  loan:  [[4, 1000], [8, 2000], [12, 3000]],              // biggest loan the bank will give
+  decor: [[1, 6], [3, 10], [5, 14], [7, 18], [9, 22], [12, 28], [15, 34], [18, 40]], // decorations placed
+};
+// What a cap table allows at a level, and when it next goes up.
+export function capAt(table, level) { let n = 0; for (const [l, v] of table) if (level >= l) n = v; return n; }
+export function nextCap(table, level) { for (const [l, v] of table) if (l > level) return { level: l, amount: v }; return null; }
+
 
 export const VELVET = {
   id: 'velvet', name: 'Velvet', emoji: '💜', yield: 10,
@@ -118,9 +163,12 @@ export const GOLD = {
 };
 
 export const STAGES = {
-  mix:   { name: 'Mixer',      emoji: '🥣', verb: 'Mixing' },
-  proof: { name: 'Proofing',   emoji: '⏳', verb: 'Proofing' },
-  bake:  { name: 'Oven',       emoji: '🔥', verb: 'Baking', burns: true },
+  oven:     { name: 'Oven',              emoji: '🔥', verb: 'Baking',   burns: true, spoil: 'burnt' },
+  mixer:    { name: 'Mixer',             emoji: '🥣', verb: 'Mixing' },
+  fryer:    { name: 'Fryer',             emoji: '🍳', verb: 'Frying',   burns: true, spoil: 'burnt' },
+  drinks:   { name: 'Drinks machine',    emoji: '☕', verb: 'Brewing' },
+  icecream: { name: 'Ice cream machine', emoji: '🍦', verb: 'Churning', burns: true, spoil: 'melted' },
+  grill:    { name: 'Sandwich grill',    emoji: '🥪', verb: 'Grilling', burns: true, spoil: 'burnt' },
   prep:  { name: 'Prep table', emoji: '🧪', verb: 'Prepping' },
   cook:  { name: 'Burner',     emoji: '♨️', verb: 'Cooking', burns: true },
   bag:   { name: 'Bagging',    emoji: '🛍️', verb: 'Bagging' },
@@ -134,21 +182,7 @@ export const PRICE_LEVELS = {
 
 // cash: which money pays for it. lab: only shown once the back room is running.
 export const UPGRADES = [
-  { id: 'rack2',    name: 'Extra proofing rack',   desc: '+2 proofing slots.',                              cost: 350,  cash: 'clean', level: 1 },
-  { id: 'mixer2',   name: 'Second mixer',          desc: 'Mix two batches at once.',                        cost: 500,  cash: 'clean', level: 2 },
-  { id: 'recipe_baguette', name: 'Recipe: Baguettes', desc: 'Quick bread for the morning rush.',             cost: 150,  cash: 'clean', recipe: 'baguette', level: 2 },
-  { id: 'oven2',    name: 'Third oven',            desc: 'Bake three batches at once.',                     cost: 800,  cash: 'clean', level: 3 },
-  { id: 'recipe_tart', name: 'Recipe: Fruit tarts',   desc: 'Pricey pastry. Needs fruit.',                   cost: 250,  cash: 'clean', recipe: 'tart', level: 3 },
   { id: 'sign',     name: 'Neon sign',             desc: '+20% customers.',                                 cost: 900,  cash: 'clean', level: 4 },
-  { id: 'recipe_muffin', name: 'Recipe: Muffins',  desc: 'Fruit muffins. Afternoon crowd-pleaser.',          cost: 300,  cash: 'clean', recipe: 'muffin', level: 4 },
-  { id: 'recipe_bun',  name: 'Recipe: Cinnamon buns', desc: 'An afternoon favourite.',                       cost: 250,  cash: 'clean', recipe: 'bun', level: 5 },
-  { id: 'case2',    name: 'Bigger display case',   desc: '+2 menu slots: sell 8 different things.',         cost: 900,  cash: 'clean', level: 6 },
-  { id: 'recipe_caramel', name: 'Recipe: Crème caramel', desc: 'Silky and sweet. Needs cream.',              cost: 500,  cash: 'clean', recipe: 'caramel', level: 7 },
-  { id: 'coffee',   name: 'Coffee machine',        desc: `About a third of customers add a coffee (£2.20).`, cost: 1100, cash: 'clean', level: 8 },
-  { id: 'oven3',    name: 'Fourth oven',           desc: 'Bake four batches at once.',                      cost: 1500, cash: 'clean', requires: 'oven2', level: 8 },
-  { id: 'recipe_cheesecake', name: 'Recipe: Cheesecake', desc: 'A top-shelf pastry. Needs cream.',           cost: 700,  cash: 'clean', recipe: 'cheesecake', level: 9 },
-  { id: 'recipe_honeyroll', name: 'Recipe: Honey nut rolls', desc: 'Sticky, nutty, popular. Needs nuts.',    cost: 900,  cash: 'clean', recipe: 'honeyroll', level: 12 },
-  { id: 'recipe_layercake', name: 'Recipe: Layer cake', desc: 'The showpiece. Slow to bake, sells high.',    cost: 1500, cash: 'clean', recipe: 'layercake', level: 15 },
   { id: 'catering', name: '"Catering" contracts',  desc: 'Invoices for parties nobody threw. Launder +40% more of each day\'s takings safely.', cost: 800, cash: 'clean', lab: true, level: 2 },
   { id: 'camera',   name: 'Back-door camera',      desc: 'Sometimes flags a buyer who feels off. Not always right.', cost: 800, cash: 'dirty', lab: true, level: 4 },
   { id: 'glass',    name: 'Better glassware',      desc: 'Each batch makes 14 bags instead of 10.',         cost: 1000, cash: 'dirty', lab: true, level: 5 },
@@ -176,7 +210,7 @@ export const CREW = {
 // Features that switch on at a level (announced on level-up).
 export const FEATURES = [
   { id: 'haggle',  level: 3,  name: 'Haggling', desc: 'Push a buyer\'s price up at the back door. Some walk off; officers never argue.' },
-  { id: 'loan',    level: 4,  name: 'Bank loans', desc: 'Borrow £1,000 once a week. It adds £1,200 to the debt.' },
+  { id: 'loan',    level: 4,  name: 'Bank loans', desc: 'Borrow once a week (£1,000 at first, more at higher levels). Adds the loan plus 20% to the debt.' },
   { id: 'courier', level: 5,  name: 'Courier orders', desc: 'Dez sends a courier for a bulk order on some nights. Big money, a bit more heat.' },
   { id: 'gold',    level: 7,  name: 'Velvet Gold', desc: 'A premium cook with its own kits. Fewer bags, far higher price.' },
   { id: 'rivals',  level: 9,  name: 'Rival crews', desc: 'Word gets round. Some nights a rival crew tries to rob you. Hire muscle.' },

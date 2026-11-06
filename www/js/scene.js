@@ -1,7 +1,7 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
 import * as THREE from 'three';
-import { CFG, ITEMS, STAGES } from './data.js';
+import { CFG, ITEMS, STAGES, MACHINES } from './data.js';
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 import { buildWorld } from './world.js';
@@ -61,6 +61,45 @@ function itemModel(id) {
     b.rotation.x = -PI / 2; b.position.y = 0.045; g.add(b);
     g.add(sphere(0.05, '#f0b44c', 0, 0.06, 0));
     for (const [x, z] of [[0.04, 0.02], [-0.03, 0.04], [0.0, -0.05]]) g.add(sphere(0.015, '#7a5534', x, 0.1, z));
+  } else if (id === 'pancakes') {
+    for (let k = 0; k < 3; k++) g.add(cyl(0.1, 0.1, 0.025, '#e0a44a', 0, k * 0.026, 0, 14));
+    g.add(cyl(0.05, 0.05, 0.012, '#fff3c4', 0, 0.078, 0, 10));
+  } else if (id === 'waffles') {
+    const w = box(0.18, 0.03, 0.18, '#e0a44a', 0, 0, 0); g.add(w);
+    for (const o of [-0.045, 0.045]) { g.add(box(0.17, 0.01, 0.015, '#b8803a', 0, 0.03, o)); g.add(box(0.015, 0.01, 0.17, '#b8803a', o, 0.03, 0)); }
+  } else if (id === 'mousse') {
+    g.add(cyl(0.07, 0.06, 0.1, smat({ color: '#e8f4ff', transparent: true, opacity: 0.6, roughness: 0.2 }), 0, 0, 0, 12, false));
+    g.add(cyl(0.062, 0.055, 0.08, '#5a3320', 0, 0.005, 0, 12));
+    g.add(sphere(0.03, '#fff4e0', 0, 0.1, 0));
+  } else if (id === 'dumplings') {
+    for (const [x, z] of [[-0.05, 0], [0.05, 0.02]]) { const d = sphere(0.06, '#f4e6c8', x, 0.04, z); d.scale.set(1.2, 0.7, 0.9); g.add(d); }
+  } else if (id === 'tempura') {
+    for (const [x, r] of [[-0.04, 0.3], [0.05, -0.2]]) { const t = mesh(geo('tem', () => new THREE.CapsuleGeometry(0.03, 0.12, 4, 8)), mat('#f0c060'), x, 0.04, 0); t.rotation.z = PI / 2; t.rotation.y = r; g.add(t); }
+  } else if (['coffee', 'tea', 'juice', 'bubbletea'].includes(id)) {
+    const top = { coffee: '#c9a27a', tea: '#c98a2a', juice: '#ff9a3c', bubbletea: '#d9b38c' }[id];
+    const clear = id === 'juice' || id === 'bubbletea';
+    g.add(cyl(0.055, 0.045, 0.13, clear ? smat({ color: '#e8f4ff', transparent: true, opacity: 0.5, roughness: 0.2 }) : mat('#ffffff'), 0, 0, 0, 12, false));
+    g.add(cyl(0.05, 0.05, 0.01, top, 0, 0.12, 0, 12, false));
+    if (clear) g.add(cyl(0.045, 0.04, 0.1, top, 0, 0.01, 0, 12));
+    if (id === 'bubbletea') { for (let k = 0; k < 4; k++) g.add(sphere(0.012, '#2b1d14', -0.02 + (k % 2) * 0.03, 0.02, -0.02 + Math.floor(k / 2) * 0.03, false)); g.add(cyl(0.008, 0.008, 0.2, '#ff7eb6', 0.02, 0.05, 0, 6, false)); }
+    if (id === 'coffee') g.add(cyl(0.058, 0.058, 0.035, '#a8703f', 0, 0.05, 0, 12, false));
+  } else if (['softserve', 'sundae', 'shavedice'].includes(id)) {
+    if (id === 'softserve') {
+      const c = mesh(geo('cone2', () => new THREE.ConeGeometry(0.045, 0.12, 10)), mat('#d9a066'), 0, 0.06, 0); c.rotation.x = PI; g.add(c);
+      g.add(sphere(0.05, '#fff4e0', 0, 0.14, 0)); g.add(sphere(0.035, '#fff4e0', 0, 0.19, 0));
+    } else {
+      g.add(cyl(0.07, 0.04, 0.07, smat({ color: '#e8f4ff', transparent: true, opacity: 0.6, roughness: 0.2 }), 0, 0, 0, 12, false));
+      const col = id === 'sundae' ? '#ff9fb2' : '#9fe1ff';
+      g.add(sphere(0.06, col, 0, 0.1, 0)); g.add(sphere(0.022, '#e2394b', 0, 0.16, 0));
+    }
+  } else if (id === 'toastie') {
+    for (const [y, c] of [[0, '#e0a44a'], [0.035, '#ffd447'], [0.045, '#e0a44a']]) g.add(box(0.16, y === 0.035 ? 0.012 : 0.03, 0.14, c, 0, y, 0));
+  } else if (id === 'hotdog') {
+    const bun = mesh(geo('hdbun', () => new THREE.CapsuleGeometry(0.04, 0.14, 4, 8)), mat('#e0a44a'), 0, 0.04, 0); bun.rotation.z = PI / 2; g.add(bun);
+    const sausage = mesh(geo('saus', () => new THREE.CapsuleGeometry(0.022, 0.17, 4, 8)), mat('#a8423a'), 0, 0.07, 0); sausage.rotation.z = PI / 2; g.add(sausage);
+  } else if (id === 'bagel') {
+    const b = mesh(geo('bagel', () => new THREE.TorusGeometry(0.06, 0.035, 8, 16)), mat('#c98a4b'));
+    b.rotation.x = -PI / 2; b.position.y = 0.035; g.add(b);
   } else if (id === 'layercake') {
     g.add(cyl(0.11, 0.11, 0.06, '#f6e7c4', 0, 0, 0, 16)); g.add(cyl(0.112, 0.112, 0.015, '#ff9fb2', 0, 0.06, 0, 16));
     g.add(cyl(0.11, 0.11, 0.05, '#f6e7c4', 0, 0.075, 0, 16)); g.add(cyl(0.115, 0.115, 0.02, '#ffffff', 0, 0.125, 0, 16));
@@ -229,11 +268,118 @@ function buildBagger() {
   };
 }
 
-const BUILDERS = { mix: buildMixer, proof: buildRack, bake: buildOven, prep: buildPrep, cook: buildBurner, bag: buildBagger };
+// ---- New machines: fryer, drinks machine, ice cream machine, sandwich grill ----
+const steelM = () => mat('#c7cad1', { metalness: 0.45, roughness: 0.4 });
+function counterBase(g, top = '#efe6d8', body = '#a8714a') {
+  g.add(box(1.0, 0.9, 0.8, body, 0, 0, 0));
+  g.add(box(1.04, 0.06, 0.84, top, 0, 0.9, 0));
+}
+function buildFryer() {
+  const g = new THREE.Group();
+  g.add(box(1.0, 0.95, 0.8, steelM(), 0, 0, 0));
+  g.add(box(1.02, 0.05, 0.82, '#3b3e45', 0, 0.95, 0));
+  g.add(box(0.74, 0.03, 0.54, '#1d1e22', 0, 0.97, 0.02, false));
+  const oil = smat({ color: '#a8781e', emissive: '#ffb347', emissiveIntensity: 0, roughness: 0.2 });
+  g.add(box(0.66, 0.02, 0.46, oil, 0, 0.99, 0.02, false));
+  const basket = new THREE.Group();
+  basket.add(box(0.5, 0.12, 0.34, mat('#d9dce2', { metalness: 0.6, roughness: 0.3 }), 0, 0, 0));
+  basket.add(box(0.04, 0.04, 0.4, '#2b2d36', 0, 0.1, 0.32));
+  basket.position.set(0, 1.08, 0.02); g.add(basket);
+  for (const x of [-0.3, 0, 0.3]) { const k = cyl(0.035, 0.035, 0.04, '#e8e8e8', x, 0.75, 0.41, 10); k.rotation.x = PI / 2; g.add(k); }
+  return {
+    group: g, anchor: V3(0, 1.8, 0.1), smoke: V3(0, 1.15, 0),
+    update(slot, dt, now) {
+      const cooking = slot.item && !slot.done;
+      basket.position.y += ((cooking ? 0.93 : 1.08) - basket.position.y) * Math.min(1, dt * 6);
+      oil.emissiveIntensity = slot.item ? (slot.done ? 0.9 + Math.sin(now * 8) * 0.3 : 0.4 + Math.sin(now * 20) * 0.15) : 0.05;
+      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'steam') : null;
+    },
+  };
+}
+function buildDrinks() {
+  const g = new THREE.Group();
+  counterBase(g, '#efe6d8', '#5a6475');
+  g.add(box(0.72, 0.62, 0.42, '#2f3a4a', 0, 0.96, -0.12));
+  g.add(box(0.74, 0.08, 0.44, '#c7cad1', 0, 1.58, -0.12));
+  const screen = smat({ color: '#0a1a2a', emissive: '#7fd3ff', emissiveIntensity: 0.4 });
+  g.add(box(0.26, 0.14, 0.02, screen, 0.15, 1.36, 0.1, false));
+  for (const x of [-0.16, 0.0]) g.add(cyl(0.03, 0.03, 0.12, '#c7cad1', x, 1.12, 0.12, 8));
+  g.add(box(0.5, 0.02, 0.22, '#3b3e45', -0.08, 0.96, 0.18, false));
+  const cupM = smat({ color: '#ffffff' });
+  const cup = cyl(0.06, 0.05, 0.12, cupM, -0.08, 0.97, 0.18, 12);
+  const drinkM = smat({ color: '#6b3a1a' });
+  const drink = cyl(0.055, 0.055, 0.01, drinkM, -0.08, 1.08, 0.18, 12, false);
+  g.add(cup, drink);
+  const COL = { coffee: '#6b3a1a', tea: '#c98a2a', juice: '#ff9a3c', bubbletea: '#d9b38c' };
+  return {
+    group: g, anchor: V3(0, 2.0, 0), smoke: V3(-0.08, 1.15, 0.18),
+    update(slot, dt, now) {
+      cup.visible = drink.visible = !!slot.item;
+      if (slot.item) {
+        drinkM.color.set(COL[slot.item] || '#6b3a1a');
+        const f = slot.done ? 1 : slot.t / slot.dur;
+        drink.position.y = 0.98 + 0.1 * f;
+      }
+      screen.emissiveIntensity = slot.item ? 1.2 + Math.sin(now * 6) * 0.3 : 0.4;
+      return slot.item && slot.done ? 'steam' : null;
+    },
+  };
+}
+function buildIcecream() {
+  const g = new THREE.Group();
+  counterBase(g, '#ffffff', '#ffd6de');
+  g.add(box(0.7, 0.55, 0.45, '#fff4f6', 0, 0.96, -0.12));
+  g.add(box(0.72, 0.08, 0.47, '#ff9fb2', 0, 1.51, -0.12));
+  const panel = smat({ color: '#d9f3ff', emissive: '#9fe1ff', emissiveIntensity: 0.2 });
+  g.add(box(0.5, 0.3, 0.02, panel, 0, 1.08, 0.11, false));
+  const nozzle = mesh(geo('nozzle', () => new THREE.ConeGeometry(0.06, 0.12, 10)), mat('#c7cad1', { metalness: 0.5, roughness: 0.3 }), 0, 1.16, 0.2);
+  nozzle.rotation.x = PI; g.add(nozzle);
+  const cone = mesh(geo('cone', () => new THREE.ConeGeometry(0.06, 0.16, 10)), mat('#d9a066'), 0, 1.0, 0.2); cone.rotation.x = PI;
+  const scoopM = smat({ color: '#fff4e0' });
+  const scoop = sphere(0.07, scoopM, 0, 1.1, 0.2);
+  g.add(cone, scoop);
+  const COL = { softserve: '#fff4e0', sundae: '#ff9fb2', shavedice: '#9fe1ff' };
+  return {
+    group: g, anchor: V3(0, 1.95, 0), smoke: V3(0, 1.2, 0.2),
+    update(slot, dt, now) {
+      cone.visible = scoop.visible = !!slot.item;
+      if (slot.item) {
+        scoopM.color.set(COL[slot.item] || '#fff4e0');
+        const f = slot.done ? 1 : slot.t / slot.dur;
+        scoop.scale.setScalar(0.4 + 0.6 * f);
+      }
+      panel.emissiveIntensity = slot.item && !slot.done ? 0.9 + Math.sin(now * 4) * 0.3 : 0.2;
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
+function buildGrill() {
+  const g = new THREE.Group();
+  counterBase(g, '#efe6d8', '#6a5a48');
+  g.add(box(0.7, 0.08, 0.5, '#2b2d36', 0, 0.96, 0));
+  const plateM = smat({ color: '#3b3e45', emissive: '#ff5a1a', emissiveIntensity: 0, roughness: 0.4 });
+  g.add(box(0.62, 0.02, 0.42, plateM, 0, 1.04, 0, false));
+  const lid = new THREE.Group(); lid.position.set(0, 1.06, -0.22);
+  lid.add(box(0.66, 0.07, 0.46, '#2b2d36', 0, 0, 0.23));
+  lid.add(box(0.5, 0.04, 0.04, '#c7cad1', 0, 0.08, 0.46));
+  g.add(lid);
+  const food = box(0.4, 0.04, 0.24, '#d9a066', 0, 1.05, 0, false); g.add(food);
+  return {
+    group: g, anchor: V3(0, 1.85, 0), smoke: V3(0, 1.2, 0),
+    update(slot, dt, now) {
+      const cooking = slot.item && !slot.done;
+      lid.rotation.x += ((cooking ? 0 : -1.0) - lid.rotation.x) * Math.min(1, dt * 6);
+      food.visible = !!slot.item;
+      plateM.emissiveIntensity = slot.item ? (slot.done ? 0.6 + Math.sin(now * 8) * 0.3 : 0.5) : 0;
+      return slot.item && slot.done ? (CFG.burnAfter - slot.over <= 5 ? 'smoke' : 'steam') : null;
+    },
+  };
+}
+
+const BUILDERS = { oven: buildOven, mixer: buildMixer, fryer: buildFryer, drinks: buildDrinks, icecream: buildIcecream, grill: buildGrill,
+  prep: buildPrep, cook: buildBurner, bag: buildBagger };
+// Day machines stand wherever the game put them (see SPOTS in data.js); the back room keeps fixed places.
 const PLACES = {
-  mix:   [{ x: -3.95, z: -3.3, ry: PI / 2 }, { x: -3.95, z: -2.2, ry: PI / 2 }],
-  proof: [{ x: -4.05, z: -1.05, ry: PI / 2 }, { x: -4.05, z: -0.2, ry: PI / 2 }, { x: -4.05, z: 0.65, ry: PI / 2 }, { x: -4.05, z: 1.5, ry: PI / 2 }],
-  bake:  [{ x: -2.55, z: -4.0, ry: 0 }, { x: -1.35, z: -4.0, ry: 0 }, { x: -0.15, z: -4.0, ry: 0 }, { x: 1.05, z: -4.0, ry: 0 }],
   prep:  [{ x: -10.25, z: -3.95, ry: 0 }],
   cook:  [{ x: -8.95, z: -3.95, ry: 0 }, { x: -7.8, z: -3.95, ry: 0 }],
   bag:   [{ x: -6.5, z: -3.95, ry: 0 }],
@@ -939,11 +1085,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function rebuildStations(s) {
     for (const st of Object.values(stations).flat()) { scene.remove(st.group); const i = pickables.indexOf(st.group); if (i >= 0) pickables.splice(i, 1); }
     stations = {};
+    const dayPlaces = {};
+    for (const m of G.machineLayout(s)) (dayPlaces[m.type] ||= [])[m.i] = m.spot;
     for (const kind of ['day', 'night']) {
       for (const { stage, n } of G.stationLayout(s, kind)) {
         stations[stage] = [];
         for (let i = 0; i < n; i++) {
-          const pl = PLACES[stage][i];
+          const pl = kind === 'day' ? dayPlaces[stage][i] : PLACES[stage][i];
           const st = BUILDERS[stage]();
           st.group.position.set(pl.x, 0, pl.z);
           st.group.rotation.y = pl.ry;
@@ -1156,7 +1304,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     return [(tmp.x + 1) / 2 * W, (1 - tmp.y) / 2 * H];
   }
   function slotBubble(st, slot) {
-    const first = st.stage === 'mix' || st.stage === 'prep';
+    const first = st.kind === 'day' || st.stage === 'prep';
     const at = `data-act="slot" data-stage="${st.stage}" data-i="${st.i}"`;
     if (!slot.item) return first ? { html: `<b>＋</b>`, cls: 'bub add', at } : null;
     const r = G.recipeOf(slot.item);
@@ -1168,6 +1316,12 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function updateOverlay(s, now) {
     const want = new Map();
     const sh = s.shift;
+    if (!sh && s.phase === 'plan' && !view.design) {
+      for (const st of Object.values(stations).flat()) {
+        if (st.kind !== 'day') continue;
+        want.set(`m-${st.stage}-${st.i}`, { html: `<span>${MACHINES[st.stage].emoji}</span>`, cls: 'bub mach', at: `data-act="machine" data-stage="${st.stage}" data-i="${st.i}"`, pos: st.anchorW });
+      }
+    }
     if (sh) {
       for (const list of Object.values(stations)) for (const st of list) {
         if (st.kind !== sh.kind) continue;
@@ -1223,7 +1377,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   let traySig = '';
   function syncState(s, dt, now) {
     syncDesign(s, now);
-    const sig = JSON.stringify([G.stationLayout(s, 'day'), G.stationLayout(s, 'night')]);
+    const sig = JSON.stringify([s.machines, G.stationLayout(s, 'night')]);
     if (sig !== stationSig) { stationSig = sig; rebuildStations(s); }
     const sh = s.shift;
     for (const list of Object.values(stations)) for (const st of list) {

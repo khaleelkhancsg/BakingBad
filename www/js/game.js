@@ -1,6 +1,7 @@
 // Game rules and state. No DOM in here, so the balance simulator can run it in Node.
 import { CFG, ITEMS, VELVET, GOLD, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, EVENTS,
-         LINES, FACES, BUYER_NAMES, START_RECIPES, CREW, FEATURES } from './data.js';
+         LINES, FACES, BUYER_NAMES, START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL,
+         CAPS, capAt, nextCap } from './data.js';
 import { charmBonus, defaultDesign } from './design.js';
 
 export const SAVE_VERSION = 2;
@@ -43,12 +44,13 @@ export function addXp(s, n) {
     s.clean = round2(s.clean + cash);
     s.levelUps.push(s.level);
     toast(`⬆️ Level ${s.level}! +£${cash}`, 'good');
+    learnFree(s);
   }
   if (s.level >= CFG.maxLevel) s.xp = Math.min(s.xp, xpToNext(s.level));
 }
 
 // ---------- The menu: which recipes are in the display case ----------
-export const menuSlots = s => CFG.menuSlots + (has(s, 'case2') ? CFG.caseSlotsExtra : 0);
+export const menuSlots = s => capAt(CAPS.menu, s.level || 1);
 export const menuOf = s => (s.onMenu || s.recipes).filter(id => s.recipes.includes(id)).slice(0, menuSlots(s));
 export function toggleMenu(s, id) {
   if (!s.recipes.includes(id)) return;
@@ -57,20 +59,100 @@ export function toggleMenu(s, id) {
     if (s.onMenu.length <= 1) return toast('Keep at least one thing on the menu.', 'bad');
     s.onMenu = s.onMenu.filter(x => x !== id);
   } else {
-    if (s.onMenu.length >= menuSlots(s)) return toast(`The case holds ${menuSlots(s)}. Take something off first.`, 'bad');
+    if (s.onMenu.length >= menuSlots(s)) {
+      const nx = nextCap(CAPS.menu, s.level);
+      return toast(`You can sell ${menuSlots(s)} things at once${nx ? ` (reach level ${nx.level} for ${nx.amount})` : ''}. Take something off first.`, 'bad');
+    }
     s.onMenu.push(id);
   }
+}
+
+// ---------- Machines: each kind has its own recipes; how many you may own grows with level ----------
+export const machineCount = (s, type) => s.machines.filter(m => m.type === type).length;
+export const machineCap = (s, type) => (unlocked(s, MACHINES[type].level) ? capAt(MACHINES[type].caps, s.level) : 0);
+export const machineNextCap = (s, type) => nextCap(MACHINES[type].caps, s.level);
+export function machinePrice(s, type) {
+  const M = MACHINES[type], extra = Math.max(0, machineCount(s, type) - (M.free || 0));
+  return Math.round(M.price * (1 + MACHINE_PRICE_STEP * extra) / 10) * 10;
+}
+export const freeSpots = s => SPOTS.map((_, i) => i).filter(i => !s.machines.some(m => m.spot === i));
+export const recipesFor = type => Object.keys(ITEMS).filter(id => ITEMS[id].machine === type);
+// Why a machine can't be bought right now (or null if it can).
+export function machineBlock(s, type) {
+  const M = MACHINES[type];
+  if (!unlocked(s, M.level)) return { lock: true, text: `Reach level ${M.level} to unlock the ${M.name.toLowerCase()}` };
+  if (machineCount(s, type) >= machineCap(s, type)) {
+    const nx = machineNextCap(s, type);
+    return { lock: true, text: nx ? `Reach level ${nx.level} to unlock additional ${M.plural}` : `That's as many ${M.plural} as the kitchen takes` };
+  }
+  if (!freeSpots(s).length) return { lock: true, text: 'No room left in the kitchen' };
+  return null;
+}
+export function buyMachine(s, type) {
+  const M = MACHINES[type];
+  if (!M) return;
+  const block = machineBlock(s, type);
+  if (block) return toast(block.text + '.', 'bad');
+  const cost = machinePrice(s, type);
+  if (s.clean < cost) return toast('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - cost);
+  if (s.today) s.today.upgradesSpent += cost;
+  const free = freeSpots(s);
+  const spot = free.find(i => SPOTS[i].wall === MACHINE_WALL[type]) ?? free[0];
+  s.machines.push({ type, spot });
+  learnFree(s);
+  toast(`New ${M.name.toLowerCase()} installed.`, 'good');
+}
+// Recipes that come with a machine are learned as soon as you own one and reach their level.
+export function learnFree(s) {
+  for (const id in ITEMS) {
+    const r = ITEMS[id];
+    if (r.cost || s.recipes.includes(id) || !unlocked(s, r.level) || !machineCount(s, r.machine)) continue;
+    s.recipes.push(id);
+    if (s.onMenu.length < menuSlots(s)) s.onMenu.push(id);
+  }
+}
+export function buyRecipe(s, id) {
+  const r = ITEMS[id];
+  if (!r || s.recipes.includes(id)) return;
+  if (!unlocked(s, r.level)) return toast(`${r.name} unlocks at level ${r.level}.`, 'bad');
+  if (s.clean < r.cost) return toast('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - r.cost);
+  if (s.today) s.today.upgradesSpent += r.cost;
+  s.recipes.push(id);
+  if (s.onMenu.length < menuSlots(s)) { s.onMenu.push(id); toast(`Learned ${r.name}. It's on sale.`, 'good'); }
+  else toast(`Learned ${r.name}. The menu is full: take something off to sell it.`, 'info');
+}
+export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) - (s.today?.kitsBought || 0));
+export const loanAmount = s => capAt(CAPS.loan, s.level);
+
+function startMachines() {
+  return [{ type: 'oven', spot: 0 }, { type: 'oven', spot: 1 }, { type: 'mixer', spot: 5 }];
 }
 
 // Older saves: fill in everything added since.
 export function migrate(s) {
   s.level ||= 1; s.xp ||= 0; s.levelUps ||= [];
+  if (!s.machines) {
+    // Saves from before machines: rebuild the kitchen from the old oven and mixer upgrades
+    const m = startMachines();
+    const ovens = (s.upgrades?.oven2 ? 1 : 0) + (s.upgrades?.oven3 ? 1 : 0), mixers = s.upgrades?.mixer2 ? 1 : 0;
+    const back = [2, 3], left = [6];
+    for (let k = 0; k < ovens; k++) m.push({ type: 'oven', spot: back[k] });
+    for (let k = 0; k < mixers; k++) m.push({ type: 'mixer', spot: left[k] });
+    s.machines = m;
+    if (s.shift?.kind === 'day') { s.shift = null; s.phase = 'plan'; } // the old kind of shift can't carry on
+  }
+  s.recipes = (s.recipes || [...START_RECIPES]).filter(id => ITEMS[id]);
+  if (!s.recipes.includes('pancakes')) s.recipes.push('pancakes');
+  if (s.onMenu) s.onMenu = s.onMenu.filter(id => ITEMS[id]);
   s.recipes ||= [...START_RECIPES];
-  s.onMenu ||= s.recipes.slice(0, CFG.menuSlots);
+  s.onMenu ||= s.recipes.slice(0, menuSlots(s));
   for (const k in INGREDIENTS) { s.inv[k] ??= 0; s.market[k] ??= 1; }
   for (const id in ITEMS) { s.priceLevel[id] ||= 'normal'; s.display[id] ||= { fresh: 0, stale: 0 }; }
   for (const role in CREW) s.crew[role] ??= false;
   s.gold ??= 0; s.goldKits ??= 0; s.loanDay ??= -99; s.holidayUsed ??= false; s.holidayNext ??= false;
+  learnFree(s);
   return s;
 }
 export const velvetYield = s => VELVET.yield + (has(s, 'glass') ? 4 : 0);
@@ -88,11 +170,7 @@ export const buyersExpected = s => CFG.buyersBase + Math.min(CFG.buyersGrowMax, 
 export const copChance = s => CFG.copBase + s.heat * CFG.copPerHeat;
 
 export function stationLayout(s, kind) {
-  if (kind === 'day') return [
-    { stage: 'mix',   n: 1 + (has(s, 'mixer2') ? 1 : 0) },
-    { stage: 'proof', n: 2 + (has(s, 'rack2') ? 2 : 0) },
-    { stage: 'bake',  n: 2 + (has(s, 'oven2') ? 1 : 0) + (has(s, 'oven3') ? 1 : 0) },
-  ];
+  if (kind === 'day') return Object.keys(MACHINES).map(type => ({ stage: type, n: machineCount(s, type) })).filter(x => x.n > 0);
   return [
     { stage: 'prep', n: 1 },
     { stage: 'cook', n: 1 + (has(s, 'burner2') ? 1 : 0) },
@@ -100,11 +178,16 @@ export function stationLayout(s, kind) {
   ];
 }
 
+export function machineLayout(s) {
+  const seen = {};
+  return s.machines.map(m => { const i = seen[m.type] = (seen[m.type] ?? -1) + 1; return { type: m.type, i, spot: SPOTS[m.spot] }; });
+}
+
 function freshLedger(s) {
   return {
     sales: 0, itemsSold: 0, served: 0, missed: 0, pricedOut: 0, missedBy: {}, repMissLost: 0,
     ingSpent: 0, upgradesSpent: 0, rent: 0, wages: 0, nightWages: 0, lostBatches: 0, burnt: 0, spoiled: 0, coffees: 0, xp: 0,
-    nightEvents: [], pushed: 0, pushedAway: 0, couriers: 0, goldSold: 0,
+    nightEvents: [], pushed: 0, pushedAway: 0, couriers: 0, goldSold: 0, kitsBought: 0,
     laundered: null, launderCap: 0, launderHeat: 0,
     nightOpen: false, nightOps: false, batches: 0, bagsMade: 0, nightSales: 0, bagsSold: 0,
     buyersServed: 0, buyersTurned: 0, buyersLost: 0, copsServed: 0, copsTurned: 0, kitsWasted: 0,
@@ -126,10 +209,10 @@ export function newGame() {
     v: SAVE_VERSION, day: 1, phase: 'plan', tab: 'supplies',
     clean: CFG.startClean, dirty: 0, heat: 0, rep: 40,
     balance: CFG.debtTotal, arrears: 0, strikes: 0, paymentsMade: 0,
-    inv: { flour: 15, butter: 8, sugar: 6, eggs: 6, chocolate: 4, fruit: 0, cream: 0, nuts: 0 },
+    inv: Object.assign(Object.fromEntries(Object.keys(INGREDIENTS).map(k => [k, 0])), { flour: 15, butter: 8, sugar: 6, eggs: 6, chocolate: 4, milk: 6 }),
     kits: 0, bags: 0, goldKits: 0, gold: 0,
     level: 1, xp: 0, levelUps: [],
-    priceLevel: {}, recipes: [...START_RECIPES], onMenu: [...START_RECIPES], upgrades: {},
+    priceLevel: {}, recipes: [...START_RECIPES], onMenu: [...START_RECIPES], upgrades: {}, machines: startMachines(),
     crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     loanDay: -99, holidayUsed: false, holidayNext: false,
     labUnlocked: false, offerDay: 2, offerPending: false, nightsActive: 0,
@@ -196,9 +279,14 @@ export function buyKit(s, cash, type = 'velvet') {
   if (!s.labUnlocked) return;
   const gold = type === 'gold';
   if (gold && !feature(s, 'gold')) return toast('Velvet Gold unlocks at level 7.', 'bad');
+  if (!kitsLeftToday(s)) {
+    const nx = nextCap(CAPS.kits, s.level);
+    return toast(`Dez won't sell you more than ${capAt(CAPS.kits, s.level)} kits a day${nx ? `. Reach level ${nx.level} for ${nx.amount}` : ''}.`, 'bad');
+  }
   const cost = gold ? CFG.goldKitCost : CFG.kitCost;
   if (s[cash] < cost) return toast(`Not enough ${cash} cash.`, 'bad');
   s[cash] = round2(s[cash] - cost);
+  s.today.kitsBought++;
   if (gold) s.goldKits++; else s.kits++;
 }
 
@@ -206,10 +294,11 @@ export function buyKit(s, cash, type = 'velvet') {
 export const loanReady = s => feature(s, 'loan') && s.day - s.loanDay >= CFG.loanEvery && !s.won;
 export function takeLoan(s) {
   if (!loanReady(s)) return toast(feature(s, 'loan') ? 'One loan a week.' : 'Loans unlock at level 4.', 'bad');
-  s.clean = round2(s.clean + CFG.loanAmount);
-  s.balance = round2(s.balance + CFG.loanAmount * (1 + CFG.loanFee));
+  const amount = loanAmount(s);
+  s.clean = round2(s.clean + amount);
+  s.balance = round2(s.balance + amount * (1 + CFG.loanFee));
   s.loanDay = s.day;
-  toast(`Borrowed £${CFG.loanAmount.toLocaleString('en-GB')}. The debt goes up £${(CFG.loanAmount * (1 + CFG.loanFee)).toLocaleString('en-GB')}.`, 'good');
+  toast(`Borrowed £${amount.toLocaleString('en-GB')}. The debt goes up £${(amount * (1 + CFG.loanFee)).toLocaleString('en-GB')}.`, 'good');
 }
 export function useHoliday(s) {
   if (!feature(s, 'holiday') || s.holidayUsed) return toast('No payment holiday available.', 'bad');
@@ -294,7 +383,7 @@ export function tick(s, dt) {
         if (STAGES[stage].burns && slot.over > CFG.burnAfter) {
           const r = recipeOf(slot.item);
           arr[i] = emptySlot();
-          if (sh.kind === 'day') { s.today.burnt++; toast(`🔥 ${r.name} burnt in the oven!`, 'bad'); }
+          if (sh.kind === 'day') { s.today.burnt++; toast(`${STAGES[stage].spoil === 'melted' ? '💧' : '🔥'} ${r.name} ${STAGES[stage].spoil || 'burnt'} in the ${STAGES[stage].name.toLowerCase()}!`, 'bad'); }
           else { s.today.kitsWasted++; toast('🔥 A batch of Velvet scorched on the burner. Kit wasted.', 'bad'); }
           continue;
         }
@@ -331,8 +420,8 @@ export function tapSlot(s, stage, i) {
   const slot = sh?.slots[stage]?.[i];
   if (!slot) return null;
   if (!slot.item) {
-    const first = sh.kind === 'day' ? 'mix' : 'prep';
-    if (stage !== first) { toast(`Finished batches move here from the ${sh.kind === 'day' ? 'mixer' : 'previous station'}.`); return null; }
+    if (sh.kind === 'day') return { pick: true, stage };
+    if (stage !== 'prep') { toast('Finished batches move here from the previous station.'); return null; }
     if (sh.kind === 'night') {
       if (s.kits > 0 && s.goldKits > 0) return { pickLab: true };
       startVelvet(s, i, s.kits > 0 || !s.goldKits ? 'velvet' : 'gold');
@@ -385,15 +474,15 @@ function advance(s, stage, i, silent) {
   return true;
 }
 
-export function startRecipe(s, id, i) {
+export function startRecipe(s, id, stage, i) {
   const sh = s.shift;
-  if (!sh || sh.kind !== 'day' || !s.recipes.includes(id)) return;
-  const slot = sh.slots.mix[i];
+  const r = ITEMS[id];
+  if (!sh || sh.kind !== 'day' || !r || !s.recipes.includes(id) || r.machine !== stage) return;
+  const slot = sh.slots[stage]?.[i];
   if (!slot || slot.item) return;
   if (!canMake(s, id)) return toast('Not enough ingredients. Buy more in the morning.', 'bad');
-  const r = ITEMS[id];
   for (const [k, q] of Object.entries(r.ing)) s.inv[k] -= q;
-  sh.slots.mix[i] = { item: id, t: 0, dur: r.times.mix, done: false, over: 0 };
+  sh.slots[stage][i] = { item: id, t: 0, dur: r.times[stage], done: false, over: 0 };
 }
 
 export function startVelvet(s, i, product = 'velvet') {
@@ -419,7 +508,6 @@ function sellTo(s, id) {
   const price = itemPrice(s, id) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1);
   let rev = round2(fresh * price + stale * price * CFG.staleMult);
   let xp = qty * saleXp(id);
-  if (has(s, 'coffee') && rand() < CFG.coffeeChance) { rev = round2(rev + CFG.coffeePrice); s.today.coffees++; xp += CFG.xpCoffee; }
   addXp(s, xp);
   s.clean = round2(s.clean + rev);
   const t = s.today;
@@ -443,10 +531,10 @@ function customerArrives(s) {
 function chooseWant(s) {
   const sh = s.shift;
   const hour = 8 + 10 * sh.t / sh.len;
-  const w = hour < 11 ? { bread: 0.5, pastry: 0.4, sweet: 0.1 }
-          : hour < 14 ? { bread: 0.35, pastry: 0.4, sweet: 0.25 }
-          : { bread: 0.15, pastry: 0.3, sweet: 0.55 };
-  if (s.event?.sweet) { w.sweet *= s.event.sweet; w.bread *= 0.5; }
+  const w = hour < 11 ? { bread: 0.38, pastry: 0.3, drink: 0.22, sweet: 0.06, savory: 0.04, cold: 0 }
+          : hour < 14 ? { bread: 0.2, pastry: 0.25, drink: 0.15, sweet: 0.12, savory: 0.25, cold: 0.05 }
+          : { bread: 0.08, pastry: 0.22, drink: 0.15, sweet: 0.33, savory: 0.07, cold: 0.15 };
+  if (s.event?.sweet) { w.sweet *= s.event.sweet; w.cold *= 3; w.bread *= 0.5; }
   const group = weighted(w);
   const menu = menuOf(s);
   let options = menu.filter(id => ITEMS[id].group === group);
@@ -479,6 +567,19 @@ function resolveCustomer(s, c) {
     feed(sh, face, `${W.emoji} too pricey`, 'meh');
     c.res = { kind: 'meh', text: `${W.emoji} too dear` };
   } else {
+    // Plenty of people grab a drink with their food, if there's one in the case
+    if (ITEMS[r.id].group !== 'drink' && rand() < CFG.drinkAddOn) {
+      const drinks = menuOf(s).filter(id => ITEMS[id].group === 'drink' && s.display[id].fresh + s.display[id].stale > 0);
+      if (drinks.length) {
+        const d = pick(drinks);
+        const dd = s.display[d], fresh = dd.fresh > 0;
+        if (fresh) dd.fresh--; else dd.stale--;
+        const p = itemPrice(s, d) * (fresh ? 1 : CFG.staleMult) * (s.crew.cashier ? 1 + CFG.cashierBonus : 1);
+        s.clean = round2(s.clean + p); s.today.sales = round2(s.today.sales + p); s.today.itemsSold++; s.today.drinksAdded = (s.today.drinksAdded || 0) + 1;
+        r.rev = round2(r.rev + p);
+        addXp(s, saleXp(d));
+      }
+    }
     feed(sh, face, `${ITEMS[r.id].emoji}×${r.qty} +£${r.rev.toFixed(2)}`, 'good');
     c.res = { kind: 'good', text: `+£${r.rev.toFixed(2)}`, item: r.id, qty: r.qty };
   }

@@ -1,3 +1,5 @@
+import { CAPS, capAt, nextCap } from './data.js';
+
 // Designing the bakery: floor tiles per square, wallpaper per wall panel, decorations on free squares,
 // wall art on panels, and terrace expansions. No DOM here; actions return { ok, msg }.
 
@@ -52,6 +54,7 @@ export const EXPANSIONS = {
   side:  { level: 9, name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
 };
 export const SELL_BACK = 0.5;
+export const decorCap = s => capAt(CAPS.decor, s.level || 1);
 export const levelOk = (s, item) => (s.level || 1) >= (item?.level || 1);
 const lockMsg = item => ({ msg: `${item.name} unlocks at level ${item.level}.` });
 export const CHARM_PER_CUSTOMER = 0.01, CHARM_CAP = 0.3;
@@ -84,7 +87,7 @@ export function cellOwned(s, cx, cz) {
 // Squares inside kept clear for the kitchen, the baker, the counter, the queue and the doorway.
 const KEEP_CLEAR = new Set();
 for (let cz = 0; cz <= 8; cz++) for (let cx = 0; cx <= 8; cx++) {
-  const kitchen = (cx <= 1 && cz <= 6) || (cz <= 1 && cx <= 5) || (cx <= 5 && cz <= 4);
+  const kitchen = (cx <= 1 && cz <= 6) || (cz <= 1 && cx <= 6) || (cx <= 5 && cz <= 4); // machines along both walls, and room to work
   const counter = cz === 5 && cx >= 2;
   const queue = cz >= 6 && cx >= 2 && cx <= 7;
   const door = cx === 8 && cz >= 5;
@@ -102,7 +105,7 @@ export function defaultDesign() {
     floor: {}, wall: {}, art: {},
     decor: [
       { type: 'plant', cx: 8, cz: 0, rot: 0 },
-      { type: 'sacks', cx: 6, cz: 0, rot: 0 },
+      { type: 'sacks', cx: 7, cz: 0, rot: 0 },
       { type: 'plant', cx: 8, cz: 4, rot: 0 },
     ],
     expansions: { front: false, side: false },
@@ -113,6 +116,13 @@ export function ensureDesign(s) {
   if (!s.design) s.design = defaultDesign();
   s.design.expansions ||= { front: false, side: false };
   s.design.art ||= {};
+  // Decorations left on squares the kitchen now needs are moved to a free square (or sold back if there's none)
+  s.design.decor.forEach((it, idx) => {
+    if (cellZone(it.cx, it.cz) !== 'inside' || !keptClear(it.cx, it.cz)) return;
+    const spot = allCells('inside').find(([cx, cz]) => !keptClear(cx, cz) && decorAt(s, cx, cz) < 0);
+    if (spot) { it.cx = spot[0]; it.cz = spot[1]; } else it.gone = true;
+  });
+  s.design.decor = s.design.decor.filter(it => !it.gone);
   return s;
 }
 
@@ -199,6 +209,10 @@ export function placeDecor(s, type, cx, cz) {
   const d = DECOR[type];
   if (!d) return { msg: 'Pick something to place first.' };
   if (!levelOk(s, d)) return lockMsg(d);
+  if (s.design.decor.length >= decorCap(s)) {
+    const nx = nextCap(CAPS.decor, s.level || 1);
+    return { msg: nx ? `Reach level ${nx.level} to place more decorations (${nx.amount}).` : 'The shop has no room for more decorations.' };
+  }
   const why = canPlace(s, type, cx, cz);
   if (why) return { msg: why };
   if (!pay(s, d.price)) return { msg: 'Not enough clean cash.' };

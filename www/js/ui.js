@@ -1,6 +1,6 @@
 // Screens, input and the main loop.
 import * as G from './game.js';
-import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, CREW, FEATURES, GOLD } from './data.js';
+import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, STAGES, CREW, FEATURES, GOLD, MACHINES, CAPS, capAt, nextCap } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -15,7 +15,10 @@ let s = load() || G.newGame();
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
   onPick: info => {
     if (info.act === 'design') { if (ui.design && s.phase === 'plan') designTap(info); return; }
-    if (s.shift && !ui.modal) act({ dataset: info });
+    if (s.shift && !ui.modal) { act({ dataset: info }); return; }
+    if (!s.shift && s.phase === 'plan' && !ui.design && !ui.modal && info.act === 'slot' && info.kind === 'day') {
+      ui.modal = { type: 'machine', stage: info.stage, i: info.i }; render();
+    }
   },
 });
 
@@ -78,7 +81,7 @@ const line = (a, b, cls = '') => `<div class="line"><span>${a}</span><span class
 // and the open button. Each card has an ⓘ in its corner for the full breakdown.
 const ibtn = (kind, id) => `<button class="ibtn" data-act="info" data-kind="${kind}" data-id="${id}" aria-label="More info">i</button>`;
 const pcard = (inner, info, cls = '') => `<div class="pcard ${cls}">${info || ''}${inner}</div>`;
-const UPGRADE_EMOJI = { mixer2: '🥣', rack2: '⏳', oven2: '🔥', oven3: '🔥', sign: '💡', recipe_tart: '🥧', recipe_bun: '🥨', catering: '📦', burner2: '♨️', glass: '🧪', camera: '📷' };
+const UPGRADE_EMOJI = { sign: '💡', catering: '📦', burner2: '♨️', glass: '🧪', camera: '📷', safe: '🔐', van: '🚐' };
 
 const lockTag = lvl => `<span class="lock">🔒 Lv ${lvl}</span>`;
 
@@ -95,6 +98,21 @@ function suppliesTab() {
         <button class="small" data-act="buy" data-id="${k}" data-n="20" ${s.clean < p * 20 ? 'disabled' : ''}>+20</button></div>`, ibtn('ing', k));
   }).join('');
   return { cards, hint: 'Today\'s market. ▲ dear, ▼ cheap.' };
+}
+
+function kitchenTab() {
+  const cards = Object.entries(MACHINES).map(([type, M]) => {
+    const n = G.machineCount(s, type), block = G.machineBlock(s, type), open = G.unlocked(s, M.level);
+    const known = s.recipes.filter(id => ITEMS[id].machine === type).length, total = G.recipesFor(type).length;
+    const buy = block
+      ? `<div class="lockline">${block.text}</div>`
+      : `<button class="small" data-act="buymachine" data-id="${type}" ${s.clean < G.machinePrice(s, type) ? 'disabled' : ''}>+1 · ${money(G.machinePrice(s, type))}</button>`;
+    return pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>${open ? `× ${n} · ${known}/${total} recipes` : 'not yet'}</small></div></div>
+      <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-stage="${type}" data-i="0">Menu</button>` : ''}${buy}</div>`,
+      ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
+  }).join('');
+  const menu = G.menuOf(s), nx = nextCap(CAPS.menu, s.level);
+  return { cards, hint: `On sale: ${menu.length} of ${G.menuSlots(s)}${nx ? ` (level ${nx.level}: ${nx.amount})` : ''}. Tap a machine here or in the shop for its menu.` };
 }
 
 function menuTab() {
@@ -139,7 +157,9 @@ function crewTab() {
 function dezTab() {
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
   const goldOpen = G.feature(s, 'gold');
-  const cards = pcard(`<div class="ptop"><span class="em">📦</span><div><b>Kits × ${s.kits}</b><small>${money(CFG.kitCost)} · ${s.bags} bags</small></div></div>
+  const kitsLeft = G.kitsLeftToday(s), kitNx = nextCap(CAPS.kits, s.level);
+  const cards = pcard(`<div class="ptop"><span class="em">📦</span><div><b>Kits × ${s.kits}</b><small>${money(CFG.kitCost)} · ${kitsLeft} left today</small></div></div>
+      ${kitsLeft ? '' : `<div class="lockline">${kitNx ? `Reach level ${kitNx.level} to buy ${kitNx.amount} a day` : 'That\'s the most Dez will sell'}</div>`}
       <div class="pbtns"><button class="small violet" data-act="kit" data-id="dirty" ${s.dirty < CFG.kitCost ? 'disabled' : ''}>💜 Buy</button>
       <button class="small" data-act="kit" data-id="clean" ${s.clean < CFG.kitCost ? 'disabled' : ''}>💷 Buy</button></div>`, ibtn('dez', 'kits'), 'night')
     + pcard(`<div class="ptop"><span class="em">💛</span><div><b>Gold kits${goldOpen ? ` × ${s.goldKits}` : ''}</b><small>${money(CFG.goldKitCost)}${goldOpen ? ` · ${s.gold} bags` : ''}</small></div></div>
@@ -165,7 +185,7 @@ function bankTab() {
       <button class="small primary" data-act="pay" data-id="all" ${s.clean < s.balance ? 'disabled' : ''}>All of it</button></div>`, ibtn('bank', 'pay'));
   if (!s.won) {
     const loanOpen = G.feature(s, 'loan');
-    cards += pcard(`<div class="ptop"><span class="em">💳</span><div><b>Loan</b><small>${money(CFG.loanAmount)} now</small></div></div>
+    cards += pcard(`<div class="ptop"><span class="em">💳</span><div><b>Loan</b><small>${money(G.loanAmount(s) || capAt(CAPS.loan, 4))} now</small></div></div>
       ${loanOpen ? `<div class="pbtns"><button class="small" data-act="loan" ${G.loanReady(s) ? '' : 'disabled'}>${G.loanReady(s) ? 'Borrow' : 'Next week'}</button></div>` : lockTag(4)}`, ibtn('bank', 'loan'), loanOpen ? '' : 'locked');
     const holOpen = G.feature(s, 'holiday');
     cards += pcard(`<div class="ptop"><span class="em">🏖️</span><div><b>Payment holiday</b><small>once only</small></div></div>
@@ -180,6 +200,15 @@ function unlocksAt(L) {
   const out = [];
   for (const [, i] of Object.entries(INGREDIENTS)) if (i.level === L) out.push(`${i.emoji} ${i.name} in Supplies`);
   for (const u of UPGRADES) if (u.level === L) out.push(`${UPGRADE_EMOJI[u.id] || '🛠️'} ${u.name}${u.lab && !s.labUnlocked ? ' (back room)' : ''}`);
+  for (const [, M] of Object.entries(MACHINES)) {
+    if (M.level === L && L > 1) out.push(`${M.emoji} The ${M.name.toLowerCase()} (Kitchen)`);
+    else for (const [l, n] of M.caps) if (l === L && l > M.level) out.push(`${M.emoji} Room for ${n} ${M.plural}`);
+  }
+  for (const [, r] of Object.entries(ITEMS)) if (r.level === L && L > 1) out.push(`${r.emoji} ${r.name} on the ${MACHINES[r.machine].name.toLowerCase()}${r.cost ? ` (learn for ${money(r.cost)})` : ''}`);
+  for (const [key, label] of [['menu', 'things on sale at once'], ['kits', 'kits a day from Dez'], ['decor', 'decorations']]) {
+    for (const [l, n] of CAPS[key]) if (l === L && l > 1) out.push(`➕ ${n} ${label}`);
+  }
+  for (const [l, n] of CAPS.loan) if (l === L && l > 4) out.push(`💳 Loans up to ${money(n)}`);
   for (const [, c] of Object.entries(CREW)) if (c.level === L && L > 1) out.push(`${c.emoji} ${c.name}, ${c.role.toLowerCase()}`);
   for (const f of FEATURES) if (f.level === L) out.push(`✨ ${f.name}: ${f.desc}`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
@@ -189,7 +218,7 @@ function unlocksAt(L) {
 }
 
 // ---------- ⓘ breakdowns ----------
-const GROUP_TEXT = { bread: 'mornings', pastry: 'all day', sweet: 'afternoons' };
+const GROUP_TEXT = { bread: 'mornings', pastry: 'all day', sweet: 'afternoons', drink: 'all day, busiest early', savory: 'lunchtime', cold: 'afternoons and heatwaves' };
 function infoFor(kind, id) {
   const T = (title, html) => ({ title, html });
   if (kind === 'ing') {
@@ -207,7 +236,8 @@ function infoFor(kind, id) {
       return `<tr class="${s.priceLevel[id] === k ? 'on' : ''}"><td>${L.label}</td><td>${money2(each)}</td><td>${money2(batch - cost)}</td><td>${Math.round(L.buy * 100)}%</td></tr>`;
     }).join('');
     return T(`${r.emoji} ${r.name}`, line('Makes', `${r.yield} per batch`) + line('Ingredients', ingText(r)) + line('Batch cost today', money2(cost))
-      + line('Stages', pathText(r)) + line('Popular', GROUP_TEXT[r.group]) + line('In the case', `${d.fresh} fresh${d.stale ? `, ${d.stale} day-old` : ''}`)
+      + line('Made in', `${MACHINES[r.machine].emoji} ${MACHINES[r.machine].name}, ${r.times[r.machine]}s`) + line('Popular', GROUP_TEXT[r.group])
+      + (s.recipes.includes(id) ? '' : line('Learn it', r.cost ? `${money(r.cost)} from level ${r.level}` : `comes with the machine at level ${r.level}`)) + line('In the case', `${d.fresh} fresh${d.stale ? `, ${d.stale} day-old` : ''}`)
       + `<table class="itable"><tr><th>Price</th><th>Each</th><th>Profit/batch</th><th>Buy</th></tr>${rows}</table>`
       + '<p class="mute">"Buy" is the chance a customer who wants it goes ahead at that price. Day-old goods sell at 60%. Leave a batch in the oven too long and it burns.</p>');
   }
@@ -216,6 +246,14 @@ function infoFor(kind, id) {
     return T(`${UPGRADE_EMOJI[id] || '🛠️'} ${u.name}`, `<p>${u.desc}</p>` + line('Cost', `${u.cash === 'dirty' ? '💜' : '💷'} ${money(u.cost)}`)
       + line('Paid with', u.cash === 'dirty' ? 'dirty cash' : 'clean cash') + (u.requires ? line('Needs', UPGRADES.find(x => x.id === u.requires).name) : '')
       + `<p class="mute">${u.lab ? 'A back-room upgrade.' : 'A bakery upgrade.'} Upgrades are permanent.</p>`);
+  }
+  if (kind === 'machine') {
+    const M = MACHINES[id], nx = G.machineNextCap(s, id);
+    const list = G.recipesFor(id).map(r => `${ITEMS[r].emoji} ${ITEMS[r].name} · lv ${ITEMS[r].level}${s.recipes.includes(r) ? ' ✓' : ''}`).join('<br>');
+    return T(`${M.emoji} ${M.name}`, line('You have', G.machineCount(s, id)) + line('Allowed now', G.machineCap(s, id))
+      + (nx ? line('More from', `level ${nx.level} (${nx.amount})`) : '') + line('Next one costs', money(G.machinePrice(s, id)))
+      + line('Unlocks at', `level ${M.level}`) + (M.burns ? line('Leave it too long', `food gets ${M.spoil}`, 'bad') : '')
+      + `<p><b>Recipes</b><br><small>${list}</small></p>`);
   }
   if (kind === 'level') {
     return T(`🎖️ Level ${s.level}`, line('XP', `${Math.round(s.xp)} / ${G.xpToNext(s.level)}`) + line('Next level pays', money(CFG.levelCash * (s.level + 1)))
@@ -242,7 +280,9 @@ function infoFor(kind, id) {
     return T(f.name, `<p>${f.desc}</p><p class="mute">${extra}</p>` + line('Level', f.level) + line('Active', G.unlocked(s, f.level) ? 'yes' : 'not yet'));
   }
   if (kind === 'bank' && id === 'loan') {
-    return T('💳 Bank loan', line('You get', money(CFG.loanAmount)) + line('Added to the debt', money(CFG.loanAmount * (1 + CFG.loanFee))) + line('How often', 'once a week')
+    const amt = G.loanAmount(s) || capAt(CAPS.loan, 4), lnx = nextCap(CAPS.loan, s.level);
+    return T('💳 Bank loan', line('You get', money(amt)) + line('Added to the debt', money(amt * (1 + CFG.loanFee))) + line('How often', 'once a week')
+      + (lnx ? line('Bigger loans', `${money(lnx.amount)} from level ${lnx.level}`) : '')
       + line('Unlocks at', 'level 4') + '<p class="mute">Handy before a payment day, but it makes the whole debt bigger.</p>');
   }
   if (kind === 'bank' && id === 'holiday') {
@@ -311,11 +351,11 @@ function infoFor(kind, id) {
 }
 
 function planScreen() {
-  const tabs = [['supplies', '🧺 Supplies'], ['menu', '📋 Menu'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
+  const tabs = [['supplies', '🧺 Supplies'], ['kitchen', '🍳 Kitchen'], ['shop', '🛠️ Shop'], ['crew', '👥 Crew']];
   if (s.labUnlocked) tabs.push(['dez', '💜 Dez']);
   tabs.push(['design', '🎨 Design'], ['bank', '🏦 Bank']);
   if (!tabs.some(t => t[0] === s.tab) || s.tab === 'design') s.tab = 'supplies';
-  const { cards, hint } = { supplies: suppliesTab, menu: menuTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
+  const { cards, hint } = { supplies: suppliesTab, kitchen: kitchenTab, shop: shopTab, crew: crewTab, dez: dezTab, bank: bankTab }[s.tab]();
   // Floating above the dock: the day-one story, or today's event
   const float = s.day === 1 && !s.introSeen
     ? `<div class="floatcard">
@@ -343,7 +383,7 @@ function shiftScreen() {
   const feedLine = `<div class="feedline">${last.map(f => `<span class="${f.kind}">${f.face} ${f.text}</span>`).join('')}</div>`;
   let dock;
   if (day) {
-    const cs = s.recipes.map(id => {
+    const cs = G.menuOf(s).map(id => {
       const d = s.display[id], n = d.fresh + d.stale;
       return `<span class="chip ${n ? '' : 'out'}">${ITEMS[id].emoji} ${n}</span>`;
     }).join('');
@@ -479,6 +519,30 @@ function modalHTML() {
     inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`;
   } else if (m.type === 'pause') {
     inner = `<h2>Paused</h2><p class="mute">The clock stops while you're away.</p><button class="primary big" data-act="resume">Carry on</button>`;
+  } else if (m.type === 'machine') {
+    const M = MACHINES[m.stage];
+    const slot = s.shift?.kind === 'day' ? s.shift.slots[m.stage]?.[m.i] : null;
+    const cooking = !!slot;
+    const menu = G.menuOf(s), nx = nextCap(CAPS.menu, s.level);
+    const rows = G.recipesFor(m.stage).sort((a, b) => ITEMS[a].level - ITEMS[b].level).map(id => {
+      const r = ITEMS[id], known = s.recipes.includes(id), open = G.unlocked(s, r.level), on = menu.includes(id);
+      const batches = known ? G.batchesPossible(s, id) : 0;
+      let right;
+      if (!open) right = `<span class="lock">🔒 Lv ${r.level}</span>`;
+      else if (!known) right = r.cost ? `<button class="small" data-act="learn" data-id="${id}" ${s.clean < r.cost ? 'disabled' : ''}>Learn ${money(r.cost)}</button>` : '<span class="lock">comes with the machine</span>';
+      else if (cooking) right = `<button class="small primary" data-act="recipe" data-id="${id}" ${!slot.item && batches > 0 ? '' : 'disabled'}>${slot.item ? 'Busy' : batches ? 'Cook' : 'No stock'}</button>`;
+      else right = `<button class="small menutoggle ${on ? 'on' : ''}" data-act="menu-toggle" data-id="${id}">${on ? '✓ On sale' : '+ Sell'}</button>`;
+      const priceRow = known && !cooking ? `<div class="seg">${Object.entries(PRICE_LEVELS).map(([k, L]) =>
+        `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label} ${money2(r.price * L.mult)}</button>`).join('')}</div>` : '';
+      return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
+        <span class="em">${r.emoji}</span>
+        <div class="grow"><b>${r.name}</b><small>×${r.yield} · ${r.times[r.machine]}s · ${money2(G.itemPrice(s, id))}${known ? ` · ${on ? 'on sale' : 'not on sale'}` : ''}</small>
+          <small>${ingText(r)}${known ? ` · stock for ${batches}` : ''}</small>${priceRow}</div>
+        <div class="mright">${right}</div></div>`;
+    }).join('');
+    inner = `<h2>${M.emoji} ${M.name}${G.machineCount(s, m.stage) > 1 ? ` ${m.i + 1}` : ''}</h2>
+      <p class="mute">${cooking ? (slot.item ? `${M.verb}… ${Math.ceil(slot.dur - slot.t)}s left.` : 'Pick something to make.') : `On sale: ${menu.length} of ${G.menuSlots(s)}${nx ? ` (reach level ${nx.level} for ${nx.amount})` : ''}.`}</p>
+      <div class="mlist">${rows}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`;
   } else if (m.type === 'recipes') {
     inner = `<h2>Start a batch</h2>` + G.menuOf(s).map(id => {
       const r = ITEMS[id];
@@ -558,6 +622,8 @@ function designScreen() {
     else if (it) hint = 'Move it, turn it, or sell it back for half price.';
     else if (dv.item) hint = `Tap a green square to place a <b>${D.DECOR[dv.item].name}</b>${D.DECOR[dv.item].outdoor ? ' (terraces only)' : D.DECOR[dv.item].indoor ? ' (inside only)' : ''}.`;
     else hint = 'Pick something to place, or tap a decoration in the shop to move, turn or sell it.';
+    const dnx = nextCap(CAPS.decor, s.level);
+    hint += ` <span class="mute">(${s.design.decor.length}/${D.decorCap(s)} placed${s.design.decor.length >= D.decorCap(s) && dnx ? `, reach level ${dnx.level} for more` : ''})</span>`;
     if (it) {
       const d = D.DECOR[it.type];
       sel = `<div class="dsel">${d.emoji} <b>${d.name}</b>
@@ -711,14 +777,17 @@ function act(el) {
       const before = slot ? { ...slot } : null;
       const r = G.tapSlot(s, stage, i);
       if (s.shift) world.poke(s, stage, i, before);
-      if (r?.pick) ui.modal = { type: 'recipes', i };
+      if (r?.pick) ui.modal = { type: 'machine', stage: r.stage, i };
       if (r?.pickLab) ui.modal = { type: 'lab', i };
       break;
     }
     case 'recipe':
-      if (ui.modal?.type === 'recipes') { G.startRecipe(s, id, ui.modal.i); world.poke(s, 'mix', ui.modal.i, null); }
+      if (ui.modal?.type === 'machine' && s.shift) { G.startRecipe(s, id, ui.modal.stage, ui.modal.i); world.poke(s, ui.modal.stage, ui.modal.i, null); }
       ui.modal = null;
       break;
+    case 'machine': ui.modal = { type: 'machine', stage: el.dataset.stage, i: Number(el.dataset.i || 0) }; break;
+    case 'learn': G.buyRecipe(s, id); break;
+    case 'buymachine': G.buyMachine(s, id); break;
     case 'close': ui.modal = null; break;
     case 'buyer': ui.modal = { type: 'buyer', id: Number(id) }; break;
     case 'sell':

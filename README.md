@@ -9,13 +9,28 @@ It's a 3D game: you look down into the shop at an angle. By day it's a bright ba
 that fills with what you bake while customers walk in and queue. By night the camera moves next door to the back room, which is
 lit purple. Tap a station (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
+## The kitchen
+
+Every machine has its own menu. Tap a machine (in the shop, or from the 🍳 Kitchen tab) to open it: in the morning you set prices, choose what's on sale and learn recipes; during the day you pick what to make. Each batch is one timer on one machine. Leave it too long on an oven, fryer, grill or ice cream machine and it's ruined.
+
+| Machine | From level | Recipes |
+|---|---|---|
+| 🔥 Oven | 1 (2 to start, 3 at 5, 4 at 14) | Sourdough, croissants, cookies, baguettes, tarts, muffins, buns, cheesecake, honey rolls, layer cake |
+| 🥣 Mixer | 1 (1 to start, 2 at 8) | Pancakes, waffles, crème caramel, chocolate mousse |
+| 🍳 Fryer | 2 | Donuts, dumplings, tempura |
+| ☕ Drinks machine | 4 | Coffee, tea, juice, bubble tea (a third of food customers grab a drink too) |
+| 🍦 Ice cream machine | 7 | Soft serve, sundaes, shaved ice |
+| 🥪 Sandwich grill | 11 | Toasties, hot dogs, bagels |
+
+You can only own as many of each machine as your level allows. At the limit the buy button says "Reach level N to unlock additional ovens". The same goes for how many things you can sell at once, how many kits Dez sells you a day, how many decorations you can place and how much the bank will lend.
+
 ## XP and levels
 
 Everything earns XP: each item sold (pricier items give more), each batch out of the oven (longer recipes give more), each cook in the back room, each bag sold (Velvet Gold gives double), courier orders and seeing off rivals. There are 20 levels, and each one pays a small bonus and unlocks things:
 
-- **Supplies**: cream (6) and nuts (11).
-- **Menu**: baguettes (2), muffins (4), crème caramel (7), cheesecake (9), honey nut rolls (12), layer cake (15). The case holds 6 things, or 8 with the bigger display case. Choose what's on the menu.
-- **Shop**: equipment by level, plus a bigger display case (6), a coffee machine (8), a floor safe (6) and a delivery van (10).
+- **Supplies**: coffee beans (4), tea leaves (5), cream (6), meat & fish (7), nuts and cheese (11), ice (12).
+- **Machines and recipes**: see The kitchen above.
+- **Shop**: a neon sign (4), and back-room upgrades including a floor safe (6) and a delivery van (10).
 - **Crew**: Tom the cashier (5), Ash the lookout (6), Sam the night cook (8), Big Ron the muscle (9).
 - **Night**: haggling (3), courier bulk orders (5), Velvet Gold (7), rival crews who rob you unless you have muscle (9).
 - **Bank**: loans (4), a one-off payment holiday (10).
@@ -38,8 +53,8 @@ Decor adds **charm**. Each point of charm brings about 1% more customers, up to 
 ## How a day works
 
 1. **Morning**: buy ingredients (prices change daily), set prices, buy upgrades, hire crew, buy kits from Dez, pay a bribe.
-2. **Day, bakery open**: tap a station to move each batch along: mixer → proofing → oven. Customers buy from the case on their own.
-   Mornings want bread, afternoons want sweet things. Finished batches burn if left in the oven.
+2. **Day, bakery open**: tap a machine to start something from its menu, and tap again to collect. Customers buy from the case on their own.
+   Mornings want bread and drinks, lunchtime wants savoury things, afternoons want sweet and cold things.
 3. **Closing up**: put dirty cash through the till. Up to 80% of the day's real takings looks normal. More than that adds heat.
 4. **Night, back room**: tap to prep → cook → bag Velvet (a made-up product). Buyers knock at the back door. Read what they say:
    undercover officers usually say something off, and some ordinary buyers do too.

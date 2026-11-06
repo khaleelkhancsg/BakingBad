@@ -1,18 +1,18 @@
 // Balance check: bots play full runs with different strategies.
 // node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs]
 import * as G from '../www/js/game.js';
-import { ITEMS, CFG, UPGRADES, LINES } from '../www/js/data.js';
+import { ITEMS, CFG, UPGRADES, LINES, MACHINES } from '../www/js/data.js';
 G.onToast(() => {});
 
 const RUNS = Number(process.argv[2]) || 40;
 const MAX_DAYS = 120;
 
 const STRATS = {
-  honest:  { crook: false, react: 1.5, upgrades: ['oven2', 'rack2', 'mixer2', 'recipe_bun', 'recipe_tart', 'sign', 'oven3'], baker: 8 },
+  honest:  { crook: false, react: 1.5, upgrades: ['sign'], baker: 8 },
   careful: { crook: true, react: 1.5, launder: 1.0, kits: 3, bribeAt: 35, lieLowAt: 50, dirtyReserve: 900,
-             upgrades: ['oven2', 'catering', 'rack2', 'mixer2', 'glass', 'recipe_bun', 'sign', 'recipe_tart', 'burner2', 'oven3', 'camera'], baker: 10 },
+             upgrades: ['catering', 'glass', 'sign', 'burner2', 'camera'], baker: 10 },
   greedy:  { crook: true, react: 1.5, launder: 1.6, kits: 4, serveAll: true, bribeAt: 60, dirtyReserve: 600,
-             upgrades: ['oven2', 'catering', 'glass', 'burner2', 'rack2', 'mixer2', 'sign'], baker: 10 },
+             upgrades: ['catering', 'glass', 'burner2', 'sign'], baker: 10 },
 };
 
 function inPipeline(s, id) {
@@ -20,10 +20,10 @@ function inPipeline(s, id) {
   for (const st in s.shift.slots) for (const sl of s.shift.slots[st]) if (sl.item === id) n += ITEMS[id].yield;
   return n;
 }
-function bestRecipe(s) {
+function bestRecipe(s, machine) {
   let best = null, bestScore = Infinity;
-  for (const id of s.recipes) {
-    if (!G.canMake(s, id)) continue;
+  for (const id of G.menuOf(s)) {
+    if (ITEMS[id].machine !== machine || !G.canMake(s, id)) continue;
     const d = s.display[id];
     const score = (d.fresh + d.stale * 0.5 + inPipeline(s, id)) / (ITEMS[id].group === 'bread' ? 0.8 : 1);
     if (score < bestScore) { bestScore = score; best = id; }
@@ -42,11 +42,26 @@ function plan(s, st) {
     if (u.cash === 'dirty' && s.dirty - u.cost < st.dirtyReserve) continue;
     G.buyUpgrade(s, id);
   }
+  // Kitchen: buy machines when the level allows, learn recipes, keep the menu full of the best sellers
+  for (const type of ['oven', 'fryer', 'drinks', 'mixer', 'icecream', 'grill']) {
+    if (!G.machineBlock(s, type) && s.clean - G.machinePrice(s, type) > reserve + 400) G.buyMachine(s, type);
+  }
+  for (const id of Object.keys(ITEMS)) {
+    const r = ITEMS[id];
+    if (!s.recipes.includes(id) && r.cost && G.unlocked(s, r.level) && G.machineCount(s, r.machine) && s.clean - r.cost > reserve + 400) G.buyRecipe(s, id);
+  }
+  const best = [...s.recipes].sort((a, b) => ITEMS[b].price - ITEMS[a].price); // customers are the limit, so sell what's dearest
+  // keep at least one item for every machine, then fill with the best earners
+  const pickMenu = [];
+  for (const type of Object.keys(MACHINES)) { const id = best.find(x => ITEMS[x].machine === type); if (id && G.machineCount(s, type)) pickMenu.push(id); }
+  for (const id of best) if (!pickMenu.includes(id)) pickMenu.push(id);
+  s.onMenu = pickMenu.slice(0, G.menuSlots(s));
   if (st.baker && s.day >= st.baker && !s.crew.baker) G.hire(s, 'baker');
   const cust = G.customersExpected(s);
   const need = {};
-  for (const id of s.recipes) {
-    const batches = Math.ceil(cust * 1.7 / s.recipes.length / ITEMS[id].yield) + 1;
+  const menu = G.menuOf(s);
+  for (const id of menu) {
+    const batches = Math.ceil(cust * 1.7 / menu.length / ITEMS[id].yield) + 1;
     for (const [k, q] of Object.entries(ITEMS[id].ing)) need[k] = (need[k] || 0) + q * batches;
   }
   for (const k in need) { const d = need[k] - s.inv[k]; if (d > 0) G.buyIngredient(s, k, d); }
@@ -64,7 +79,9 @@ function runShift(s, st) {
     for (const stage of Object.keys(sh.slots).reverse())
       sh.slots[stage].forEach((sl, i) => { if (sl.item && sl.done && sl.over >= st.react) G.tapSlot(s, stage, i); });
     if (sh.kind === 'day') {
-      sh.slots.mix.forEach((sl, i) => { if (!sl.item && sh.t < sh.len - 22) { const id = bestRecipe(s); if (id) G.startRecipe(s, id, i); } });
+      for (const stage of Object.keys(sh.slots)) sh.slots[stage].forEach((sl, i) => {
+        if (!sl.item && sh.t < sh.len - 22) { const id = bestRecipe(s, stage); if (id) G.startRecipe(s, id, stage, i); }
+      });
     } else {
       sh.slots.prep.forEach((sl, i) => { if (!sl.item && s.kits > 0 && sh.t < sh.len - 36) G.tapSlot(s, 'prep', i); });
       for (const b of [...sh.buyers]) {
