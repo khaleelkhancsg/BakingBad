@@ -1357,7 +1357,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     c.beginPath(); c.arc(w / 2, h / 2, h / 3, 0, 7); c.stroke();
   };
 
-  let shellK = 0, shellSig = '', zoomedOut = false;
+  let shellK = 0, shellSig = '', zoomedOut = false, revolver = null;
   function buildShell(s) {
     const o = { ...D.outOf(s) }, ex = s.design.expansions || {}, text = G.shopDef(s).sign;
     const flat = s.cur === 0 && !!s.property?.flat;
@@ -1369,7 +1369,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const m of shellMats) { m.map?.dispose(); m.dispose(); }
     for (const g of shellGeos) g.dispose();
     for (const m of shellGlassMats) { const i = windows.indexOf(m); if (i >= 0) windows.splice(i, 1); }
-    shellMats = []; shellGlassMats = []; shellGeos = []; smCache = new Map();
+    shellMats = []; shellGlassMats = []; shellGeos = []; smCache = new Map(); revolver = null;
     const wallCache = new Map();
 
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy], S = D.OUT_SIGN[o.sign];
@@ -1454,10 +1454,28 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const dc = DR.color;
     sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 2.88); sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 4.52); sb(0.14, 0.12, 1.76, frameM, 4.8, 2.22, 3.7);
     if (o.door === 'revolving') {
-      const drum = glass({ emissiveIntensity: 0.4, side: THREE.DoubleSide });
-      for (const t0 of [PI * 0.15, PI * 1.15]) { const c = mesh(sg(new THREE.CylinderGeometry(0.75, 0.75, 2.1, 20, 1, true, t0, PI * 0.7)), drum, 5.45, 1.05, 3.7, false); shellGroup.add(c); }
-      for (let k = 0; k < 2; k++) { const wing = box(1.45, 2.0, 0.04, glassM, 5.45, 0.02, 3.7); wing.rotation.y = k * PI / 2 + PI / 4; shellGroup.add(wing); }
-      add(cyl(0.82, 0.82, 0.16, goldM, 5.45, 2.1, 3.7, 24)); add(cyl(0.8, 0.8, 0.03, steelM, 5.45, 0.01, 3.7, 24));
+      const R = 0.68, X = 4.9, Z = 3.7, H = 2.1;
+      const clear = sm('#d8f0ff', { roughness: 0.1, metalness: 0.2, side: THREE.DoubleSide, emissive: '#9fd4ff', emissiveIntensity: 0.08 });
+      clear.userData.glass = 0.28; // how see-through it stays
+      const frame = sm('#2b2d36', { metalness: 0.5, roughness: 0.35 });
+      // The two curved glass walls, open front and back
+      for (const t0 of [PI * 0.12, PI * 1.12]) shellGroup.add(mesh(sg(new THREE.CylinderGeometry(R, R, H, 24, 1, true, t0, PI * 0.76)), clear, X, H / 2, Z, false));
+      // Posts where the glass walls end, a canopy and a floor ring
+      for (const t of [PI * 0.12, PI * 0.88, PI * 1.12, PI * 1.88]) sb(0.06, H, 0.06, frame, X + Math.sin(t) * R, 0, Z + Math.cos(t) * R);
+      add(cyl(R + 0.08, R + 0.08, 0.22, goldM, X, H, Z, 28)); add(cyl(R + 0.04, R + 0.04, 0.025, steelM, X, 0.005, Z, 28));
+      // The wings, kept apart so they can turn
+      revolver = new THREE.Group(); revolver.position.set(X, 0, Z);
+      const wingGlass = sm('#d8f0ff', { roughness: 0.1, metalness: 0.2, side: THREE.DoubleSide }); wingGlass.userData.glass = 0.35;
+      for (let k = 0; k < 4; k++) {
+        const a = k * PI / 2, w = new THREE.Group(); w.rotation.y = a;
+        w.add(box(R - 0.06, H - 0.1, 0.02, wingGlass, (R - 0.06) / 2, 0.05, 0, false));
+        w.add(box(0.04, H - 0.1, 0.05, frame, R - 0.06, 0.05, 0, false));
+        w.add(box(R - 0.06, 0.05, 0.05, frame, (R - 0.06) / 2, 0.05, 0, false));
+        revolver.add(w);
+      }
+      revolver.add(cyl(0.05, 0.05, H, frame, 0, 0, 0, 10, false));
+      revolver.traverse(m => { if (m.isMesh) m.userData.keep = true; });
+      shellGroup.add(revolver);
     } else {
       const leafM = o.door === 'gold' ? goldM : sm(dc, o.door === 'glass' ? { metalness: 0.3 } : {});
       if (o.door === 'glass') { sb(0.06, 2.12, 1.5, glassM, 4.79, 0, 3.7); for (const z of [2.96, 4.44]) sb(0.08, 2.12, 0.06, leafM, 4.8, 0, z); sb(0.08, 0.08, 1.5, leafM, 4.8, 2.06, 3.7); sb(0.06, 0.9, 0.04, steelM, 4.86, 0.6, 3.5); }
@@ -1571,9 +1589,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
     // ---- Out front and down the side: what the terraces and expansions add ----
     const planter = (x, z) => { sb(0.7, 0.45, 0.7, sm(shade(P.color, 0.75)), x, 0, z); add(sphere(0.34, sm('#3f7a3a'), x, 0.75, z)); add(sphere(0.06, sm('#ff7eb6'), x + 0.15, 0.95, z + 0.2)); };
-    // (the terraces have their own railings) planters at their corners
-    if (ex.front) { planter(-5.0, 7.15); planter(4.4, 7.15); }
-    if (ex.side) { planter(7.15, -4.9); planter(7.15, 2.95); }
     // (no parasols over the food carts: the shop's awning already hangs over them)
     // A glazed lean-to down the side for the stalls, on slim posts with a gutter
     if (ex.stalls) {
@@ -1586,7 +1601,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     mergeStatic(shellGroup);
     for (const g of shellGeos) g.dispose();
     shellGeos = [];
-    shellGroup.traverse(o => { if (o.isMesh) shellGeos.push(o.geometry); });
+    shellGroup.traverse(o => { if (o.isMesh && !o.userData.keep) shellGeos.push(o.geometry); }); // kept parts use shared shapes
   }
   const FOOTPRINT = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85), new THREE.Vector3(4.85, 3.2, 4.85)), cullBox = new THREE.Box3();
   // The shop part stops at -4.85; the back room reaches further back once the storeroom is in. Cull each part on its own.
@@ -1624,9 +1639,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     cullInside(shellK > 0.98, dt);
     const solid = shellK > 0.98;
     for (const m of shellMats) {
+      if (m.userData.glass) { m.opacity = shellK * m.userData.glass; m.depthWrite = false; continue; } // glass stays see-through
       m.opacity = shellK;
       if (m.transparent === solid) { m.transparent = !solid; m.depthWrite = solid; m.needsUpdate = true; }
     }
+    if (revolver && shellK > 0.01) revolver.rotation.y += dt * 0.5;
     overlayEl.style.opacity = String(1 - shellK);
     overlayEl.style.pointerEvents = shellK > 0.5 ? 'none' : '';
   }
