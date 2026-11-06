@@ -12,6 +12,6 @@
   "scripts": {
     "android:sync": "cap sync android",
     "android:open": "cap open android",
-    "android:build": "cap sync android && cd android && gradlew.bat assembleDebug"
+    "android:build": "cap sync android && cd android && .\\gradlew.bat assembleDebug"
   }
 }
