@@ -61,6 +61,8 @@ function period(t) {
   const h = G.localHour(t);
   return h < 6 ? 'Small hours' : h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : h < 21 ? 'Evening' : 'Night';
 }
+const doorTotal = () => s.shops.reduce((a, x) => a + x.door.length, 0);
+const doorShop = () => Math.max(0, s.shops.findIndex(x => x.door.length));
 const doorOpen = t => s.labUnlocked && G.isNight(t) && !G.sealed(s, t);
 const unseenReport = () => s.reports.length && s.reports.at(-1).day > (s.seenReportDay || 0);
 
@@ -77,7 +79,7 @@ function hudHTML() {
     <div class="hud-row">
       <div class="badge daybadge" data-act="info" data-kind="clock" data-id="clock"><b>${hhmm(t)} · Day ${G.dayIndex(s, t) + 1}</b><small>${sub}</small></div>
       <div class="hud-right">${due}
-        ${s.door.length && ui.room !== 'back' ? `<button class="badge roombtn night" data-act="go-back" title="Buyers at the back door">🚪 <b class="dot">${s.door.length}</b></button>` : ''}
+        ${doorTotal() && !(ui.room === 'back' && s.door.length) ? `<button class="badge roombtn night" data-act="go-back" data-id="${doorShop()}" title="Buyers at a back door">🚪 <b class="dot">${doorTotal()}</b></button>` : ''}
       </div>
     </div>
     <div class="hud-row stats">
@@ -212,9 +214,10 @@ function backTab() {
       ${!open ? lockTag(p.level) : `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${cut === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>
       <div class="pbtns">${kitBtns}<button class="small" data-act="dez" data-id="${id}" ${have ? '' : 'disabled'}>Dez<small>½ price</small></button></div>`}`, ibtn('product', id), `wide night ${open ? '' : 'locked'}`);
   }
-  // Back-room machines
+  // This shop's back-room machines
+  const labHere = G.shopDef(s).lab;
   for (const [type, M] of Object.entries(LAB_MACHINES)) {
-    if (M.level > s.level + 10) continue;
+    if (!labHere.includes(type) || M.level > s.level + 10) continue;
     const list = s.lab.map((m, i) => [m, i]).filter(([m]) => m.type === type), block = G.machineBlock(s, type, true);
     const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
     cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
@@ -238,7 +241,8 @@ function backTab() {
   const hint = G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
     : doorOpen(t) ? `The back door is open until 7am. ${s.door.length ? `${s.door.length} waiting.` : 'Nobody at the door right now.'}`
     : `Cook any time. Buyers come to the back door from 6pm to 7am (opens in ${mins((G.nextNightStart(t) - t) / MIN)}).`;
-  return { cards, hint };
+  const where = `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. `;
+  return { cards, hint: where + hint };
 }
 
 function turfTab() {
@@ -573,7 +577,8 @@ function infoFor(kind, id) {
     return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the stall's`)
       + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent)} a day`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
       + (owned ? '' : line('Opening costs', money(d.price))) + line('Unlocks at', `level ${d.level}`)
-      + '<p class="mute">Each shop has its own machines, case, menu and design, and they all trade at once. Your crew work every shop. The back room is only at the stall.</p>');
+      + line('Back room', d.lab.map(k => `${LAB_MACHINES[k].emoji} ${LAB_MACHINES[k].name}`).join(', '))
+      + '<p class="mute">Each shop has its own machines, case, menu and design, and its own back room and back door, and they all trade at once. Your crew work every shop; bags and kits are shared.</p>');
   }
   if (kind === 'level') {
     const next = unlocksAt(s.level + 1);
@@ -664,15 +669,15 @@ function menuGroups() {
   if (s.labUnlocked) groups.push(['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash']]);
   return groups;
 }
-const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && s.door.length ? s.door.length : id === 'bank' && s.hmrc > 1 ? '!' : '');
+const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && doorTotal() ? doorTotal() : id === 'bank' && s.hmrc > 1 ? '!' : '');
 function openTab(id) {
   ui.tab = id; ui.panel = null;
-  if (TABS[id].night) { ui.room = 'back'; G.viewShop(s, 0); } else if (ui.room === 'back') ui.room = 'shop';
+  if (TABS[id].night) ui.room = 'back'; else if (ui.room === 'back') ui.room = 'shop';
 }
 
 // The three corner buttons, the menu and map panels, and the section dock
 function fabsHTML() {
-  const alert = s.orders.length || s.door.length || s.hmrc > 1;
+  const alert = s.orders.length || doorTotal() || s.hmrc > 1;
   return `<div class="fabs">
     <button class="fab ${ui.panel === 'map' ? 'on' : ''}" data-act="panel" data-id="map"><span>🗺️</span><small>Map</small></button>
     <button class="fab" data-act="tab" data-id="design"><span>🎨</span><small>Design</small></button>
@@ -684,12 +689,14 @@ function menuPanel() {
     <div class="pgrid">${ids.map(id => `<button class="ptile ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}"><span>${TABS[id].emoji}</span><small>${TABS[id].label}</small>${tabBadge(id) ? `<i>${tabBadge(id)}</i>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
 }
 function mapPanel() {
-  const here = ui.room === 'back' ? 'back' : s.cur || 0;
-  const places = s.shops.map((x, i) => {
+  const cur = s.cur || 0, back = ui.room === 'back';
+  const places = [];
+  s.shops.forEach((x, i) => {
     const d = SHOPS[x.id], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
-    return `<button class="place ${here === i ? 'on' : ''}" data-act="map-go" data-id="${i}"><span>${d.emoji}</span><b>${d.short}</b><small>${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}</small></button>`;
+    const labReady = x.lab.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
+    places.push(`<button class="place ${cur === i && !back ? 'on' : ''}" data-act="map-go" data-id="${i}"><span>${d.emoji}</span><b>${d.short}</b><small>${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}</small></button>`);
+    if (s.labUnlocked) places.push(`<button class="place night ${cur === i && back ? 'on' : ''}" data-act="go-back" data-id="${i}"><span>💜</span><b>Back room</b><small>${x.lab.length} machines${labReady ? ` · ${labReady} ready` : ''}${x.door.length ? ` · ${x.door.length} at the door` : ''}</small></button>`);
   });
-  if (s.labUnlocked) places.push(`<button class="place night ${here === 'back' ? 'on' : ''}" data-act="go-back"><span>💜</span><b>Back room</b><small>${s.door.length ? `${s.door.length} at the door` : doorOpen(s.clock) ? 'door open' : 'door shut till 6pm'}</small></button>`);
   const next = G.nextShops(s)[0];
   if (next) {
     const d = SHOPS[next], open = G.unlocked(s, d.level);
@@ -1035,8 +1042,8 @@ function act(el) {
     case 'panel': ui.panel = ui.panel === id ? null : id; if (id === 'menu' && ui.panel) ui.tab = null; break;
     case 'dock-close': ui.tab = null; break;
     case 'map-go': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.panel = null; if (ui.tab && TABS[ui.tab].night) ui.tab = null; break;
-    case 'go-back': G.viewShop(s, 0); ui.room = 'back'; ui.panel = null; ui.tab = 'back'; break;
-    case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') { G.viewShop(s, 0); ui.tab = 'back'; } else if (ui.tab === 'back') ui.tab = 'kitchen'; break;
+    case 'go-back': if (id !== undefined) G.viewShop(s, Number(id)); ui.room = 'back'; ui.panel = null; ui.tab = 'back'; break;
+    case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') ui.tab = 'back'; else if (ui.tab === 'back') ui.tab = null; break;
     case 'intro-ok': s.introSeen = true; break;
     // Kitchen
     case 'machine': {
@@ -1127,7 +1134,7 @@ function act(el) {
       break;
     }
     case 'turn': G.turnAway(s, Number(id)); ui.modal = null; break;
-    case 'offer': G.answerOffer(s, id === 'yes'); ui.modal = null; if (id === 'yes') { ui.room = 'back'; ui.tab = 'back'; } break;
+    case 'offer': G.answerOffer(s, id === 'yes'); ui.modal = null; if (id === 'yes') { G.viewShop(s, 0); ui.room = 'back'; ui.tab = 'back'; } break;
     case 'lvl-ok': s.levelUps.shift(); ui.modal = null; break;
     case 'close': ui.modal = null; break;
     // Design

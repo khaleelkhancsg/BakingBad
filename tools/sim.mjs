@@ -106,11 +106,11 @@ function checkIn(s, st, t, next) {
 
   if (!st.crook || !s.labUnlocked) return;
   // The back room
-  s.lab.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) G.collectLab(s, i, t, { quiet: true }); });
+  G.eachShop(s, () => { s.lab.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) G.collectLab(s, i, t, { quiet: true }); });
   for (const b of [...s.door]) {
     if (b.hint && !st.serveHinted) G.turnAway(s, b.id);
     else if ((s.bags[b.product] || 0) >= (b.courier ? b.want : 1)) G.serveBuyer(s, b.id, false, t);
-  }
+  } });
   hireIf('dealer', true);
   hireIf('cook', s.dirty > 500);
   hireIf('lookout', s.dirty > 800);
@@ -123,7 +123,7 @@ function checkIn(s, st, t, next) {
   hireIf('runner', s.dirty > 1500 && Object.keys(s.corners).length > 0);
   hireIf('assistant', s.dirty > 3000);
   hireIf('copper', s.dirty > 10000);
-  s.lab.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0, true) < (G.machineCash(m.type, true) === 'dirty' ? s.dirty * 0.2 : spare() * 0.15)) G.upgradeMachine(s, i, true); });
+  G.eachShop(s, () => s.lab.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0, true) < (G.machineCash(m.type, true) === 'dirty' ? s.dirty * 0.2 : spare() * 0.15)) G.upgradeMachine(s, i, true); }));
   // Corners: buy what we can afford, give each the product we have most of, keep them stocked
   for (const [id, c] of Object.entries(CORNERS)) if (!s.corners[id] && G.unlocked(s, c.level) && c.price < s.dirty * 0.4) G.buyCorner(s, id);
   for (const id of Object.keys(s.corners)) {
@@ -132,14 +132,14 @@ function checkIn(s, st, t, next) {
     if (!k.product || (!k.stock && best && best !== k.product)) { if (best) G.setCornerProduct(s, id, best); }
     if (k.product && s.bags[k.product] > 0) G.stockCorner(s, id, Math.floor(s.bags[k.product] / 2));
   }
-  for (const type of Object.keys(LAB_MACHINES)) { const cash = G.machineCash(type, true); if (!G.machineBlock(s, type, true) && G.machinePrice(s, type, true) < (cash === 'dirty' ? s.dirty * 0.5 : spare() * 0.3)) G.buyMachine(s, type, true); }
+  G.eachShop(s, () => { for (const type of Object.keys(LAB_MACHINES)) { const cash = G.machineCash(type, true); if (!G.machineBlock(s, type, true) && G.machinePrice(s, type, true) < (cash === 'dirty' ? s.dirty * 0.5 : spare() * 0.3)) G.buyMachine(s, type, true); } });
   if (s.heat >= st.bribeAt && s.dirty > CFG.bribeCost * 2) G.bribe(s);
   const cool = s.heat >= st.coolAt;
-  s.lab.forEach((m, i) => {
+  G.eachShop(s, () => s.lab.forEach((m, i) => {
     if (m.job || m.broken || cool) return;
     const options = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)).sort((a, b) => PRODUCTS[b].level - PRODUCTS[a].level);
     for (const id of options) if (G.startLab(s, i, id, t, { quiet: true })) break;
-  });
+  }));
   // Spread the rest: fronts, smurfs, a money man, the casino; careful players stash some offshore
   for (const id of Object.keys(FRONTS)) if (!s.wash.fronts[id] && G.unlocked(s, FRONTS[id].level) && FRONTS[id].price < spare() * 0.25) G.buyFront(s, id);
   if (G.washOpen(s, 'smurf')) G.setSmurfing(s, G.washCap(s, 'smurf'));
@@ -171,7 +171,7 @@ function run(st, seed) {
     if ([7, 30, 60, 90, 120, 180, 365].includes(d + 1)) marks[d + 1] = s.level;
   }
   return { level: s.level, clearedDay, busts: s.stats.busts, visits: s.stats.visits, clean: s.clean, dirty: s.dirty, rep: s.rep,
-    bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.shops.reduce((a, x) => a + x.machines.length, 0), shops: s.shops.length, laundered: s.stats.totalLaundered, lab: s.lab.length, recipes: s.recipes.length, marks,
+    bags: s.stats.totalBags, sales: s.stats.totalSales, machines: s.shops.reduce((a, x) => a + x.machines.length, 0), shops: s.shops.length, laundered: s.stats.totalLaundered, lab: s.shops.reduce((a, x) => a + x.lab.length, 0), recipes: s.recipes.length, marks,
     served: s.stats.served, missed: s.stats.missed, strikes: s.strikes, tax: s.stats.taxPaid || 0, orders: s.stats.orders || 0, miles: Object.keys(s.milestones).length };
 }
 

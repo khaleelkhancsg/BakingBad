@@ -15,7 +15,7 @@ export const CFG = {
   spoilMin: 30, trayBatches: 2,
   cashierBonus: 0.1, drinkAddOn: 0.35,
   // Laundering
-  launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, cashPileFree: 5000, cashPilePer: 5000, cashPileMax: 25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05,
+  launderRatio: 0.35, launderHeat: 20, launderFee: 0.25, cashPileFree: 5000, cashPilePer: 5000, cashPileMax: 25, accountantFee: 0.1, cleanKitMult: 1.5, prestigeCust: 0.05, branchBuyers: 0.6,
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
   nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.2, buyersMax: 12, buyersMaxPerLevel: 0.35, buyerPatienceMin: 3,
   dealerCut: 0.2, streetMult: 1,
@@ -532,17 +532,18 @@ export const CORNERS = {
 // Rosa's shops. The stall is where it all started; every branch costs far more than the one before, runs
 // its own machines (the pricier the branch, the more profitable its kitchen), pays its own rent and charges
 // more for the same food. Branches are also fronts: each lets you launder more every day.
+// lab: the back-room machines that shop's back room takes (each branch has its own back room and back door)
 export const SHOPS = {
   stall:   { name: "Rosa's Bakery",        short: 'The stall', emoji: '🥖', level: 1,  price: 0,       rent: 40,    priceMult: 1,   cust: 1,
-             launder: 0,     machines: ['oven', 'mixer', 'fryer', 'drinks', 'icecream', 'grill'], floor: 'checker', wall: 'plaster', sign: "Rosa's Bakery" },
+             launder: 0,     machines: ['oven', 'mixer', 'fryer', 'drinks', 'icecream', 'grill'], lab: ['tent', 'burner', 'pillpress'], floor: 'checker', wall: 'plaster', sign: "Rosa's Bakery" },
   cafe:    { name: "Rosa's Café, Kingsmere", short: 'The café', emoji: '☕', level: 16, price: 30000,   rent: 300,   priceMult: 1.15, cust: 0.6,
-             launder: 2500,  machines: ['pizza', 'griddle', 'steamer', 'noodles', 'drinks'], floor: 'wood', wall: 'brick', sign: "Rosa's Café" },
+             launder: 2500,  machines: ['pizza', 'griddle', 'steamer', 'noodles', 'drinks'], lab: ['dryer', 'brickpress', 'still'], floor: 'wood', wall: 'brick', sign: "Rosa's Café" },
   deli:    { name: "Rosa's Deli, Ashford",  short: 'The deli', emoji: '🧀', level: 39, price: 400000,  rent: 2500,  priceMult: 1.3, cust: 0.5,
-             launder: 12000, machines: ['choc', 'bbq', 'patisserie', 'drinks'], floor: 'terracotta', wall: 'teal', sign: "Rosa's Deli" },
+             launder: 12000, machines: ['choc', 'bbq', 'patisserie', 'drinks'], lab: ['kiln', 'edibles'], floor: 'terracotta', wall: 'teal', sign: "Rosa's Deli" },
   bistro:  { name: "Rosa's Bistro, Harbourside", short: 'The bistro', emoji: '🍷', level: 61, price: 3000000, rent: 10000, priceMult: 1.5, cust: 0.4,
-             launder: 45000, machines: ['bar', 'sushi', 'rotisserie', 'icecream'], floor: 'navy', wall: 'damask', sign: "Rosa's Bistro" },
+             launder: 45000, machines: ['bar', 'sushi', 'rotisserie', 'icecream'], lab: ['lab', 'vat'], floor: 'navy', wall: 'damask', sign: "Rosa's Bistro" },
   maison:  { name: 'Maison Rosa, The Capital', short: 'The maison', emoji: '👑', level: 84, price: 15000000, rent: 40000, priceMult: 1.75, cust: 0.35,
-             launder: 150000, machines: ['candy', 'grand', 'patisserie', 'bar'], floor: 'blackmarble', wall: 'golden', sign: 'Maison Rosa' },
+             launder: 150000, machines: ['candy', 'grand', 'patisserie', 'bar'], lab: ['chamber'], floor: 'blackmarble', wall: 'golden', sign: 'Maison Rosa' },
 };
 
 export const PRICE_LEVELS = {

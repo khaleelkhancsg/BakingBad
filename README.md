@@ -57,22 +57,23 @@ again whenever its tray has room, and Grace the manager keeps the ingredients to
 
 ## The back room
 
-Say yes to Dez and the back room is yours. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
+Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own, with its own
+machines and its own back door (bags, kits, heat, turf and laundering are shared across the business). Buy kits from Dez, cook them on the back-room machines, and sell the bags to
 buyers at the back door after dark. The products are parodies of real ones; the "chemistry" is all game mechanics.
 
-| Machine | Products |
+| Machine (back room of) | Products |
 |---|---|
-| 🌿 Grow tent (1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
-| ♨️ Burner (4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
-| 💊 Pill press (12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
-| 🍄 Drying rack (16) | Magic Mushies, Golden Caps |
-| 🧱 Brick press (22) | Bricks, Snowman, Avalanche, Pure Paradise |
-| ⚗️ Still (28) | Purple Sip, Double Cup |
-| 🏺 Curing oven (30) | Rocky Road Hash, Moonrock |
-| 🧁 Edibles oven (34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
-| 🧪 Lab bench (42) | Rainbow Tabs, Blotter Art |
-| 🛢️ Mixing vat (50) | Donkey Dust, Party Balloons |
-| 🔮 Clean room (68) | Diamond Dust, Unicorn Tears, The Gold Standard |
+| 🌿 Grow tent (stall, 1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
+| ♨️ Burner (stall, 4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
+| 💊 Pill press (stall, 12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
+| 🍄 Drying rack (café, 16) | Magic Mushies, Golden Caps |
+| 🧱 Brick press (café, 22) | Bricks, Snowman, Avalanche, Pure Paradise |
+| ⚗️ Still (café, 28) | Purple Sip, Double Cup |
+| 🏺 Curing oven (deli, 30) | Rocky Road Hash, Moonrock |
+| 🧁 Edibles oven (deli, 34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
+| 🧪 Lab bench (bistro, 42) | Rainbow Tabs, Blotter Art |
+| 🛢️ Mixing vat (bistro, 50) | Donkey Dust, Party Balloons |
+| 🔮 Clean room (maison, 68) | Diamond Dust, Unicorn Tears, The Gold Standard |
 
 - **Purity** decides what a bag is worth (60% sells at the list price). It comes from the machine's tier, back-room
   upgrades (scales, extractor hood, filters, purity tester), Doc and Pip.
@@ -130,7 +131,7 @@ Rosa's stall is where it starts. Branches open as you level up, and each costs f
 
 Each shop has its own machines, case, menu and design, pays its own rent, and they all trade at once (your crew work
 every one). Each shop you own brings 5% more customers to all of them. Move between shops with 🗺️ Map; open new
-ones (and buy property) from Menu → Shops & property. The back room is only at the stall.
+ones (and buy property) from Menu → Shops & property.
 
 ## Tax
 

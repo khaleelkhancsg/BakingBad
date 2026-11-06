@@ -6,7 +6,7 @@ import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES
          PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 
 let rand = () => Math.random();
@@ -51,7 +51,7 @@ export const dayIndex = (s, t) => Math.round((dayStart(t) - s.startDay) / DAY);
 // ---------- Shops ----------
 // Each shop has its own machines, case, menu and design. s.cur says which one the rules (and the screen) are
 // looking at; s.machines, s.display, s.onMenu, s.design and s.custAcc always mean that shop's.
-const SHOP_FIELDS = ['machines', 'display', 'onMenu', 'design', 'custAcc'];
+const SHOP_FIELDS = ['machines', 'display', 'onMenu', 'design', 'custAcc', 'lab', 'door', 'buyAcc'];
 export function bindShops(s) {
   for (const f of SHOP_FIELDS) Object.defineProperty(s, f, { configurable: true, enumerable: false,
     get() { return this.shops[this.cur || 0][f]; }, set(v) { this.shops[this.cur || 0][f] = v; } });
@@ -66,7 +66,7 @@ export function eachShop(s, fn) {
 function makeShop(id) {
   const d = SHOPS[id];
   const display = {}; for (const k in ITEMS) display[k] = 0;
-  return { id, machines: [], display, onMenu: [], design: defaultDesign({ floor: d.floor, wall: d.wall }), custAcc: 0 };
+  return { id, machines: [], display, onMenu: [], design: defaultDesign({ floor: d.floor, wall: d.wall }), custAcc: 0, lab: [], door: [], buyAcc: 0 };
 }
 export const ownsShop = (s, id) => s.shops.some(x => x.id === id);
 export const shopWith = (s, type) => s.shops.findIndex(x => SHOPS[x.id].machines.includes(type));
@@ -151,7 +151,7 @@ export function machinePrice(s, type, lab = false) {
   const M = TYPES(lab)[type], extra = Math.max(0, machineCount(s, type, lab) - (M.free || 0));
   return Math.round(M.price * (1 + MACHINE_PRICE_STEP * extra) / 10) * 10;
 }
-const designFor = (s, lab) => (lab ? s.shops[0].design : s.design);
+const designFor = s => s.design; // each shop's own expansions open its own spots, front and back
 const spotOpen = (s, spot, lab) => !spot.need || !!designFor(s, lab).expansions[spot.need];
 export function freeSpots(s, lab = false) {
   const spots = lab ? LAB_SPOTS : SPOTS, used = kitchenList(s, lab);
@@ -165,9 +165,9 @@ function nextRoom(s, lab) {
 export function machineBlock(s, type, lab = false) {
   const M = TYPES(lab)[type];
   if (!unlocked(s, M.level)) return { lock: true, text: `Reach level ${M.level} to unlock the ${M.name.toLowerCase()}` };
-  if (!lab && !shopDef(s).machines.includes(type)) {
-    const home = Object.values(SHOPS).find(d => d.machines.includes(type));
-    return { lock: true, text: `Goes in ${home.name}${ownsShop(s, Object.keys(SHOPS).find(k => SHOPS[k] === home)) ? '' : ' (open it in Shops)'}` };
+  if (!(lab ? shopDef(s).lab : shopDef(s).machines).includes(type)) {
+    const home = Object.values(SHOPS).find(d => (lab ? d.lab : d.machines).includes(type));
+    return { lock: true, text: `Goes in ${lab ? 'the back room of ' : ''}${home.name}${ownsShop(s, Object.keys(SHOPS).find(k => SHOPS[k] === home)) ? '' : ' (open it in Shops)'}` };
   }
   if (machineCount(s, type, lab) >= machineCap(s, type, lab)) {
     const nx = machineNextCap(s, type, lab);
@@ -618,7 +618,7 @@ export function answerOffer(s, yes) {
   if (yes) {
     s.labUnlocked = true;
     s.kits.homegrown = (s.kits.homegrown || 0) + 1;
-    if (!s.lab.length) s.lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
+    if (!s.shops[0].lab.length) s.shops[0].lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
     say('Dez drops off a kit and shows you the back room.', 'good');
   } else s.offerAfter = s.clock + 3 * DAY;
 }
@@ -1027,13 +1027,12 @@ export function newGame(t = Date.now()) {
     market: {}, event: null,
     level: 1, xp: 0, levelUps: [],
     recipes: [...START_RECIPES], priceLevel: {}, shops: [makeShop('stall')], cur: 0,
-    lab: [], kits: {}, bags: {}, purity: {}, cut: {}, door: [], street: CFG.streetStart, corners: {},
+    kits: {}, bags: {}, purity: {}, cut: {}, street: CFG.streetStart, corners: {},
     taxWeek: freshTaxWeek(), wash: freshWash(), declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
     holidayUsed: false, holidayNext: false, night: {},
-    buyAcc: 0,
     feed: [], reports: [], today: null,
     stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0, busts: 0, visits: 0, xp: 0, served: 0, missed: 0, nightCash: 0 },
   };
@@ -1056,6 +1055,12 @@ export function migrate(s, t = Date.now()) {
     delete s.branches;
     s.cur = 0; s.v = SAVE_VERSION;
   }
+  if (s.v === 4) {
+    s.shops[0].lab = s.lab || []; s.shops[0].door = s.door || []; s.shops[0].buyAcc = s.buyAcc || 0;
+    for (const x of s.shops.slice(1)) { x.lab = []; x.door = []; x.buyAcc = 0; }
+    delete s.lab; delete s.door; delete s.buyAcc;
+    s.v = SAVE_VERSION;
+  }
   if (s.v === SAVE_VERSION) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
@@ -1063,11 +1068,12 @@ export function migrate(s, t = Date.now()) {
     s.taxWeek ??= freshTaxWeek(); s.wash ??= freshWash(); s.taxWeek.washTaxed ??= 0; s.taxWeek.washSuspect ??= 0; s.declare ??= 'full'; s.vatRegistered ??= false; s.hmrc ??= 0; s.orders ??= []; s.lastOrderAt ??= t; s.milestones ??= {}; s.review ??= null; s.criticAt ??= null;
     if (s.today) { s.today.vatSales ??= 0; s.today.capex ??= 0; s.today.ordersDone ??= 0; s.today.ordersMissed ??= 0; }
     for (const x of s.shops) { for (const id in ITEMS) x.display[id] ??= 0; x.custAcc ||= 0; x.design.base ??= { floor: SHOPS[x.id].floor, wall: SHOPS[x.id].wall }; }
-    for (const m of s.lab) m.tier ??= 0;
+    for (const x of s.shops) { x.lab ??= []; x.door ??= []; x.buyAcc ??= 0; for (const m of x.lab) m.tier ??= 0; }
     for (const o of [s.kits, s.bags]) for (const id in o) if (!PRODUCTS[id]) delete o[id];
-    s.lab = s.lab.filter(m => LAB_MACHINES[m.type]);
-    s.door = s.door.filter(b => PRODUCTS[b.product]);
-    for (const m of s.lab) if (m.job && !PRODUCTS[m.job.item]) m.job = null;
+    for (const x of s.shops) {
+      x.lab = x.lab.filter(m => LAB_MACHINES[m.type]); x.door = x.door.filter(b => PRODUCTS[b.product]);
+      for (const m of x.lab) if (m.job && !PRODUCTS[m.job.item]) m.job = null;
+    }
     if (s.today) { s.today.cornerSales ??= 0; s.today.cornerCash ??= 0; }
     for (const k in INGREDIENTS) { s.inv[k] ??= 0; s.market[k] ??= 1; }
     for (const id in ITEMS) s.priceLevel[id] ||= 'normal';
@@ -1088,7 +1094,7 @@ export function migrate(s, t = Date.now()) {
   for (const r in s.crew || {}) if (CREW[r]) n.crew[r] = !!s.crew[r];
   if (Array.isArray(s.machines)) n.machines = s.machines.filter(m => MACHINES[m.type]).map(m => ({ type: m.type, spot: m.spot, job: null, last: null, broken: !!m.broken }));
   if (n.labUnlocked) {
-    n.lab = [{ type: 'tent', spot: 0, job: null, last: null, tier: 0 }];
+    n.shops[0].lab = [{ type: 'tent', spot: 0, job: null, last: null, tier: 0 }];
     n.kits = { homegrown: 2 };
   }
   if (s.design) n.design = { ...s.design, base: n.design.base };
@@ -1149,18 +1155,22 @@ function shopSpan(s, t0, t1, mins, showIt) {
   // Customers
   s.custAcc += customersPerHour(s, t0) / 60 * mins;
   while (s.custAcc >= 1) { s.custAcc -= 1; customerVisit(s, t0 + rand() * (t1 - t0), showIt); }
-}
-function shared(s, t0, t1, mins) {
-  // Back room: the night cook bags finished cooks
+  // This shop's back room: the night cook bags finished cooks; buyers come to its back door after dark
   if (s.crew.cook) s.lab.forEach((m, i) => { if (m.job && t1 >= m.job.start + m.job.dur) collectLab(s, i, t1, { quiet: true }); });
-  // Night trade
-  if (s.labUnlocked && isNight(t0) && !sealed(s, t0)) {
-    s.buyAcc += buyersPerHour(s) / 60 * mins;
+  if (s.labUnlocked && s.lab.length && isNight(t0) && !sealed(s, t0)) {
+    s.buyAcc += buyersPerHour(s) * ((s.cur || 0) ? CFG.branchBuyers : 1) / 60 * mins;
     while (s.buyAcc >= 1) { s.buyAcc -= 1; buyerArrives(s, t0 + rand() * (t1 - t0)); }
-    if (s.night.courierAt && t1 >= s.night.courierAt) { s.night.courierAt = null; courierArrives(s, t1); }
-    if (s.night.rivalAt && t1 >= s.night.rivalAt) { s.night.rivalAt = null; rivalsStrike(s, t1); }
   } else s.buyAcc = 0;
   for (const b of [...s.door]) if (t1 >= b.arrive + b.patience) unattended(s, b, t1);
+}
+function shared(s, t0, t1, mins) {
+  // Couriers and rival crews come to the stall's back door
+  if (s.labUnlocked && isNight(t0) && !sealed(s, t0)) {
+    const keep = s.cur; s.cur = 0;
+    if (s.night.courierAt && t1 >= s.night.courierAt) { s.night.courierAt = null; courierArrives(s, t1); }
+    if (s.night.rivalAt && t1 >= s.night.rivalAt) { s.night.rivalAt = null; rivalsStrike(s, t1); }
+    s.cur = keep;
+  }
   if (s.labUnlocked && !sealed(s, t0)) runCorners(s, t0, t1, mins);
   if (s.labUnlocked) runWash(s, t1, mins);
   // Street reputation drifts back to the middle
@@ -1210,8 +1220,7 @@ function bust(s, t, why) {
   let bags = 0, kits = 0;
   for (const id in s.bags) { bags += s.bags[id]; s.bags[id] = 0; }
   for (const id in s.kits) { kits += s.kits[id]; s.kits[id] = 0; }
-  for (const m of s.lab) m.job = null;
-  s.door = [];
+  for (const x of s.shops) { for (const m of x.lab) m.job = null; x.door = []; }
   for (const k of Object.values(s.wash.fronts)) k.closedUntil = Math.max(k.closedUntil, t + 3 * DAY);
   s.wash.smurfDaily = 0;
   const sealHours = CFG.bustSealHours - (lawyer ? 24 : 0);
