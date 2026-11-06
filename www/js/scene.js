@@ -1216,6 +1216,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   // ---------- The outside of the shop: paint, canopy, sign and extras ----------
   const outsideGroup = new THREE.Group(); scene.add(outsideGroup);
   const shopSideLights = new THREE.Group(); // on the wall shared with the back room: hidden when you're in there
+  const insideOnly = new THREE.Group(); scene.add(insideOnly); // the door canopy and post sign: the zoomed-out building has its own
   let outSig = '';
   const stripeTex = (a, b) => canvasTex(64, 16, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? b : a; c.fillRect(i * 8, 0, 8, h); } }, [4, 1]);
   function syncOutside(s) {
@@ -1226,15 +1227,16 @@ export function createScene(canvas, overlayEl, { onPick }) {
     outSig = sig;
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream;
     extWain.color.set(P.color); extTrim.color.set(P.trim);
-    outsideGroup.clear(); shopSideLights.clear();
+    outsideGroup.clear(); shopSideLights.clear(); insideOnly.clear();
+    const addIn = m => { m.traverse?.(x => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); insideOnly.add(m); return m; };
     const add = m => { m.traverse?.(x => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); outsideGroup.add(m); return m; };
     // A canopy over the side doorway
     const C = D.OUT_CANOPY[o.canopy];
     if (C && C.a) {
       const cm = mesh(new THREE.BoxGeometry(0.85, 0.05, 2.1), smat({ map: stripeTex(C.a, C.b), roughness: 0.8 }), 5.0, 2.2, 3.7);
-      cm.rotation.z = -0.32; add(cm);
-      for (const z of [2.75, 4.65]) add(box(0.04, 0.5, 0.04, '#2b2d36', 4.65, 1.75, z));
-      if (o.canopy === 'gold') for (let k = 0; k < 7; k++) add(sphere(0.07, C.b, 5.38, 2.03, 2.75 + k * 0.32));
+      cm.rotation.z = -0.32; addIn(cm);
+      for (const z of [2.75, 4.65]) addIn(box(0.04, 0.5, 0.04, '#2b2d36', 4.65, 1.75, z));
+      if (o.canopy === 'gold') for (let k = 0; k < 7; k++) addIn(sphere(0.07, C.b, 5.38, 2.03, 2.75 + k * 0.32));
     }
     // The shop sign, on two posts at the front corner
     const S = D.OUT_SIGN[o.sign];
@@ -1243,8 +1245,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
       const tex = canvasTex(256, 64, (c, w, h) => { c.fillStyle = S.bg; c.fillRect(0, 0, w, h); if (S.glow) { c.shadowColor = S.fg; c.shadowBlur = 16; }
         c.fillStyle = S.fg; c.font = `bold ${text.length > 13 ? 26 : 32}px Georgia, serif`; c.textAlign = 'center'; c.fillText(text, w / 2, 42); });
       const board = mesh(new THREE.BoxGeometry(1.7, 0.42, 0.06), [mat(S.bg), mat(S.bg), mat(S.bg), mat(S.bg), S.glow ? new THREE.MeshBasicMaterial({ map: tex }) : smat({ map: tex, roughness: 0.7 }), mat(S.bg)], 5.85, 1.5, 4.95);
-      board.rotation.y = PI / 4; add(board);
-      for (const dx of [-0.6, 0.6]) add(box(0.05, 1.3, 0.05, '#2b2d36', 5.85 + dx * Math.cos(PI / 4), 0, 4.95 - dx * Math.sin(PI / 4)));
+      board.rotation.y = PI / 4; addIn(board);
+      for (const dx of [-0.6, 0.6]) addIn(box(0.05, 1.3, 0.05, '#2b2d36', 5.85 + dx * Math.cos(PI / 4), 0, 4.95 - dx * Math.sin(PI / 4)));
     }
     const E = o.extras || {};
     if (E.boxes && !ex.front) for (const x of [-1.7, 1.3]) { add(box(1.0, 0.18, 0.26, '#7a4a2e', x, 0.56, 4.78)); for (let k = 0; k < 4; k++) add(sphere(0.07, ['#ff7eb6', '#ffd447', '#ffffff', '#b58cff'][k], x - 0.36 + k * 0.24, 0.8, 4.78)); }
@@ -1255,55 +1257,301 @@ export function createScene(canvas, overlayEl, { onPick }) {
     if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); }
     if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
   }
-  // ---------- Zoomed out: the whole building from outside (walls, windows, sign, awning, roofs) ----------
+  // ---------- Zoomed out: the whole building from outside ----------
+  // Rebuilt from the shop's outside design (paint, wall finish, windows, door, roof, awning, sign) and grows with
+  // its expansions: terraces get railings and parasols, the stalls a lean-to roof, the island a roof lantern,
+  // back-room benches extractor fans, the annex a raised roof, and the flat upstairs a whole second storey.
   const shellGroup = new THREE.Group(); shellGroup.visible = false; scene.add(shellGroup);
-  const shellMats = [];
+  let shellMats = [], shellGlassMats = [], shellGeos = [];
   const sm = (color, extra = {}) => { const m = smat({ color, roughness: 0.85, transparent: true, opacity: 0, ...extra }); shellMats.push(m); return m; };
-  const shellWall = sm('#c98f6b'), shellTrim = sm('#fff0dc'), shellRoof = sm('#5e5864'), shellRoofEdge = sm('#4a4550');
-  const backShell = sm('#55606b'), shutterM = sm('#8d939c', { metalness: 0.4 }), darkM = sm('#2b2d36');
-  const shellGlass = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.6, roughness: 0.2 }); windows.push(shellGlass);
-  const fasciaM = sm('#ffffff'), awningM = sm('#ffffff');
-  const sb = (w, h, d, m, x, y, z) => { const b = box(w, h, d, m, x, y, z); b.castShadow = true; shellGroup.add(b); return b; };
-  // The shop: front and side walls (the door is on the side), windows, a fascia for the sign, a roof with a parapet
-  sb(9.5, 3.05, 0.22, shellWall, 0, 0, 4.66);
-  sb(0.22, 3.05, 7.6, shellWall, 4.66, 0, -0.9); sb(0.22, 0.8, 1.9, shellWall, 4.66, 2.25, 3.7);
-  sb(9.56, 0.12, 0.28, shellTrim, 0, 3.0, 4.66); sb(0.28, 0.12, 9.56, shellTrim, 4.66, 3.0, 0);
-  for (const x of [-2.15, 2.15]) { sb(3.3, 1.45, 0.05, shellGlass, x, 0.85, 4.79); sb(3.42, 0.08, 0.1, shellTrim, x, 0.8, 4.8); sb(3.42, 0.08, 0.1, shellTrim, x, 2.3, 4.8); }
-  sb(0.05, 1.45, 3.0, shellGlass, 4.79, 0.85, -2.0); sb(0.1, 0.08, 3.1, shellTrim, 4.8, 0.8, -2.0);
-  sb(0.05, 2.1, 1.5, sm('#7a4a2e'), 4.79, 0, 3.7); sb(0.06, 0.9, 1.1, shellGlass, 4.8, 0.95, 3.7);
-  const fascia = mesh(new THREE.PlaneGeometry(6.4, 0.5), fasciaM, 0, 2.62, 4.79, false); shellGroup.add(fascia);
-  const awning = mesh(new THREE.BoxGeometry(8.0, 0.06, 1.0), awningM, 0, 2.28, 5.2); awning.rotation.x = 0.3; shellGroup.add(awning);
-  sb(9.6, 0.22, 9.6, shellRoof, 0, 3.05, -0.0);
-  for (const [w, d, x, z] of [[9.7, 0.15, 0, 4.78], [9.7, 0.15, 0, -4.78], [0.15, 9.7, 4.78, 0], [0.15, 9.7, -4.78, 0]]) sb(w, 0.3, d, shellRoofEdge, x, 3.27, z);
-  sb(1.1, 0.6, 0.8, sm('#c9ccd3', { metalness: 0.4 }), 2.6, 3.27, -2.6); sb(0.9, 0.05, 0.9, shellGlass, -1.5, 3.28, -1.0);
-  for (const x of [-3.2, 0.6]) sb(0.25, 0.5, 0.25, darkM, x, 3.27, -3.6);
-  // The back room: a plain front with a roller shutter, and its own roof
-  sb(7.0, 3.05, 0.22, backShell, -8.2, 0, 4.66);
-  sb(3.0, 2.2, 0.06, shutterM, -8.9, 0, 4.8); for (let k = 0; k < 10; k++) sb(3.0, 0.03, 0.08, darkM, -8.9, 0.2 + k * 0.2, 4.83);
-  sb(0.9, 2.0, 0.06, darkM, -6.0, 0, 4.8);
-  sb(7.2, 0.22, 9.6, shellRoof, -8.2, 3.05, 0);
-  for (const [w, d, x, z] of [[7.3, 0.15, -8.2, 4.78], [7.3, 0.15, -8.2, -4.78], [0.15, 9.7, -11.78, 0]]) sb(w, 0.3, d, shellRoofEdge, x, 3.27, z);
-  for (const [x, z] of [[-10.2, -2.5], [-7.4, 1.4], [-9.0, 3.0]]) { sb(0.35, 0.45, 0.35, darkM, x, 3.27, z); sb(0.5, 0.06, 0.5, darkM, x, 3.72, z); }
-  let shellK = 0, shellPaintSig = '';
-  function paintShell(s) {
-    const o = s.design.outside || { paint: 'cream', canopy: 'none', sign: 'none' }, P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream;
-    const C = D.OUT_CANOPY[o.canopy], S = D.OUT_SIGN[o.sign] || D.OUT_SIGN.wood, text = G.shopDef(s).sign;
-    const sig = JSON.stringify([o.paint, o.canopy, o.sign, text]);
-    if (sig === shellPaintSig) return;
-    shellPaintSig = sig;
-    shellWall.color.set(P.color).lerp(new THREE.Color('#ffffff'), 0.25); shellTrim.color.set(P.trim);
-    const bg = S.bg || '#8a5a36', fg = S.fg || '#ffe7c2';
-    fasciaM.map = canvasTex(512, 40, (c, w, h) => { c.fillStyle = bg; c.fillRect(0, 0, w, h); if (S.glow) { c.shadowColor = fg; c.shadowBlur = 12; } c.fillStyle = fg; c.font = 'bold 28px Georgia, serif'; c.textAlign = 'center'; c.fillText(text, w / 2, 30); });
-    fasciaM.color.set('#ffffff'); fasciaM.needsUpdate = true;
-    awning.visible = !!(C && C.a);
-    if (C && C.a) { awningM.map = stripeTex(C.a, C.b); awningM.needsUpdate = true; }
+  const sg = g => { shellGeos.push(g); return g; };
+  const shade = (hex, k) => { const c = new THREE.Color(hex); c.r = Math.min(1, c.r * k); c.g = Math.min(1, c.g * k); c.b = Math.min(1, c.b * k); return '#' + c.getHexString(); };
+  // Wall finishes, drawn as a 1 m tile so each wall can repeat it by its own size
+  const FINISH_COLOR = { brick: '#a5523d', stone: '#b8ad9a', marble: '#ece8e2' };
+  function finishCanvas(finish, base) {
+    return (c, w, h) => {
+      const col = FINISH_COLOR[finish] || base;
+      c.fillStyle = col; c.fillRect(0, 0, w, h);
+      if (finish === 'render') {
+        for (let i = 0; i < 260; i++) { c.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`; c.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+      } else if (finish === 'brick') {
+        c.fillStyle = '#e6d8c4'; c.fillRect(0, 0, w, h);
+        for (let row = 0; row < 8; row++) for (let k = -1; k < 4; k++) {
+          c.fillStyle = shade(col, 0.85 + Math.random() * 0.3);
+          c.fillRect(k * 32 + (row % 2) * 16 + 1, row * 16 + 1, 30, 14);
+        }
+      } else if (finish === 'cladding') {
+        for (let row = 0; row < 8; row++) { c.fillStyle = shade(col, 0.92 + (row % 2) * 0.08); c.fillRect(0, row * 16, w, 14); c.fillStyle = shade(col, 0.6); c.fillRect(0, row * 16 + 14, w, 2); }
+      } else if (finish === 'stone') {
+        c.fillStyle = '#8c8475'; c.fillRect(0, 0, w, h);
+        let y = 0;
+        while (y < h) { const rh = 20 + Math.floor(Math.random() * 14); let x = -Math.random() * 20; while (x < w) { const rw = 28 + Math.random() * 30; c.fillStyle = shade(col, 0.85 + Math.random() * 0.25); c.fillRect(x + 2, y + 2, rw - 3, rh - 3); x += rw; } y += rh; }
+      } else if (finish === 'tiles') {
+        c.fillStyle = '#f4f0e8'; c.fillRect(0, 0, w, h);
+        for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) { c.fillStyle = shade(col, (a + b) % 2 ? 1.0 : 1.12); c.fillRect(a * 32 + 1, b * 32 + 1, 30, 30); }
+      } else if (finish === 'marble') {
+        c.strokeStyle = 'rgba(120,120,130,.35)'; c.lineWidth = 1.2;
+        for (let i = 0; i < 6; i++) { c.beginPath(); let x = Math.random() * w, y = 0; c.moveTo(x, y); while (y < h) { x += (Math.random() - 0.5) * 18; y += 10; c.lineTo(x, y); } c.stroke(); }
+        c.fillStyle = 'rgba(0,0,0,.08)'; for (let k = 0; k <= 2; k++) c.fillRect(0, k * 64, w, 1);
+      }
+    };
+  }
+  const roofCanvas = (roof, col) => (c, w, h) => {
+    c.fillStyle = col; c.fillRect(0, 0, w, h);
+    if (roof === 'tiles' || roof === 'slate') {
+      const rh = roof === 'tiles' ? 16 : 12;
+      for (let row = 0; row * rh < h; row++) for (let k = -1; k < 6; k++) {
+        c.fillStyle = shade(col, 0.82 + Math.random() * 0.3);
+        const tw = roof === 'tiles' ? 24 : 30;
+        c.fillRect(k * tw + (row % 2) * tw / 2 + 1, row * rh + 1, tw - 2, rh - 2);
+        if (roof === 'tiles') { c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(k * tw + (row % 2) * tw / 2 + 1, row * rh + rh - 4, tw - 2, 3); }
+      }
+    } else if (roof === 'gravel' || roof === 'felt') {
+      for (let i = 0; i < (roof === 'gravel' ? 900 : 200); i++) { c.fillStyle = shade(col, 0.7 + Math.random() * 0.6); c.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+    } else if (roof === 'green') {
+      for (let i = 0; i < 500; i++) { c.fillStyle = ['#4f7f3c', '#6f9f4f', '#8fbf5a', '#c8d870', '#e28fb5'][Math.floor(Math.random() * (i % 17 ? 4 : 5))]; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 0, 7); c.fill(); }
+    } else if (roof === 'terrace') {
+      for (let k = 0; k < 8; k++) { c.fillStyle = shade(col, 0.9 + (k % 2) * 0.12); c.fillRect(k * 16, 0, 14, h); }
+    }
+  };
+  const stainedCanvas = (c, w, h) => {
+    const cols = ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a', '#b58cff', '#ff9a3d'];
+    for (let a = 0; a < 6; a++) for (let b = 0; b < 4; b++) { c.fillStyle = cols[(a * 3 + b * 5) % 6]; c.fillRect(a * w / 6, b * h / 4, w / 6, h / 4); }
+    c.strokeStyle = '#2b2d36'; c.lineWidth = 3;
+    for (let a = 0; a <= 6; a++) { c.beginPath(); c.moveTo(a * w / 6, 0); c.lineTo(a * w / 6, h); c.stroke(); }
+    for (let b = 0; b <= 4; b++) { c.beginPath(); c.moveTo(0, b * h / 4); c.lineTo(w, b * h / 4); c.stroke(); }
+    c.beginPath(); c.arc(w / 2, h / 2, h / 3, 0, 7); c.stroke();
+  };
+
+  let shellK = 0, shellSig = '';
+  function buildShell(s) {
+    const o = { ...D.outOf(s) }, ex = s.design.expansions || {}, text = G.shopDef(s).sign;
+    const flat = s.cur === 0 && !!s.property?.flat;
+    const sig = JSON.stringify([o, ex, text, flat]);
+    if (sig === shellSig) return;
+    shellSig = sig;
+    // Throw away the last build
+    shellGroup.clear();
+    for (const m of shellMats) { m.map?.dispose(); m.dispose(); }
+    for (const g of shellGeos) g.dispose();
+    for (const m of shellGlassMats) { const i = windows.indexOf(m); if (i >= 0) windows.splice(i, 1); }
+    shellMats = []; shellGlassMats = []; shellGeos = [];
+
+    const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy], S = D.OUT_SIGN[o.sign];
+    const R = D.OUT_ROOF[o.roof] || D.OUT_ROOF.felt, DR = D.OUT_DOOR[o.door] || D.OUT_DOOR.wood, WS = o.window || 'plain';
+    const paint = shade(P.color, 1.12);
+    const finishDraw = finishCanvas(o.finish || 'render', paint);
+    const wallImg = canvasTex(128, 128, finishDraw);
+    const glossy = o.finish === 'tiles' || o.finish === 'marble';
+    const wallMat = (w, h) => { const t = wallImg.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(Math.max(1, Math.round(w)), Math.max(1, Math.round(h))); return sm('#ffffff', { map: t, roughness: glossy ? 0.35 : 0.9 }); };
+    const trimM = sm(P.trim), darkM = sm('#2b2d36'), steelM = sm('#8d939c', { metalness: 0.4, roughness: 0.4 });
+    const goldM = sm('#d4af37', { metalness: 0.7, roughness: 0.3 });
+    const glass = (extra = {}) => { const m = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.6, roughness: 0.2, ...extra }); shellGlassMats.push(m); windows.push(m); return m; };
+    const glassM = glass();
+    const stainedM = WS === 'stained' ? (() => { const t = canvasTex(96, 64, stainedCanvas); return glass({ color: '#ffffff', map: t, emissiveMap: t }); })() : null;
+    const frameM = WS === 'neon' ? sm('#ff4fa3', { emissive: '#ff4fa3', emissiveIntensity: 1.4 }) : WS === 'gold' ? goldM : trimM;
+    const add = m => { m.castShadow = true; shellGroup.add(m); return m; };
+    const sb = (w, h, d, m, x, y, z) => add(box(w, h, d, m, x, y, z));
+    const wall = (w, h, d, x, y, z) => sb(w, h, d, wallMat(Math.max(w, d), h), x, y, z);
+    const awnTex = C && C.a ? stripeTex(C.a, C.b) : null;
+    const awnM = awnTex ? sm('#ffffff', { map: awnTex }) : null;
+
+    // A window facing +z (rot 0) or +x (rot PI/2); (x, z) is the wall's outer face, y its sill
+    function win(x, y, z, w, h, rot) {
+      const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rot;
+      const arch = WS === 'arched' || (WS === 'stained' && w < 2);
+      const ah = arch ? Math.min(0.35, w / 2) : 0, hh = h - ah;
+      const gm = stainedM || glassM;
+      g.add(box(w, hh, 0.05, gm, 0, 0, 0));
+      if (arch) { const a = mesh(sg(new THREE.CircleGeometry(w / 2, 20, 0, PI)), gm, 0, hh, 0.03, false); a.scale.y = ah / (w / 2); g.add(a);
+        const t = mesh(sg(new THREE.TorusGeometry(w / 2, 0.045, 6, 20, PI)), frameM, 0, hh, 0.05, false); t.scale.y = ah / (w / 2); g.add(t); }
+      const f = 0.08;
+      g.add(box(w + 0.24, 0.09, 0.2, frameM, 0, -0.09, 0.05)); // sill
+      if (!arch) g.add(box(w + 0.12, f, 0.1, frameM, 0, hh - f / 2, 0.03));
+      for (const dx of [-w / 2, w / 2]) g.add(box(f, hh, 0.1, frameM, dx, 0, 0.03));
+      if (WS === 'georgian' || WS === 'gold') {
+        const n = Math.max(2, Math.round(w / 0.55));
+        for (let k = 1; k < n; k++) g.add(box(0.035, hh, 0.07, frameM, -w / 2 + (k * w) / n, 0, 0.04));
+        for (const yy of WS === 'georgian' ? [hh / 3, (2 * hh) / 3] : [hh / 2]) g.add(box(w, 0.035, 0.07, frameM, 0, yy, 0.04));
+      }
+      if (WS === 'neon') g.add(box(w, 0.04, 0.06, frameM, 0, hh / 2, 0.05));
+      g.traverse(m => { if (m.isMesh) m.castShadow = false; });
+      shellGroup.add(g);
+      return g;
+    }
+
+    const ROOF = flat ? 5.6 : 3.05;
+    // ---- The shop: ground floor ----
+    wall(9.5, 3.05, 0.22, 0, 0, 4.66);
+    wall(0.22, 3.05, 7.6, 4.66, 0, -0.9); wall(0.22, 0.8, 1.9, 4.66, 2.25, 3.7);
+    sb(9.56, 0.12, 0.28, trimM, 0, 2.98, 4.66); sb(0.28, 0.12, 9.56, trimM, 4.66, 2.98, 0);
+    sb(9.56, 0.45, 0.26, sm(shade(P.color, 0.8)), 0, 0, 4.66); sb(0.26, 0.45, 7.64, sm(shade(P.color, 0.8)), 4.66, 0, -0.9); // plinth
+    const wh = 1.45;
+    for (const x of [-2.15, 2.15]) win(x, 0.85, 4.79, 3.1, wh, 0);
+    win(4.79, 0.85, -2.0, 2.8, wh, PI / 2);
+    // Pilasters between and either side of the shop windows
+    for (const x of [-4.6, 0, 4.6]) sb(0.3, 2.3, 0.12, trimM, x, 0, 4.8);
+    // The fascia with the shop's name (a plain painted board when there's no sign)
+    const bg = S?.bg || shade(P.color, 0.7), fg = S?.fg || P.trim;
+    const ftex = canvasTex(512, 40, (c, w, h) => { c.fillStyle = bg; c.fillRect(0, 0, w, h); if (S?.glow) { c.shadowColor = fg; c.shadowBlur = 12; } c.fillStyle = fg; c.font = `bold 28px ${o.sign === 'gold' ? 'Georgia, serif' : o.sign === 'neon' ? '"Trebuchet MS", sans-serif' : 'Georgia, serif'}`; c.textAlign = 'center'; c.fillText(text, w / 2, 30); });
+    const fasciaM = sm('#ffffff', S?.glow ? { map: ftex, emissive: '#ffffff', emissiveMap: ftex, emissiveIntensity: 0.9 } : { map: ftex });
+    shellGroup.add(mesh(sg(new THREE.PlaneGeometry(6.6, 0.5)), fasciaM, 0, 2.62, 4.84, false));
+    sb(6.8, 0.07, 0.12, frameM, 0, 2.33, 4.82); sb(6.8, 0.07, 0.12, frameM, 0, 2.86, 4.82);
+    // A hanging blade sign on the corner, once there's a sign
+    if (S?.bg) {
+      sb(0.05, 0.05, 0.7, darkM, 4.9, 2.45, 5.1);
+      const bt = canvasTex(128, 128, (c, w, h) => { c.fillStyle = S.bg; c.fillRect(0, 0, w, h); c.fillStyle = S.fg; c.font = '72px "Segoe UI Emoji", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🥐', w / 2, h / 2 + 4); });
+      const blade = mesh(sg(new THREE.BoxGeometry(0.04, 0.55, 0.55)), sm('#ffffff', S.glow ? { map: bt, emissive: '#ffffff', emissiveMap: bt, emissiveIntensity: 0.8 } : { map: bt }), 4.9, 2.12, 5.25, false);
+      shellGroup.add(blade);
+    }
+    // The front awning (deeper once the front terrace is yours), with a valance; a matching one over the side window
+    if (awnM) {
+      const depth = ex.front ? 1.6 : 1.0;
+      const aw = mesh(sg(new THREE.BoxGeometry(8.6, 0.05, depth)), awnM, 0, 2.28 - Math.sin(0.3) * depth / 2 + 0.05, 4.8 + depth / 2 * Math.cos(0.3)); aw.rotation.x = 0.3; add(aw);
+      const vz = 4.8 + depth * Math.cos(0.3), vy = 2.28 - Math.sin(0.3) * depth;
+      add(mesh(sg(new THREE.BoxGeometry(8.6, 0.2, 0.03)), awnM, 0, vy - 0.08, vz));
+      if (o.canopy === 'gold') for (let k = 0; k < 22; k++) add(sphere(0.06, goldM, -4.2 + k * 0.4, vy - 0.2, vz));
+      for (const x of [-4.25, 4.25]) sb(0.04, 0.04, depth, darkM, x, 2.3 - Math.sin(0.3) * depth / 2, 4.8 + depth / 2);
+      const sw = mesh(sg(new THREE.BoxGeometry(0.9, 0.05, 3.3)), awnM, 5.15, 2.25, -2.0); sw.rotation.z = -0.3; add(sw);
+    }
+    // ---- The door (on the side), with its frame and a hood ----
+    const dc = DR.color;
+    sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 2.88); sb(0.12, 2.3, 0.12, frameM, 4.8, 0, 4.52); sb(0.14, 0.12, 1.76, frameM, 4.8, 2.22, 3.7);
+    if (o.door === 'revolving') {
+      const drum = sm('#bfe6ff', { emissive: '#bfe6ff', emissiveIntensity: 0.4, roughness: 0.2, side: THREE.DoubleSide }); shellGlassMats.push(drum); windows.push(drum);
+      for (const t0 of [PI * 0.15, PI * 1.15]) { const c = mesh(sg(new THREE.CylinderGeometry(0.75, 0.75, 2.1, 20, 1, true, t0, PI * 0.7)), drum, 5.45, 1.05, 3.7, false); shellGroup.add(c); }
+      for (let k = 0; k < 2; k++) { const wing = box(1.45, 2.0, 0.04, glassM, 5.45, 0.02, 3.7); wing.rotation.y = k * PI / 2 + PI / 4; shellGroup.add(wing); }
+      add(cyl(0.82, 0.82, 0.16, goldM, 5.45, 2.1, 3.7, 24)); add(cyl(0.8, 0.8, 0.03, steelM, 5.45, 0.01, 3.7, 24));
+    } else {
+      const leafM = o.door === 'gold' ? goldM : sm(dc, o.door === 'glass' ? { metalness: 0.3 } : {});
+      if (o.door === 'glass') { sb(0.06, 2.12, 1.5, glassM, 4.79, 0, 3.7); for (const z of [2.96, 4.44]) sb(0.08, 2.12, 0.06, leafM, 4.8, 0, z); sb(0.08, 0.08, 1.5, leafM, 4.8, 2.06, 3.7); sb(0.06, 0.9, 0.04, steelM, 4.86, 0.6, 3.5); }
+      else {
+        sb(0.06, 2.12, 1.5, leafM, 4.79, 0, 3.7);
+        sb(0.07, 0.75, 0.9, glassM, 4.8, 1.15, 3.7);
+        for (const z of [3.35, 4.05]) sb(0.08, 0.6, 0.5, sm(shade(dc, 1.15)), 4.8, 0.25, z);
+        add(sphere(0.05, goldM, 4.88, 1.05, 3.12));
+        if (o.door === 'victorian') { const fl = mesh(sg(new THREE.CircleGeometry(0.62, 18, 0, PI)), glassM, 4.85, 2.28, 3.7, false); fl.rotation.y = PI / 2; fl.scale.y = 0.6; shellGroup.add(fl); sb(0.1, 0.06, 1.76, goldM, 4.86, 2.1, 3.7); }
+      }
+      if (o.door === 'gold' || o.door === 'victorian') add(box(0.3, 0.04, 0.6, sm('#7a1f2e'), 5.0, 0, 3.7)); // a mat
+    }
+    // Door hood: striped to match the awning, or a little painted canopy on brackets
+    if (o.door !== 'revolving') {
+      const hood = mesh(sg(new THREE.BoxGeometry(0.75, 0.06, 2.0)), awnM || trimM, 5.12, 2.5, 3.7); hood.rotation.z = -0.25; add(hood);
+      for (const z of [2.85, 4.55]) { const br = box(0.45, 0.04, 0.04, darkM, 4.98, 2.25, z); br.rotation.z = 0.7; shellGroup.add(br); }
+    }
+
+    // ---- The flat upstairs: a whole second storey ----
+    if (flat) {
+      wall(9.5, 2.55, 0.22, 0, 3.05, 4.66); wall(9.5, 2.55, 0.22, 0, 3.05, -4.66);
+      wall(0.22, 2.55, 9.5, 4.66, 3.05, 0); wall(0.22, 2.55, 9.5, -4.66, 3.05, 0);
+      for (const x of [-3.0, 0, 3.0]) win(x, 3.6, 4.79, 1.2, 1.4, 0);
+      for (const z of [-2.6, 0.2, 3.0]) win(4.79, 3.6, z, 1.2, 1.4, PI / 2);
+      if (o.extras?.boxes) for (const x of [-3.0, 0, 3.0]) { sb(1.1, 0.18, 0.26, sm('#7a4a2e'), x, 3.42, 4.92); for (let k = 0; k < 4; k++) add(sphere(0.07, sm(['#ff7eb6', '#ffd447', '#ffffff', '#b58cff'][k]), x - 0.36 + k * 0.24, 3.66, 4.92)); }
+      sb(9.7, 0.14, 0.3, trimM, 0, 5.5, 4.68); sb(0.3, 0.14, 9.7, trimM, 4.68, 5.5, 0);
+    }
+
+    // ---- The shop's roof ----
+    const roofCol = R.color || '#5e5864';
+    const roofImg = canvasTex(128, 128, roofCanvas(o.roof || 'felt', roofCol), R.pitched ? [6, 4] : [5, 5]);
+    const roofM = sm('#ffffff', { map: roofImg, roughness: o.roof === 'slate' ? 0.55 : 0.9 });
+    const edgeM = sm(shade(P.color, 0.65));
+    if (R.pitched) {
+      const rise = 2.0, half = 5.0, L = Math.hypot(half, rise), a = Math.atan2(rise, half);
+      for (const sgn of [1, -1]) { const sl = mesh(sg(new THREE.BoxGeometry(10.0, 0.14, L)), roofM, 0, ROOF + rise / 2, sgn * half / 2); sl.rotation.x = sgn * a; add(sl); }
+      add(mesh(sg(new THREE.CylinderGeometry(0.1, 0.1, 10.1, 8)), sm(shade(roofCol, 0.7)), 0, ROOF + rise + 0.04, 0)).rotation.z = PI / 2;
+      const tri = new THREE.Shape(); tri.moveTo(-4.75, 0); tri.lineTo(4.75, 0); tri.lineTo(0, rise * 0.95); tri.closePath();
+      const gableM = wallMat(5, 2); gableM.side = THREE.DoubleSide;
+      for (const x of [4.77, -4.77]) { const gm = mesh(sg(new THREE.ShapeGeometry(tri)), gableM, x, ROOF, 0, false); gm.rotation.y = PI / 2; shellGroup.add(gm); }
+      // A round window in the gable, and a chimney
+      const ow = mesh(sg(new THREE.CircleGeometry(0.35, 18)), stainedM || glassM, 4.8, ROOF + 0.8, 0, false); ow.rotation.y = PI / 2; shellGroup.add(ow);
+      const ot = mesh(sg(new THREE.TorusGeometry(0.35, 0.05, 6, 18)), frameM, 4.82, ROOF + 0.8, 0, false); ot.rotation.y = PI / 2; shellGroup.add(ot);
+      const chim = wallMat(1, 3); sb(0.7, 2.6, 0.7, chim, 2.8, ROOF, -2.2); sb(0.8, 0.12, 0.8, trimM, 2.8, ROOF + 2.6, -2.2);
+      for (const dx of [-0.15, 0.15]) add(cyl(0.09, 0.11, 0.35, sm('#b5654a'), 2.8 + dx, ROOF + 2.72, -2.2, 10));
+      // Roof windows on the front slope for the kitchen island
+      if (ex.island) for (const x of ex.island2 ? [-3.0, -0.8] : [-1.9]) { const y = ROOF + rise * 0.55 + 0.1, rf = mesh(sg(new THREE.BoxGeometry(1.3, 0.1, 1.4)), trimM, x, y - 0.02, half * 0.45); rf.rotation.x = a; add(rf);
+          const rw = mesh(sg(new THREE.BoxGeometry(1.1, 0.1, 1.2)), glassM, x, y, half * 0.45); rw.rotation.x = a; add(rw); }
+    } else {
+      sb(9.6, 0.22, 9.6, roofM, 0, ROOF, 0);
+      if (o.roof === 'terrace') {
+        // Posts and a glass rail instead of a parapet, with parasols and tables
+        for (const [w, d, x, z] of [[9.6, 0.05, 0, 4.75], [0.05, 9.6, 4.75, 0]]) { sb(w, 0.06, d || 0.06, steelM, x, ROOF + 1.1, z); sb(w, 0.9, d, glass({ opacity: 0 }), x, ROOF + 0.22, z); }
+        for (const [w, d, x, z] of [[9.7, 0.15, 0, -4.78], [0.15, 9.7, -4.78, 0]]) sb(w, 0.3, d, edgeM, x, ROOF + 0.22, z);
+        for (const [x, z, c] of [[-2.2, 1.8, '#e85d75'], [1.8, 2.2, '#4f9de8'], [-0.5, -1.6, '#ffd447']]) {
+          add(cyl(0.03, 0.03, 2.0, steelM, x, ROOF + 0.22, z, 6)); add(mesh(sg(new THREE.ConeGeometry(0.9, 0.35, 10)), sm(c), x, ROOF + 2.25, z));
+          add(cyl(0.45, 0.45, 0.05, sm('#f4f0e8'), x, ROOF + 0.92, z, 14)); add(cyl(0.05, 0.08, 0.7, darkM, x, ROOF + 0.22, z, 6));
+          for (const a of [0, PI]) add(box(0.35, 0.45, 0.35, sm('#a8703f'), x + Math.cos(a) * 0.7, ROOF + 0.22, z + Math.sin(a) * 0.7));
+        }
+        for (const [x, z] of [[3.9, -3.9], [-3.9, 3.9], [3.9, 3.9]]) { add(cyl(0.3, 0.25, 0.5, sm('#3a3d44'), x, ROOF + 0.22, z, 12)); add(sphere(0.38, sm('#3f7a3a'), x, ROOF + 0.95, z)); }
+        sb(1.2, 2.3, 1.2, wallMat(1.2, 2.3), -3.6, ROOF + 0.22, -3.6); // stair hut
+      } else {
+        for (const [w, d, x, z] of [[9.7, 0.15, 0, 4.78], [9.7, 0.15, 0, -4.78], [0.15, 9.7, 4.78, 0], [0.15, 9.7, -4.78, 0]]) sb(w, 0.32, d, edgeM, x, ROOF + 0.22, z);
+        sb(9.8, 0.06, 0.24, trimM, 0, ROOF + 0.54, 4.78); sb(0.24, 0.06, 9.8, trimM, 4.78, ROOF + 0.54, 0);
+        if (o.roof === 'solar') for (let r = 0; r < 2; r++) for (let k = 0; k < 4; k++) {
+          const pt = canvasTex(64, 40, (c, w, h) => { c.fillStyle = '#1d2a4a'; c.fillRect(0, 0, w, h); c.strokeStyle = '#8aa6d6'; c.lineWidth = 1; for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo(i * w / 6, 0); c.lineTo(i * w / 6, h); c.stroke(); } for (let j = 1; j < 3; j++) { c.beginPath(); c.moveTo(0, j * h / 3); c.lineTo(w, j * h / 3); c.stroke(); } });
+          const pm = mesh(sg(new THREE.BoxGeometry(1.8, 0.05, 1.1)), sm('#ffffff', { map: pt, roughness: 0.3 }), -3.0 + k * 2.0, ROOF + 0.6, -2.6 + r * 2.4); pm.rotation.x = 0.4; add(pm);
+          sb(0.05, 0.4, 0.05, steelM, -3.0 + k * 2.0, ROOF + 0.22, -2.3 + r * 2.4);
+        }
+        if (o.roof === 'green') for (const [x, z] of [[-3.2, -3], [2.6, -2.8], [-2.8, 2.6], [3.2, 2.4], [0.4, 0.2]]) { add(sphere(0.32, sm('#4f7f3c'), x, ROOF + 0.4, z)); add(sphere(0.22, sm('#6f9f4f'), x + 0.3, ROOF + 0.32, z + 0.2)); }
+        if (o.roof === 'felt' || o.roof === 'gravel') {
+          sb(1.1, 0.6, 0.8, steelM, 2.6, ROOF + 0.22, -2.6);
+          for (const x of [-3.2, 0.6]) sb(0.25, 0.5, 0.25, darkM, x, ROOF + 0.22, -3.6);
+        }
+        // Roof lanterns over the kitchen island
+        if (ex.island) for (const z of ex.island2 ? [-2.4, -0.6] : [-1.6]) {
+          sb(1.5, 0.3, 1.2, trimM, -1.5, ROOF + 0.22, z);
+          const ln = mesh(sg(new THREE.ConeGeometry(0.95, 0.55, 4)), glassM, -1.5, ROOF + 0.8, z); ln.rotation.y = PI / 4; ln.scale.z = 0.8; add(ln);
+        }
+      }
+    }
+
+    // ---- The back room: a plain storeroom front with a roller shutter, its own flat roof ----
+    const backM = sm('#55606b'), backTex = canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#5b6570'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(0,0,0,.18)'; for (let r = 0; r < 4; r++) c.fillRect(0, r * 16 + 15, w, 1); for (let r = 0; r < 4; r++) c.fillRect((r % 2) * 16 + 31, r * 16, 1, 16); });
+    backTex.wrapS = backTex.wrapT = THREE.RepeatWrapping; backTex.repeat.set(7, 3);
+    sb(7.0, 3.05, 0.22, sm('#ffffff', { map: backTex }), -8.2, 0, 4.66);
+    sb(3.2, 2.35, 0.08, darkM, -8.9, 0, 4.76);
+    sb(3.0, 2.2, 0.06, steelM, -8.9, 0, 4.8); for (let k = 0; k < 10; k++) sb(3.0, 0.03, 0.08, darkM, -8.9, 0.2 + k * 0.2, 4.83);
+    sb(3.3, 0.3, 0.3, steelM, -8.9, 2.3, 4.85);
+    sb(0.9, 2.0, 0.06, darkM, -6.0, 0, 4.8); sb(0.5, 0.18, 0.02, sm('#e8c02b'), -6.0, 1.6, 4.84); // STAFF ONLY plate
+    sb(0.3, 0.2, 0.25, darkM, -6.9, 2.5, 4.85); // a camera over the door
+    sb(7.2, 0.22, 9.6, backM, -8.2, 3.05, 0);
+    for (const [w, d, x, z] of [[7.3, 0.15, -8.2, 4.78], [7.3, 0.15, -8.2, -4.78], [0.15, 9.7, -11.78, 0]]) sb(w, 0.3, d, sm('#4a4550'), x, 3.27, z);
+    for (const [x, z] of [[-10.2, -2.5], [-9.0, 3.0]]) { sb(0.35, 0.45, 0.35, darkM, x, 3.27, z); sb(0.5, 0.06, 0.5, darkM, x, 3.72, z); }
+    // Benches: extractor fans; more benches: a run of ducting; the cellar: a grille in the pavement; the annex: a raised roof
+    if (ex.bench) for (const z of [-3.2, -1.6]) { sb(0.8, 0.35, 0.8, steelM, -10.4, 3.27, z); const fan = cyl(0.3, 0.3, 0.06, darkM, -10.4, 3.62, z, 16); shellGroup.add(fan); }
+    if (ex.bench3) { sb(4.2, 0.35, 0.35, steelM, -8.4, 3.27, -3.8); sb(0.35, 1.2, 0.35, steelM, -6.4, 3.27, -3.8); add(cyl(0.22, 0.22, 0.1, darkM, -6.4, 4.47, -3.8, 12)); }
+    if (ex.bench2) { sb(1.3, 0.04, 0.9, steelM, -10.6, 0, 5.4); for (let k = 0; k < 6; k++) sb(1.2, 0.02, 0.04, darkM, -10.6, 0.04, 5.05 + k * 0.14); }
+    if (ex.annex) {
+      sb(3.4, 1.0, 4.2, backM, -7.2, 3.27, 0.4); sb(3.5, 0.12, 4.3, sm('#4a4550'), -7.2, 4.27, 0.4);
+      sb(2.8, 0.45, 0.05, glassM, -7.2, 3.55, 2.52); sb(0.05, 0.45, 3.4, glassM, -5.48, 3.55, 0.4);
+    }
+
+    // ---- Out front and down the side: what the terraces and expansions add ----
+    const planter = (x, z) => { sb(0.7, 0.45, 0.7, sm(shade(P.color, 0.75)), x, 0, z); add(sphere(0.34, sm('#3f7a3a'), x, 0.75, z)); add(sphere(0.06, sm('#ff7eb6'), x + 0.15, 0.95, z + 0.2)); };
+    // (the terraces have their own railings) planters at their corners
+    if (ex.front) { planter(-5.0, 7.15); planter(4.4, 7.15); }
+    if (ex.side) { planter(7.15, -4.9); planter(7.15, 2.95); }
+    // Café parasols over the food carts
+    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) {
+      add(cyl(0.025, 0.025, 2.0, darkM, x, 0.3, 6.05, 6));
+      const pa = mesh(sg(new THREE.ConeGeometry(0.75, 0.32, 8)), awnM || sm(P.trim), x, 2.35, 6.05); add(pa);
+      add(sphere(0.05, goldM, x, 2.53, 6.05));
+    }
+    // A glazed lean-to down the side for the stalls, on slim posts with a gutter
+    if (ex.stalls) {
+      const lt = mesh(sg(new THREE.BoxGeometry(2.45, 0.05, 7.4)), awnM || glass({ emissiveIntensity: 0.2 }), 5.95, 2.5, -1.05); lt.rotation.z = -0.22; add(lt);
+      sb(0.1, 0.1, 7.4, darkM, 7.12, 2.18, -1.05);
+      for (const z of [-4.7, -3.25, -1.75, -0.25, 1.25, 2.6]) sb(0.07, 2.2, 0.07, darkM, 7.12, 0, z);
+      sb(0.12, 0.08, 7.5, trimM, 4.86, 2.72, -1.05);
+    }
   }
   // Zooming out past the normal view fades the building in; zooming back in shows the inside again
   function updateShell(s, dt) {
-    const want = view.design ? 0 : Math.max(0, Math.min(1, (0.85 - cam.zoom) / 0.2));
+    // Designing the outside shows the building whatever the zoom; any other design tab shows the inside
+    const want = view.design ? (view.design.cat === 'outside' && !view.design.back ? 1 : 0) : Math.max(0, Math.min(1, (0.85 - cam.zoom) / 0.2));
     shellK += (want - shellK) * Math.min(1, dt * 6);
-    if (shellK > 0.01) paintShell(s);
+    if (shellK > 0.01) buildShell(s);
     shellGroup.visible = shellK > 0.01;
+    insideOnly.visible = shellK < 0.5;
     const solid = shellK > 0.98;
     for (const m of shellMats) {
       m.opacity = shellK;
@@ -1317,8 +1565,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const expGroup = new THREE.Group(); scene.add(expGroup);
   let expSig = '';
   function syncExpansions(s) {
-    const ex = s.design.expansions || {};
-    const sig = JSON.stringify(ex);
+    const ex = s.design.expansions || {}, o = s.design.outside || {};
+    const sig = JSON.stringify([ex, o.paint, o.canopy]);
     if (sig === expSig) return;
     expSig = sig;
     expGroup.clear();
@@ -1326,16 +1574,28 @@ export function createScene(canvas, overlayEl, { onPick }) {
     const plank = mat('#b88452'), steel = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
     if (ex.island) { add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -2.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.65)); }
     if (ex.island2) add(box(2.6, 0.05, 1.05, plank, -1.5, 0, -1.1));
-    const canopy = (x, z, ry, a, b) => {
+    // Carts and stalls: low and neat (no tall frames to hide the machines), skirted in the shop's canopy stripes
+    // or its paint; their parasols and the stalls' lean-to roof are part of the zoomed-out building
+    const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy];
+    const skirt = C && C.a ? smat({ map: stripeTex(C.a, C.b), roughness: 0.8 }) : mat(P.color), topM = mat(P.trim), darkW = mat('#2b2d36');
+    // The machine stands on each one, so they stay low: a wheeled deck for a cart, a boarded platform for a stall
+    const cart = (x, z) => {
       const g = new THREE.Group();
-      g.add(mesh(new THREE.BoxGeometry(1.25, 0.05, 1.1), smat({ map: stripeTex(a, b), roughness: 0.8 }), 0, 2.25, 0));
-      for (const [dx, dz] of [[-0.55, -0.48], [0.55, -0.48], [-0.55, 0.48], [0.55, 0.48]]) g.add(box(0.04, 2.25, 0.04, '#3a3d44', dx, 0, dz));
-      g.add(box(1.15, 0.06, 0.95, '#a8703f', 0, 0, 0));
-      for (const dx of [-0.45, 0.45]) { const w = cyl(0.12, 0.12, 0.05, '#2b2d36', dx, 0.12, 0.5, 12); w.rotation.x = PI / 2; g.add(w); }
-      g.position.set(x, 0, z); g.rotation.y = ry; add(g);
+      g.add(mesh(geo('cartskirt', () => new THREE.BoxGeometry(1.2, 0.16, 1.0)), skirt, 0, 0.12, 0));
+      g.add(box(1.26, 0.04, 1.06, topM, 0, 0.2, 0));
+      for (const dx of [-0.45, 0.45]) for (const dz of [-0.52, 0.52]) { const w = cyl(0.13, 0.13, 0.05, darkW, dx, 0, dz, 14); w.rotation.x = PI / 2; w.position.y = 0.13; g.add(w); }
+      g.add(box(0.04, 0.6, 0.04, '#3a3d44', -0.62, 0.2, 0.4)); g.add(box(0.04, 0.6, 0.04, '#3a3d44', -0.62, 0.2, -0.4)); g.add(box(0.04, 0.04, 0.84, '#3a3d44', -0.62, 0.8, 0));
+      g.position.set(x, 0, z); add(g);
     };
-    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) canopy(x, 6.05, 0, '#e85d75', '#ffffff');
-    if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) canopy(6.05, z, PI / 2, '#4f8f48', '#f4f0e8');
+    const stall = (x, z) => {
+      const g = new THREE.Group();
+      g.add(box(1.3, 0.08, 1.1, '#a8703f', 0, 0, 0));
+      g.add(mesh(geo('stallskirt', () => new THREE.BoxGeometry(1.34, 0.12, 0.02)), skirt, 0, 0.06, 0.56));
+      g.add(box(1.34, 0.03, 1.14, topM, 0, 0.08, 0));
+      g.position.set(x, 0, z); g.rotation.y = PI / 2; add(g);
+    };
+    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) cart(x, 6.05);
+    if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) stall(6.05, z);
     if (ex.bench) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, -1.2));
     if (ex.bench3) add(box(2.7, 0.05, 1.0, steel, -8.95, 0, 0.1));
     if (ex.bench2) { add(box(0.8, 0.03, 0.8, '#2b2d36', -6.4, 0.005, -2.55)); for (const dx of [-0.25, 0.25]) add(box(0.04, 0.9, 0.04, '#8d939c', -6.4 + dx, 0, -2.25)); }

@@ -131,6 +131,40 @@ export const OUT_SIGN = {
   neon:    { level: 20, name: 'Neon',           price: 3000, bg: '#1d1528', fg: '#ff7eb6', glow: true, charm: 3 },
   gold:    { level: 40, name: 'Gold lettering', price: 9000, bg: '#1f2026', fg: '#d4af37', charm: 4 },
 };
+export const OUT_FINISH = {
+  render:   { level: 1,  name: 'Smooth render',  price: 0 },
+  brick:    { level: 5,  name: 'Brick',          price: 800,   charm: 1 },
+  cladding: { level: 10, name: 'Timber cladding', price: 1500, charm: 2 },
+  stone:    { level: 20, name: 'Stone',          price: 3000,  charm: 2 },
+  tiles:    { level: 30, name: 'Glazed tiles',   price: 5000,  charm: 3 },
+  marble:   { level: 50, name: 'Marble',         price: 15000, charm: 4 },
+};
+export const OUT_WINDOW = {
+  plain:    { level: 1,  name: 'Plain',          price: 0 },
+  georgian: { level: 6,  name: 'Georgian panes', price: 900,   charm: 1 },
+  arched:   { level: 14, name: 'Arched',         price: 2000,  charm: 2 },
+  stained:  { level: 28, name: 'Stained glass',  price: 5000,  charm: 3 },
+  neon:     { level: 40, name: 'Neon frames',    price: 9000,  charm: 3 },
+  gold:     { level: 70, name: 'Gold frames',    price: 30000, charm: 5 },
+};
+export const OUT_DOOR = {
+  wood:      { level: 1,  name: 'Wooden door',    price: 0,     color: '#7a4a2e' },
+  green:     { level: 4,  name: 'Shop green',     price: 400,   color: '#2f6b4f', charm: 1 },
+  red:       { level: 8,  name: 'Pillar-box red', price: 600,   color: '#c8323c', charm: 1 },
+  glass:     { level: 16, name: 'Glass door',     price: 2000,  color: '#2b2d36', charm: 2 },
+  victorian: { level: 26, name: 'Victorian',      price: 4000,  color: '#1f3a5c', charm: 2 },
+  revolving: { level: 45, name: 'Revolving door', price: 12000, color: '#c9ccd3', charm: 3 },
+  gold:      { level: 80, name: 'Gilded door',    price: 40000, color: '#d4af37', charm: 5 },
+};
+export const OUT_ROOF = {
+  felt:    { level: 1,  name: 'Flat felt',       price: 0,     color: '#5e5864' },
+  gravel:  { level: 5,  name: 'Gravel',          price: 500,   color: '#8d8a84' },
+  tiles:   { level: 12, name: 'Terracotta tiles', price: 2500, color: '#b5654a', pitched: true, charm: 2 },
+  slate:   { level: 20, name: 'Slate',           price: 4000,  color: '#4a5260', pitched: true, charm: 2 },
+  green:   { level: 30, name: 'Green roof',      price: 6000,  color: '#5f8f4a', charm: 3 },
+  solar:   { level: 40, name: 'Solar panels',    price: 10000, color: '#5e5864', charm: 2 },
+  terrace: { level: 55, name: 'Rooftop terrace', price: 20000, color: '#a8703f', charm: 4 },
+};
 export const OUT_EXTRAS = {
   boxes:    { level: 2,  name: 'Window boxes',    emoji: '🌺', price: 250,   charm: 1 },
   bay:      { level: 5,  name: 'Potted bay trees', emoji: '🌳', price: 600,  charm: 2 },
@@ -142,10 +176,11 @@ export const OUT_EXTRAS = {
 };
 export function outOf(s) {
   s.design.outside ||= { paint: 'cream', canopy: 'none', sign: 'none', extras: {} };
+  const o = s.design.outside; o.finish ||= 'render'; o.window ||= 'plain'; o.door ||= 'wood'; o.roof ||= 'felt';
   return s.design.outside;
 }
 export function setOutside(s, part, id) {
-  const T = { paint: OUT_PAINT, canopy: OUT_CANOPY, sign: OUT_SIGN }[part], o = outOf(s), f = T?.[id];
+  const T = { paint: OUT_PAINT, canopy: OUT_CANOPY, sign: OUT_SIGN, finish: OUT_FINISH, window: OUT_WINDOW, door: OUT_DOOR, roof: OUT_ROOF }[part], o = outOf(s), f = T?.[id];
   if (!f) return { msg: '' };
   if (!levelOk(s, f)) return lockMsg(f);
   if (o[part] === id) return { msg: 'You already have that.' };
@@ -163,6 +198,7 @@ export function toggleExtra(s, id) {
 export function outsideCharm(s) {
   const o = s.design.outside; if (!o) return 0;
   return (OUT_PAINT[o.paint]?.charm || 0) + (OUT_CANOPY[o.canopy]?.charm || 0) + (OUT_SIGN[o.sign]?.charm || 0)
+    + (OUT_FINISH[o.finish]?.charm || 0) + (OUT_WINDOW[o.window]?.charm || 0) + (OUT_DOOR[o.door]?.charm || 0) + (OUT_ROOF[o.roof]?.charm || 0)
     + Object.keys(o.extras || {}).reduce((a, k) => a + (OUT_EXTRAS[k]?.charm || 0), 0);
 }
 

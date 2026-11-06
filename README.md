@@ -277,8 +277,16 @@ Open **🎨 Design** any time:
 - **Walls**: wallpaper each wall panel.
 - **Decor**: place plants, tables, a piano, an aquarium, a carousel and more on the green squares. Tap one to move, turn or sell it (half back).
 - **Wall art**: paintings, mirrors, gold records and more on the wall panels.
-- **Outside**: each shop's paint, a canopy over the door, a shop sign (wooden, hand-painted, neon or gold) and extras
-  (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm.
+- **Outside**: each shop's paint, wall finish (render, brick, timber cladding, stone, glazed tiles, marble), windows
+  (plain, Georgian, arched, stained glass, neon or gold frames), front door (wood, green, red, glass, Victorian, revolving,
+  gilded), roof (felt, gravel, pitched terracotta or slate, a green roof, solar panels, a rooftop terrace), the awning
+  (its stripes also skirt the food carts and stalls), a shop sign (wooden, hand-painted, neon or gold) and extras
+  (window boxes, bay trees, a bike rack, a bench, bunting, lanterns, string lights). All of it adds charm, and the
+  Outside tab shows the building from outside while you choose.
+- **The building grows** when zoomed out: the front terrace gets a deeper awning and planters, the food carts café
+  parasols, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
+  back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the
+  flat upstairs adds a second storey to the stall.
 - **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for more machines.
   You can see them: an island counter, striped food carts and stall canopies, steel benches, a cellar hatch and the annex.
 

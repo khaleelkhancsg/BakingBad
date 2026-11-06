@@ -1124,16 +1124,20 @@ function designScreen() {
   } else if (dv.cat === 'outside') {
     const o = D.outOf(s);
     const sw = (part, id, f) => { const open = D.levelOk(s, f), on = o[part] === id;
-      const a = f.color || f.a || f.bg || '#3a3046', b = f.trim || f.b || f.fg || '#3a3046';
+      const a = f.color || f.a || f.bg || SWATCH[part]?.[id]?.[0] || '#3a3046', b = f.trim || f.b || f.fg || SWATCH[part]?.[id]?.[1] || a;
       return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-set" data-part="${part}" data-id="${id}" data-level="${f.level}" role="button">
         <span class="sw" style="background:linear-gradient(135deg, ${a} 0 50%, ${b} 50% 100%)"></span><small>${f.name}</small><small class="price">${open ? (f.price ? money(f.price) : 'free') : `🔒 Lv ${f.level}`}</small></div>`; };
     const label = t => `<div class="dlabel">${t}</div>`;
     items = label('Paint') + Object.entries(D.OUT_PAINT).map(([id, f]) => sw('paint', id, f)).join('')
-      + label('Door canopy') + Object.entries(D.OUT_CANOPY).map(([id, f]) => sw('canopy', id, f)).join('')
+      + label('Wall finish') + Object.entries(D.OUT_FINISH).map(([id, f]) => sw('finish', id, f)).join('')
+      + label('Windows') + Object.entries(D.OUT_WINDOW).map(([id, f]) => sw('window', id, f)).join('')
+      + label('Front door') + Object.entries(D.OUT_DOOR).map(([id, f]) => sw('door', id, f)).join('')
+      + label('Roof') + Object.entries(D.OUT_ROOF).map(([id, f]) => sw('roof', id, f)).join('')
+      + label('Awning') + Object.entries(D.OUT_CANOPY).map(([id, f]) => sw('canopy', id, f)).join('')
       + label('Shop sign') + Object.entries(D.OUT_SIGN).map(([id, f]) => sw('sign', id, f)).join('')
       + label('Extras') + Object.entries(D.OUT_EXTRAS).map(([id, f]) => { const open = D.levelOk(s, f), on = o.extras[id];
         return `<div class="ditem ${on ? 'on' : ''} ${open ? '' : 'locked'}" data-act="o-extra" data-id="${id}" data-level="${f.level}" role="button"><span class="em">${f.emoji}</span><small>${f.name}</small><small class="price">${!open ? `🔒 Lv ${f.level}` : on ? '✓ up · tap to remove' : money(f.price)}</small></div>`; }).join('');
-    hint = `The outside of ${G.shopDef(s).short}: paint, a canopy over the door, a sign and extras. All of it adds charm.`;
+    hint = `The outside of ${G.shopDef(s).short}: paint, walls, windows, door, roof, awning, sign and extras. All of it adds charm, and it shows when you zoom out.`;
   } else if (dv.cat === 'expand') {
     hint = dv.back ? `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more back-room machines.` : 'Expansions add squares to decorate and room for more machines.';
     items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots : !e.labSpots).map(([id, e]) => {
@@ -1197,6 +1201,12 @@ function backDesignScreen() {
   </div>`;
 }
 
+// Swatch colours for outside options that don't carry a colour of their own
+const SWATCH = {
+  finish: { render: ['#e9d8c4', '#d9c4aa'], brick: ['#a5523d', '#e6d8c4'], cladding: ['#c9a46a', '#8a6a3a'], stone: ['#b8ad9a', '#8c8475'], tiles: ['#4f9de8', '#f4f0e8'], marble: ['#ece8e2', '#9a9aa6'] },
+  window: { plain: ['#bfe6ff', '#fff0dc'], georgian: ['#bfe6ff', '#ffffff'], arched: ['#bfe6ff', '#c9a46a'], stained: ['#e85d75', '#4f9de8'], neon: ['#1d1528', '#ff4fa3'], gold: ['#bfe6ff', '#d4af37'] },
+  roof: { solar: ['#1d2a4a', '#8aa6d6'], terrace: ['#a8703f', '#3f7a3a'] },
+};
 function designTap(info) {
   const dv = ui.design;
   let r = null;
