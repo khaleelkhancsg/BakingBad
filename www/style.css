@@ -369,3 +369,7 @@ button.chip { cursor: pointer; }
 .modal.night .prog i { background: linear-gradient(90deg, #6a49b8, var(--violet)); }
 .modal .card .small { margin-left: 6px; }
 .modal input[type=range] { width: 100%; margin: 10px 0 4px; }
+/* Expansions: a swipeable row like everything else, so the dock stays short */
+.catalog.exp { flex-direction: row; overflow-x: auto; overflow-y: hidden;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+.catalog.exp .dexp { flex: 0 0 auto; width: 176px; }

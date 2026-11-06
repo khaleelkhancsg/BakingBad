@@ -624,8 +624,8 @@ function modalHTML() {
     const h = G.launderHeatFor(s, v);
     inner = `<h2>🧾 Put dirty cash through the till</h2>
       <p class="mute">Today's real takings are ${money(s.today.sales)}. Another <b>${money(G.launderLeft(s))}</b> can go through today without it looking odd. More than that and people notice.</p>
-      <input type="range" id="launder" min="0" max="${max}" step="10" value="${v}">
-      ${line(`Launder <b>${money(v)}</b>`, h ? `looks off: heat +${h}` : 'looks normal', h ? 'bad' : 'good')}
+      <input type="range" id="launder" min="0" max="${max}" step="1" value="${v}">
+      <div class="line"><span>Launder <b id="launder-val">${money(v)}</b></span><span id="launder-warn" class="${h ? 'bad' : 'good'}">${h ? `looks off: heat +${h}` : 'looks normal'}</span></div>
       <div class="row2" style="margin-top:10px"><button class="violet" data-act="launder" ${v ? '' : 'disabled'}>Launder it</button><button data-act="close">Cancel</button></div>`;
   } else if (m.type === 'levelup') {
     const L = m.level, list = unlocksAt(L);
@@ -924,7 +924,14 @@ app.addEventListener('click', e => {
   act(el);
 });
 app.addEventListener('input', e => {
-  if (e.target.id === 'launder' && ui.modal?.type === 'launder') { ui.modal.amount = Number(e.target.value); render(true); }
+  // Only the label changes while dragging, so the slider isn't redrawn under your finger
+  if (e.target.id === 'launder' && ui.modal?.type === 'launder') {
+    const v = ui.modal.amount = Number(e.target.value), h = G.launderHeatFor(s, v);
+    document.getElementById('launder-val').textContent = money(v);
+    const w = document.getElementById('launder-warn');
+    w.textContent = h ? `looks off: heat +${h}` : 'looks normal'; w.className = h ? 'bad' : 'good';
+    lastPointer = performance.now();
+  }
 });
 app.addEventListener('wheel', e => {
   const row = e.target.closest('.catalog, .dcats');
