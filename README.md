@@ -42,30 +42,53 @@ bigger batches and cover the hours you're out or asleep. Later recipes sell for 
 | 🍣 Sushi counter, 🍗 Rotisserie, 🍭 Sweet machine | 68, 76, 84 |
 | 👑 Grand patisserie | 92 |
 
-96 recipes in all. You can only own as many of each machine as your level allows, and only as many as you have room for:
+205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
 the kitchen island, food carts, side stalls and back-room benches (Design → Expand) add more spots. At the limit the buy
 button says "Reach level N to unlock additional ovens". The same goes for how many things you can sell at once, how
 many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
-Crew make idle play work: Priya the baker puts finished food in the case, Marco the head chef starts the same recipe
+When lots of machines crowd the screen, idle ones show as small dots. Crew make idle play work: Priya the baker puts finished food in the case, Marco the head chef starts the same recipe
 again whenever its tray has room, and Grace the manager keeps the ingredients topped up.
 
 ## The back room
 
 Say yes to Dez and the back room is yours. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
-buyers at the back door. All the products are made up.
+buyers at the back door after dark. The products are parodies of real ones; the "chemistry" is all game mechanics.
 
 | Machine | Products |
 |---|---|
-| ♨️ Burner (level 1) | 💜 Velvet, 💛 Velvet Gold (7) |
-| 🗜️ Press (20) | ⚡ Static, 😇 Halo (28) |
-| 🏺 Kiln (40) | 🌑 Nightshade, 🔆 Ember (48) |
-| 🔮 Chamber (65) | 🌌 Aurora, 🌘 Eclipse (78), 💠 Paragon (90) |
+| 🌿 Grow tent (1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
+| ♨️ Burner (4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
+| 💊 Pill press (12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
+| 🍄 Drying rack (16) | Magic Mushies, Golden Caps |
+| 🧱 Brick press (22) | Bricks, Snowman, Avalanche, Pure Paradise |
+| ⚗️ Still (28) | Purple Sip, Double Cup |
+| 🏺 Curing oven (30) | Rocky Road Hash, Moonrock |
+| 🧁 Edibles oven (34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
+| 🧪 Lab bench (42) | Rainbow Tabs, Blotter Art |
+| 🛢️ Mixing vat (50) | Donkey Dust, Party Balloons |
+| 🔮 Clean room (68) | Diamond Dust, Unicorn Tears, The Gold Standard |
 
-Pricier products have fewer buyers, take longer and draw more heat. Read what buyers say: undercover officers usually
-say something off. Jay sells to buyers you don't get to in time (he keeps 20%); Ash the lookout spots most officers;
-Sam bags finished cooks; Doc starts the next one. Put dirty cash through the till (up to 80% of today's real takings
-looks normal), or let Viv the accountant do it every morning.
+- **Purity** decides what a bag is worth (60% sells at the list price). It comes from the machine's tier, back-room
+  upgrades (scales, extractor hood, filters, purity tester), Doc and Pip.
+- **Cutting** (Pure, Light, Heavy) gives more bags from a cook, each worth less.
+- **Street rep** decides how many buyers come. Pure product raises it; cut or weak product and busts lower it.
+- **Turf** (🗺️): buy corners around town, from the estate to penthouse parties. Give each a product and stock it; they
+  sell while you're away, faster at night. Police sweeps and rival crews can take what's on a corner.
+- **Dez** buys anything you can't shift, at half price.
+- **Night crew**: Jay sells to buyers you miss (keeps 20%), Lena the host does it better (keeps 10%, never serves anyone
+  flagged), Ash spots officers, Sam bags finished cooks, Doc starts the next one, Kai keeps the corners stocked, DS Hale
+  tips you off about raids, Big Ron sees off rivals.
+
+Put dirty cash through the till (up to 80% of today's real takings looks normal), or let Viv the accountant do it every morning.
+
+## More to spend on
+
+- **Machine tiers**: every machine, in the kitchen and the back room, upgrades five times. Kitchen tiers cook faster
+  and make more servings; back-room tiers cook faster and purer.
+- **🏙️ Empire**: open Rosa's branches in eight other towns and grow each to level 10 for daily income, and buy property,
+  from the stall's pitch to the whole market.
+- More crew: Chen the sous chef (+10% servings) and Imogen the marketing director (campaigns run 50% longer).
 
 ## No game over
 

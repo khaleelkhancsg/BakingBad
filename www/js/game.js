@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, BRANCHES, BRANCH_MAX, BRANCH_GROW } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS } from './design.js';
 
 export const SAVE_VERSION = 3;
@@ -65,9 +65,12 @@ export const batchCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce(
 export const canMake = (s, id) => Object.entries(ITEMS[id].ing).every(([k, q]) => s.inv[k] >= q);
 export const batchesPossible = (s, id) => Math.min(...Object.entries(ITEMS[id].ing).map(([k, q]) => Math.floor(s.inv[k] / q)));
 export const missingCost = (s, id) => round2(Object.entries(ITEMS[id].ing).reduce((a, [k, q]) => a + Math.max(0, q - s.inv[k]) * ingPrice(s, k), 0));
-export const cookMs = (s, id) => Math.round(ITEMS[id].minutes * MIN * Math.max(0.5, 1 - eff(s, 'speed')));
+export const cookMs = (s, id, tier = 0) => Math.round(ITEMS[id].minutes * MIN * Math.max(0.5, 1 - eff(s, 'speed')) * (1 - TIERS.speed * tier));
+// How many servings a batch makes on a machine (its tier and the sous chef add more)
+export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1));
+const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
 export const spoilMs = (s, id) => Math.max(CFG.spoilMin, ITEMS[id].minutes) * MIN * (1 + eff(s, 'keep'));
-export const trayCap = (s, id) => ITEMS[id].servings * (CFG.trayBatches + eff(s, 'tray'));
+export const trayCap = (s, id) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray')));
 export const launderRatio = s => CFG.launderRatio + eff(s, 'launder');
 export const sealed = (s, t) => (s.sealedUntil || 0) > t;
 export const scandal = (s, t) => (s.scandalUntil || 0) > t;
@@ -189,19 +192,19 @@ export function startJob(s, idx, id, t, { autobuy = true, quiet = false } = {}) 
     for (const [k, q] of Object.entries(r.ing)) if (s.inv[k] < q) buyIngredient(s, k, q - s.inv[k], true);
   }
   for (const [k, q] of Object.entries(r.ing)) s.inv[k] -= q;
-  m.job = { item: id, start: t, dur: cookMs(s, id) };
+  m.job = { item: id, start: t, dur: cookMs(s, id, m.tier || 0) };
   m.last = id;
   return true;
 }
 export function collectJob(s, idx, t, { quiet = false } = {}) {
   const m = s.machines[idx];
   if (!m?.job || t < m.job.start + m.job.dur) return false;
-  const id = m.job.item, r = ITEMS[id];
-  if ((s.display[id] || 0) > 0 && (s.display[id] || 0) + r.servings > trayCap(s, id)) {
+  const id = m.job.item, r = ITEMS[id], n = servingsFor(s, id, m.tier || 0);
+  if ((s.display[id] || 0) > 0 && (s.display[id] || 0) + n > trayCap(s, id)) {
     if (!quiet) say(`The ${r.name.toLowerCase()} tray is full. Sell some first.`, 'bad');
     return false;
   }
-  s.display[id] = (s.display[id] || 0) + r.servings;
+  s.display[id] = (s.display[id] || 0) + n;
   if (!s.onMenu.includes(id) && s.onMenu.length < menuSlots(s)) s.onMenu.push(id);
   m.job = null;
   addXp(s, batchXp(id));
@@ -214,8 +217,20 @@ export function collectJob(s, idx, t, { quiet = false } = {}) {
 // Marco only cooks again what's on sale and will fit in its tray once it's done
 function chefRestart(s, idx, t) {
   const m = s.machines[idx], id = m.last;
-  if (!id || !menuOf(s).includes(id) || (s.display[id] || 0) + ITEMS[id].servings > trayCap(s, id)) return false;
+  if (!id || !menuOf(s).includes(id) || (s.display[id] || 0) + servingsFor(s, id, m.tier || 0) > trayCap(s, id)) return false;
   return startJob(s, idx, id, t, { quiet: true });
+}
+export const tierCost = (type, tier, lab = false) => Math.round(TYPES(lab)[type].price * TIERS.costMult * Math.pow(TIERS.costGrow, tier) / 10) * 10;
+export function upgradeMachine(s, idx, lab = false) {
+  const m = kitchenList(s, lab)[idx];
+  if (!m) return;
+  const tier = m.tier || 0;
+  if (tier >= TIERS.max) return say('That machine is fully upgraded.', 'bad');
+  const cost = tierCost(m.type, tier, lab), cash = machineCash(m.type, lab);
+  if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad');
+  s[cash] = round2(s[cash] - cost);
+  m.tier = tier + 1;
+  say(`${TYPES(lab)[m.type].name} upgraded to tier ${m.tier}.`, 'good');
 }
 export const repairCost = (type, lab = false) => Math.round(Math.max(300, TYPES(lab)[type].price) * CFG.repairShare / 10) * 10;
 export function repairMachine(s, idx, lab = false) {
@@ -233,29 +248,118 @@ export function startLab(s, idx, id, t, { quiet = false } = {}) {
   if (!m || !p || m.job || m.broken || p.machine !== m.type) return false;
   if (!unlocked(s, p.level)) { if (!quiet) say(`${p.name} unlocks at level ${p.level}.`, 'bad'); return false; }
   if (sealed(s, t)) { if (!quiet) say('The back room is sealed by the police.', 'bad'); return false; }
+  // Edibles also use bakery stock
+  if (p.ing) {
+    const short = Object.entries(p.ing).filter(([k, q]) => s.inv[k] < q);
+    const cost = round2(short.reduce((a, [k, q]) => a + (q - s.inv[k]) * ingPrice(s, k), 0));
+    if (short.length && s.clean < cost) { if (!quiet) say(`Not enough bakery stock for ${p.name}.`, 'bad'); return false; }
+  }
   if (!(s.kits[id] > 0) && !buyKit(s, s.dirty >= p.kit ? 'dirty' : 'clean', id, { quiet: true })) {
     if (!quiet) say(`No ${p.name} kits, and Dez won't sell you one right now.`, 'bad');
     return false;
   }
+  if (p.ing) for (const [k, q] of Object.entries(p.ing)) { if (s.inv[k] < q) buyIngredient(s, k, q - s.inv[k], true); s.inv[k] -= q; }
   s.kits[id]--;
-  m.job = { item: id, start: t, dur: p.minutes * MIN };
+  m.job = { item: id, start: t, dur: Math.round(p.minutes * MIN * (1 - TIERS.labSpeed * (m.tier || 0))) };
   m.last = id;
   return true;
 }
 export function collectLab(s, idx, t, { quiet = false } = {}) {
   const m = s.lab[idx];
   if (!m?.job || t < m.job.start + m.job.dur) return false;
-  const id = m.job.item, p = PRODUCTS[id];
-  const n = Math.round(p.bags * (1 + eff(s, 'bags')));
-  s.bags[id] = (s.bags[id] || 0) + n;
+  const id = m.job.item, p = PRODUCTS[id], cut = CUTS[s.cut[id] || 'none'];
+  const n = Math.round(p.bags * (1 + eff(s, 'bags')) * cut.bags);
+  const pur = clamp(labPurity(s, m) * cut.purity * (0.96 + rand() * 0.08), 0.2, 0.99);
+  const have = s.bags[id] || 0;
+  s.purity[id] = round2(((s.purity[id] ?? pur) * have + pur * n) / (have + n));
+  s.bags[id] = have + n;
   s.heat = clamp(s.heat + p.heat * (1 - eff(s, 'quiet')), 0, 100);
   s.lastLab = t;
   m.job = null;
   addXp(s, labXp(id));
   s.today.labBatches++;
-  if (!quiet) say(`+${n} ${p.name}`, 'good');
+  if (!quiet) say(`+${n} ${p.name} (${Math.round(pur * 100)}% pure)`, 'good');
   if (s.crew.chemist && m.last) startLab(s, idx, m.last, t, { quiet: true });
   return true;
+}
+
+// How pure a cook on this machine comes out, before cutting
+export const labPurity = (s, m) => clamp(CFG.purityBase + TIERS.labPurity * (m?.tier || 0) + eff(s, 'purity') + (s.crew.assistant ? 0.05 : 0) + (s.crew.chemist ? 0.05 : 0), 0.3, 0.99);
+export function setCut(s, id, cut) { if (CUTS[cut] && PRODUCTS[id]) s.cut[id] = cut; }
+// Dez buys anything you can't shift, at half what it's worth. No heat, no buyers.
+export function sellToDez(s, id, n) {
+  n = Math.min(n, s.bags[id] || 0);
+  if (n < 1) return say('Nothing to sell.', 'bad');
+  const cash = Math.round(n * PRODUCTS[id].price * purityMult(s.purity[id] ?? 0.6) * CFG.dezBuyback);
+  s.bags[id] -= n; s.dirty += cash; s.stats.nightCash = (s.stats.nightCash || 0) + cash;
+  addXp(s, Math.ceil(n * bagXp(id) / 2));
+  say(`Dez takes ${n} ${PRODUCTS[id].name} for £${cash.toLocaleString('en-GB')}.`, 'good');
+}
+
+// ---------- Turf: corners that sell while you're away ----------
+export const cornerOwned = (s, id) => !!s.corners[id];
+export function buyCorner(s, id) {
+  const c = CORNERS[id];
+  if (!c || s.corners[id] || !s.labUnlocked) return;
+  if (!unlocked(s, c.level)) return say(`${c.name} opens up at level ${c.level}.`, 'bad');
+  if (s.dirty < c.price) return say('Not enough dirty cash.', 'bad');
+  s.dirty -= c.price;
+  s.corners[id] = { product: null, stock: 0, acc: 0, soldToday: 0 };
+  say(`${c.emoji} ${c.name} is yours. Give it something to sell.`, 'good');
+}
+export function setCornerProduct(s, id, product) {
+  const k = s.corners[id];
+  if (!k || !PRODUCTS[product]) return;
+  if (k.product && k.product !== product && k.stock) { s.bags[k.product] = (s.bags[k.product] || 0) + k.stock; k.stock = 0; }
+  k.product = product;
+}
+export function stockCorner(s, id, n) {
+  const k = s.corners[id];
+  if (!k?.product) return say('Pick a product for that corner first.', 'bad');
+  n = Math.min(n, s.bags[k.product] || 0, CORNERS[id].cap - k.stock);
+  if (n < 1) return say((s.bags[k.product] || 0) < 1 ? `No ${PRODUCTS[k.product].name} to send.` : 'That corner is full.', 'bad');
+  s.bags[k.product] -= n; k.stock += n;
+}
+export function cornerRate(s, id, t) {
+  const c = CORNERS[id];
+  return c.rate * (isNight(t) ? CFG.cornerNightRate : CFG.cornerDayRate) * (0.5 + s.street / 100);
+}
+export const cornerBagPrice = (s, id, product) => Math.round(PRODUCTS[product].price * purityMult(s.purity[product] ?? 0.6) * CORNERS[id].mult * (1 - CFG.cornerCut));
+function runCorners(s, t0, t1, mins) {
+  for (const [id, k] of Object.entries(s.corners)) {
+    if (!k.product) continue;
+    // Kai keeps them topped up from the back room
+    if (s.crew.runner && k.stock < CORNERS[id].cap / 2 && (s.bags[k.product] || 0) > 0) {
+      const n = Math.min(s.bags[k.product], CORNERS[id].cap - k.stock); s.bags[k.product] -= n; k.stock += n;
+    }
+    if (k.stock <= 0) continue;
+    k.acc += cornerRate(s, id, t0) * mins / 60;
+    const n = Math.min(k.stock, Math.floor(k.acc));
+    if (n < 1) continue;
+    k.acc -= n; k.stock -= n; k.soldToday += n;
+    const cash = n * cornerBagPrice(s, id, k.product);
+    s.dirty += cash; s.stats.nightCash = (s.stats.nightCash || 0) + cash; s.stats.totalBags += n;
+    s.today.cornerSales += n; s.today.cornerCash += cash; s.today.nightSales += cash;
+    s.heat = clamp(s.heat + CFG.cornerHeat * n, 0, 100);
+    s.street = clamp(s.street + n * CFG.streetPerBag * ((s.purity[k.product] ?? 0.6) - 0.65) * 0.5, 0, 100);
+    addXp(s, Math.ceil(n * bagXp(k.product) / 2));
+  }
+}
+
+// ---------- Branches in other towns ----------
+export const branchLevel = (s, id) => s.branches[id] || 0;
+export const branchCost = (id, lvl) => (lvl === 0 ? BRANCHES[id].price : Math.round(BRANCHES[id].price * 0.5 * Math.pow(BRANCH_GROW, lvl - 1) / 100) * 100);
+export const branchIncome = s => Object.entries(s.branches || {}).reduce((a, [id, l]) => a + BRANCHES[id].income * l, 0);
+export function growBranch(s, id) {
+  const b = BRANCHES[id], lvl = branchLevel(s, id);
+  if (!b) return;
+  if (!unlocked(s, b.level)) return say(`${b.name} opens at level ${b.level}.`, 'bad');
+  if (lvl >= BRANCH_MAX) return say('That branch is as big as it gets.', 'bad');
+  const cost = branchCost(id, lvl);
+  if (s.clean < cost) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - cost); s.today.upgradesSpent += cost;
+  s.branches[id] = lvl + 1;
+  say(lvl ? `${b.emoji} Rosa's ${b.name} grows (level ${lvl + 1}): +£${b.income} a day.` : `${b.emoji} Rosa's opens in ${b.name}: +£${b.income} a day.`, 'good');
 }
 
 // ---------- Menu, ingredients, prices ----------
@@ -365,29 +469,30 @@ function customerVisit(s, t, showIt) {
 }
 
 // ---------- Night trade ----------
-export const copChance = (s, product = 'velvet') => CFG.copBase + s.heat * CFG.copPerHeat + (PRODUCTS[product]?.cop || 0);
-export const buyersPerHour = s => Math.min(CFG.buyersMax, CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers'));
+export const copChance = (s, product = 'homegrown') => CFG.copBase + s.heat * CFG.copPerHeat + (PRODUCTS[product]?.cop || 0);
+export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel * (s.level || 1), CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers')) * (0.5 + (s.street ?? CFG.streetStart) / 100);
 export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level));
 function buyerArrives(s, t) {
   const choices = {};
   for (const id of knownProducts(s)) choices[id] = PRODUCTS[id].share * ((s.bags[id] || 0) > 0 ? 2 : 1);
-  const product = weighted(choices) || 'velvet';
+  const product = weighted(choices) || 'homegrown';
   const cop = rand() < copChance(s, product);
   const offLine = cop ? rand() < 0.8 : rand() < 0.12;
   const hint = (has(s, 'camera') && (cop ? rand() < 0.5 : rand() < 0.05)) || (s.crew.lookout && (cop ? rand() < CFG.lookoutCatch : rand() < CFG.lookoutFalse));
-  const want = PRODUCTS[product].price > 100 ? 1 + (rand() < 0.4 ? 1 : 0) : 1 + Math.floor(rand() * 3);
+  const pr = PRODUCTS[product].price;
+  const want = pr <= 20 ? 2 + Math.floor(rand() * 5) : pr <= 60 ? 1 + Math.floor(rand() * 3) : pr <= 250 ? 1 + (rand() < 0.4 ? 1 : 0) : 1;
   s.door.push({ id: s.nextId++, name: pick(BUYER_NAMES), product, cop, hint, want, line: pick(offLine ? LINES.off : LINES.normal),
     arrive: t, patience: CFG.buyerPatienceMin * MIN, look: newLook() });
 }
 function courierArrives(s, t) {
   const stocked = knownProducts(s).filter(id => (s.bags[id] || 0) > 0);
-  const product = stocked.length ? pick(stocked) : 'velvet';
+  const product = stocked.length ? pick(stocked) : knownProducts(s)[0];
   const want = CFG.courierMin + Math.floor(rand() * (CFG.courierMax - CFG.courierMin + 1));
   s.door.push({ id: s.nextId++, name: "Dez's courier", courier: true, product, cop: false, hint: false, want,
     line: `Dez sent me. ${want} bags of ${PRODUCTS[product].name}, all at once, and I'm gone.`, arrive: t, patience: CFG.courierPatienceMin * MIN, look: newLook() });
   note(s, `📦 Dez's courier is at the back door for ${want} ${PRODUCTS[product].name}.`, 'info', t);
 }
-export const bagPrice = b => Math.round(PRODUCTS[b.product].price * (b.courier ? CFG.courierPremium : 1));
+export const bagPrice = (s, b) => Math.round(PRODUCTS[b.product].price * purityMult(s.purity[b.product] ?? 0.6) * (b.courier ? CFG.courierPremium : 1));
 // You serve a buyer yourself: full price, your own read of them.
 export function serveBuyer(s, id, push = false, t = s.clock) {
   const b = s.door.find(x => x.id === id);
@@ -401,7 +506,7 @@ export function serveBuyer(s, id, push = false, t = s.clock) {
     s.door = s.door.filter(x => x !== b); s.today.pushedAway++;
     return say(`${b.name} won't pay that and leaves.`, 'bad');
   }
-  sell(s, b, qty, Math.round(qty * bagPrice(b) * (push ? CFG.pushMult : 1)), t, false);
+  sell(s, b, qty, Math.round(qty * bagPrice(s, b) * (push ? CFG.pushMult : 1)), t, false);
 }
 function sell(s, b, qty, cash, t, byCrew) {
   s.door = s.door.filter(x => x !== b);
@@ -413,6 +518,7 @@ function sell(s, b, qty, cash, t, byCrew) {
   s.lastLab = t;
   s.stats.totalBags += qty;
   s.heat = clamp(s.heat + CFG.heatPerBag * qty, 0, 100);
+  s.street = clamp(s.street + qty * CFG.streetPerBag * ((s.purity[b.product] ?? 0.6) - 0.65), 0, 100);
   addXp(s, qty * bagXp(b.product) + (b.courier ? 30 : 0));
   if (b.courier) { td.couriers++; s.heat = clamp(s.heat + CFG.courierHeat, 0, 100); note(s, `📦 Courier order done: +£${cash}.`, 'good', t); }
   if (b.cop) {
@@ -432,17 +538,21 @@ export function turnAway(s, id) {
 function unattended(s, b, t) {
   const have = s.bags[b.product] || 0;
   if (b.courier) {
-    if (s.crew.driver && have >= b.want) return sell(s, b, b.want, Math.round(b.want * bagPrice(b)), t, true);
+    if (s.crew.driver && have >= b.want) return sell(s, b, b.want, Math.round(b.want * bagPrice(s, b)), t, true);
+  } else if (s.crew.host && have > 0 && !b.hint) {
+    // Lena reads people well and keeps less
+    const qty = Math.min(b.want, have);
+    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * (1 - CFG.hostCut)), t, true);
   } else if (s.crew.dealer && have > 0 && !(b.hint && s.crew.lookout)) {
     const qty = Math.min(b.want, have);
     s.today.jayWorked = true;
-    return sell(s, b, qty, Math.round(qty * bagPrice(b) * CFG.streetMult * (1 - CFG.dealerCut)), t, true);
+    return sell(s, b, qty, Math.round(qty * bagPrice(s, b) * CFG.streetMult * (1 - CFG.dealerCut)), t, true);
   }
   s.door = s.door.filter(x => x !== b);
   s.today.buyersLost++;
 }
 export const kitsLeftToday = s => Math.max(0, capAt(CAPS.kits, s.level) - s.today.kitsBought);
-export function buyKit(s, cash, product = 'velvet', { quiet = false } = {}) {
+export function buyKit(s, cash, product = 'homegrown', { quiet = false } = {}) {
   const p = PRODUCTS[product];
   if (!s.labUnlocked || !p) return false;
   if (!unlocked(s, p.level)) { if (!quiet) say(`${p.name} unlocks at level ${p.level}.`, 'bad'); return false; }
@@ -468,8 +578,8 @@ export function answerOffer(s, yes) {
   s.offerPending = false;
   if (yes) {
     s.labUnlocked = true;
-    s.kits.velvet = (s.kits.velvet || 0) + 1;
-    if (!s.lab.length) s.lab.push({ type: 'burner', spot: 0, job: null, last: null, broken: false });
+    s.kits.homegrown = (s.kits.homegrown || 0) + 1;
+    if (!s.lab.length) s.lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
     say('Dez drops off a kit and shows you the back room.', 'good');
   } else s.offerAfter = s.clock + 3 * DAY;
 }
@@ -519,7 +629,7 @@ export function startCampaign(s, id, t = s.clock) {
   if (c.once) s.rep = clamp(s.rep + c.once * (s.crew.pr ? 1.25 : 1), 0, 100);
   if (c.heat) s.heat = clamp(s.heat + c.heat, 0, 100);
   if (c.weeklyOnce) s.lastCharity = t;
-  s.campaigns = activeCampaigns(s, t).concat([{ id, until: t + c.hours * HOUR }]);
+  s.campaigns = activeCampaigns(s, t).concat([{ id, until: t + c.hours * HOUR * (s.crew.director ? 1.5 : 1) }]);
   say(`${c.emoji} ${c.name} is running.`, 'good');
 }
 
@@ -567,7 +677,7 @@ function freshLedger(s, t) {
   return { day: dayStart(t), sales: 0, itemsSold: 0, served: 0, missed: 0, pricedOut: 0, batches: 0, labBatches: 0, burnt: 0,
     ingSpent: 0, upgradesSpent: 0, laundered: 0, launderHeat: 0, nightSales: 0, bagsSold: 0, crewSales: 0, buyersServed: 0,
     buyersLost: 0, buyersTurned: 0, copsServed: 0, copsTurned: 0, couriers: 0, pushedAway: 0, kitsBought: 0, xp: 0, interest: 0,
-    rent: 0, wages: 0, nightWages: 0, income: 0, peakHeat: s.heat || 0, bribe: null, jayWorked: false, events: [] };
+    rent: 0, wages: 0, nightWages: 0, income: 0, peakHeat: s.heat || 0, bribe: null, jayWorked: false, cornerSales: 0, cornerCash: 0, events: [] };
 }
 function rollMarket(s) {
   s.event = null;
@@ -586,7 +696,7 @@ export function newGame(t = Date.now()) {
     level: 1, xp: 0, levelUps: [],
     recipes: [...START_RECIPES], onMenu: [...START_RECIPES], priceLevel: {}, display: {},
     machines: [{ type: 'oven', spot: 0, job: null, last: null }, { type: 'oven', spot: 1, job: null, last: null }, { type: 'mixer', spot: 5, job: null, last: null }],
-    lab: [], kits: {}, bags: {}, door: [],
+    lab: [], kits: {}, bags: {}, purity: {}, cut: {}, door: [], street: CFG.streetStart, corners: {}, branches: {},
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
@@ -605,6 +715,12 @@ export function newGame(t = Date.now()) {
 // Saves from before the real-time clock keep their progress; the clock starts now.
 export function migrate(s, t = Date.now()) {
   if (s.v === SAVE_VERSION) {
+    s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {}; s.branches ??= {};
+    for (const o of [s.kits, s.bags]) for (const id in o) if (!PRODUCTS[id]) delete o[id];
+    s.lab = s.lab.filter(m => LAB_MACHINES[m.type]);
+    s.door = s.door.filter(b => PRODUCTS[b.product]);
+    for (const m of s.lab) if (m.job && !PRODUCTS[m.job.item]) m.job = null;
+    if (s.today) { s.today.cornerSales ??= 0; s.today.cornerCash ??= 0; }
     for (const k in INGREDIENTS) { s.inv[k] ??= 0; s.market[k] ??= 1; }
     for (const id in ITEMS) { s.priceLevel[id] ||= 'normal'; s.display[id] ??= 0; }
     for (const r in CREW) s.crew[r] ??= false;
@@ -624,9 +740,8 @@ export function migrate(s, t = Date.now()) {
   for (const r in s.crew || {}) if (CREW[r]) n.crew[r] = !!s.crew[r];
   if (Array.isArray(s.machines)) n.machines = s.machines.filter(m => MACHINES[m.type]).map(m => ({ type: m.type, spot: m.spot, job: null, last: null, broken: !!m.broken }));
   if (n.labUnlocked) {
-    n.lab = [{ type: 'burner', spot: 0, job: null, last: null }];
-    n.kits = { velvet: typeof s.kits === 'number' ? s.kits : 0, gold: s.goldKits || 0 };
-    n.bags = { velvet: typeof s.bags === 'number' ? s.bags : 0, gold: s.gold || 0 };
+    n.lab = [{ type: 'tent', spot: 0, job: null, last: null, tier: 0 }];
+    n.kits = { homegrown: 2 };
   }
   if (s.design) n.design = s.design;
   n.stats = { ...n.stats, ...(s.stats || {}) };
@@ -686,6 +801,9 @@ function span(s, t0, t1, showIt) {
     if (s.night.rivalAt && t1 >= s.night.rivalAt) { s.night.rivalAt = null; rivalsStrike(s, t1); }
   } else s.buyAcc = 0;
   for (const b of [...s.door]) if (t1 >= b.arrive + b.patience) unattended(s, b, t1);
+  if (s.labUnlocked && !sealed(s, t0)) runCorners(s, t0, t1, mins);
+  // Street reputation drifts back to the middle
+  s.street += (s.street > CFG.streetHome ? -1 : 1) * Math.min(Math.abs(s.street - CFG.streetHome), CFG.streetDrift * mins / 60);
   // Heat cools; popularity drifts back to the middle; marketing and PR add a little
   const lyingLow = t1 - (s.lastLab || 0) > CFG.lieLowAfterHours * HOUR;
   s.heat = clamp(s.heat - (CFG.heatDecayPerHour * (s.crew.fixer ? 2 : 1) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
@@ -745,6 +863,8 @@ function bust(s, t, why) {
     for (const r of ['lookout', 'cook', 'muscle', 'chemist']) if (s.crew[r] && rand() < CFG.bustCrewQuit) { s.crew[r] = false; crew.push(`${CREW[r].name} quit`); }
   }
   s.stats.busts++;
+  s.street = clamp(s.street - CFG.streetBust, 0, 100);
+  for (const k of Object.values(s.corners)) k.stock = 0;
   note(s, `🚔 Busted. ${why} Fined £${Math.round(fineClean).toLocaleString('en-GB')} plus £${fineDirty.toLocaleString('en-GB')} of dirty cash. ${bags} bags and ${kits} kits seized. `
     + `Police tape on the back room for ${sealHours / 24} days. It's in the papers: popularity -${pop}.${lawyer ? ' Ms Okafor kept the damage down.' : ''}${crew.length ? ' ' + crew.join('; ') + '.' : ''}`, 'bad', t);
 }
@@ -791,7 +911,7 @@ function rollover(s, t) {
   // The accountant puts the safe amount through before the books close
   if (s.crew.accountant && s.dirty > 0) launder(s, Math.min(s.dirty, launderLeft(s)), true);
   // Bills
-  const rent = eff(s, 'noRent') ? 0 : CFG.rent, dayWages = crewWages(s, 'day'), income = eff(s, 'income');
+  const rent = eff(s, 'noRent') ? 0 : CFG.rent, dayWages = crewWages(s, 'day'), income = eff(s, 'income') + branchIncome(s);
   td.rent = rent; td.wages = dayWages; td.income = income;
   s.clean = round2(s.clean + income);
   const bill = rent + dayWages;
@@ -816,7 +936,7 @@ function rollover(s, t) {
   }
   if (td.bagsSold || td.labBatches) s.nightsActive++;
   // Police: raids and tax inspections, judged on how hot it got yesterday
-  const raid = td.peakHeat >= CFG.raidAt && rand() < (td.peakHeat - 50) / 100 * (1 - eff(s, 'tipoff'));
+  const raid = td.peakHeat >= CFG.raidAt && rand() < (td.peakHeat - 50) / 100 * (1 - eff(s, 'tipoff')) * (s.crew.copper ? 0.6 : 1);
   const product = Object.values(s.bags).reduce((a, b) => a + b, 0) + Object.values(s.kits).reduce((a, b) => a + b, 0);
   if (raid && product > 0 && rand() < (td.peakHeat - 60) / 60 * (1 - eff(s, 'hide'))) bust(s, t, 'A dawn raid found product in the back room.');
   else if (raid) {
@@ -831,6 +951,18 @@ function rollover(s, t) {
       s.clean = round2(s.clean - fine); s.heat = clamp(s.heat + 15, 0, 100);
       note(s, `🧾 A tax inspector went through the books. The takings didn't add up: fined £${Math.round(fine)}, heat +15.`, 'bad', t);
     } else { s.heat = clamp(s.heat - 8, 0, 100); note(s, '🧾 A tax inspector went through the books and found nothing. Heat -8.', 'good', t); }
+  }
+  // Corners: police sweeps and rival crews
+  for (const [id, k] of Object.entries(s.corners)) {
+    const c = CORNERS[id], sold = k.soldToday; k.soldToday = 0;
+    if (!sold) continue;
+    if (rand() < c.risk * (0.5 + s.heat / 100) * (s.crew.copper ? 0.5 : 1)) {
+      const lost = k.stock; k.stock = 0; s.heat = clamp(s.heat + CFG.cornerSweepHeat, 0, 100);
+      note(s, `🚓 Police swept ${c.name.toLowerCase()}: ${lost} bags seized. Heat +${CFG.cornerSweepHeat}.`, 'bad', t);
+    } else if (feature(s, 'rivals') && !s.crew.muscle && rand() < 0.03) {
+      const lost = k.stock; k.stock = 0;
+      note(s, `👥 A rival crew ran your people off ${c.name.toLowerCase()} and took ${lost} bags. Muscle would have helped.`, 'bad', t);
+    }
   }
   // The debt collectors, if you're behind
   if (s.arrears > 0 && !s.won) {

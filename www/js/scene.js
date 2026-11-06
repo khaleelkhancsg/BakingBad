@@ -425,9 +425,9 @@ function buildSteamer(tint) {
   };
 }
 // Back room: a press, a kiln and a chamber (all made up)
-function buildPress() {
+function buildPress(tint) {
   const g = new THREE.Group();
-  g.add(box(1.0, 0.85, 0.8, '#4a4d54', 0, 0, 0));
+  g.add(box(1.0, 0.85, 0.8, tint || '#4a4d54', 0, 0, 0));
   for (const x of [-0.38, 0.38]) g.add(box(0.08, 0.9, 0.08, '#2b2d36', x, 0.85, 0));
   g.add(box(0.9, 0.1, 0.4, '#2b2d36', 0, 1.72, 0));
   const plateM = emissiveMat('#3a2a55', '#b58cff');
@@ -477,7 +477,74 @@ function buildChamber() {
     },
   };
 }
-const BUILDERS = { oven: buildOven, mixer: buildMixer, fryer: buildFryer, drinks: buildDrinks, icecream: buildIcecream, grill: buildGrill,
+// A grow tent: a frame, reflective walls, plants that grow as the timer runs, and a grow light
+function buildTent() {
+  const g = new THREE.Group();
+  const frameM = mat('#2b2d36');
+  for (const [x, z] of [[-0.45, -0.38], [0.45, -0.38], [-0.45, 0.38], [0.45, 0.38]]) g.add(box(0.04, 1.6, 0.04, frameM, x, 0, z));
+  g.add(box(0.94, 0.04, 0.8, frameM, 0, 1.6, 0));
+  const wallM = smat({ color: '#d9dde3', metalness: 0.5, roughness: 0.35, transparent: true, opacity: 0.55 });
+  g.add(box(0.9, 1.55, 0.02, wallM, 0, 0.02, -0.38, false));
+  g.add(box(0.02, 1.55, 0.76, wallM, -0.45, 0.02, 0, false)); g.add(box(0.02, 1.55, 0.76, wallM, 0.45, 0.02, 0, false));
+  const lightM = emissiveMat('#f5e9ff', '#ff9cf2');
+  g.add(box(0.6, 0.05, 0.3, lightM, 0, 1.5, 0));
+  const plants = [];
+  for (const [x, z] of [[-0.2, -0.12], [0.2, -0.12], [-0.2, 0.18], [0.2, 0.18]]) {
+    g.add(cyl(0.11, 0.09, 0.16, '#3a2a1a', x, 0, z, 10));
+    const leaf = mesh(geo('leafcone', () => new THREE.ConeGeometry(0.16, 0.5, 7)), mat('#3f8a3a'), x, 0.42, z);
+    g.add(leaf); plants.push(leaf);
+  }
+  return {
+    group: g, anchor: V3(0, 2.05, 0), smoke: V3(0, 1.3, 0),
+    update(slot, dt, now) {
+      const f = slot.item ? (slot.done ? 1 : 0.2 + 0.8 * slot.t / slot.dur) : 0.15;
+      for (const l of plants) { l.scale.set(f, f, f); l.position.y = 0.16 + 0.25 * f; }
+      lightM.emissiveIntensity = slot.item ? 1.4 : 0.1;
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
+// A drying rack: shelves of trays that fill up as the batch dries
+function buildDryRack() {
+  const g = new THREE.Group();
+  const woodM = mat('#7d6448');
+  for (const [x, z] of [[-0.45, -0.3], [0.45, -0.3], [-0.45, 0.3], [0.45, 0.3]]) g.add(box(0.05, 1.5, 0.05, woodM, x, 0, z));
+  const trays = [];
+  for (let k = 0; k < 4; k++) {
+    g.add(box(0.92, 0.03, 0.62, '#c9b38a', 0, 0.25 + k * 0.35, 0));
+    const t = box(0.8, 0.05, 0.5, '#b89a72', 0, 0.28 + k * 0.35, 0); g.add(t); trays.push(t);
+  }
+  return {
+    group: g, anchor: V3(0, 1.95, 0), smoke: V3(0, 1.2, 0),
+    update(slot) {
+      const n = slot.item ? (slot.done ? 4 : Math.ceil(4 * slot.t / slot.dur)) : 0;
+      trays.forEach((t, k) => { t.visible = k < n; });
+      return slot.item && slot.done ? 'vapour' : null;
+    },
+  };
+}
+// A still: a copper pot, a column and a coil
+function buildStill(tint) {
+  const g = new THREE.Group();
+  g.add(box(1.0, 0.45, 0.8, '#3d424a', 0, 0, 0));
+  const copper = mat(tint || '#c87a4a', { metalness: 0.6, roughness: 0.35 });
+  const pot = sphere(0.32, copper, -0.15, 0.75, 0); pot.scale.set(1, 0.9, 1); g.add(pot);
+  g.add(cyl(0.06, 0.06, 0.6, copper, -0.15, 1.0, 0, 10));
+  g.add(cyl(0.035, 0.035, 0.5, copper, 0.1, 1.55, 0, 8)).rotation.z = PI / 2;
+  const coil = cyl(0.14, 0.14, 0.45, mat('#9aa0aa', { metalness: 0.5, roughness: 0.3 }), 0.32, 0.45, 0, 12); g.add(coil);
+  const dripM = emissiveMat('#3a1850', '#c07bff');
+  const drip = sphere(0.05, dripM, 0.32, 0.5, 0.18, false); g.add(drip);
+  return {
+    group: g, anchor: V3(0, 2.0, 0), smoke: V3(-0.15, 1.3, 0),
+    update(slot, dt, now) {
+      drip.visible = !!slot.item;
+      drip.position.y = 0.5 - ((now * 0.8) % 1) * 0.3;
+      dripM.emissiveIntensity = slot.item && slot.done ? 1.6 : 0.8;
+      return slot.item ? (slot.done ? 'vapour' : 'steam') : null;
+    },
+  };
+}
+const BUILDERS = { tent: buildTent, rack: buildDryRack, still: buildStill, oven: buildOven, mixer: buildMixer, fryer: buildFryer, drinks: buildDrinks, icecream: buildIcecream, grill: buildGrill,
   pizza: buildPizza, steamer: buildSteamer, burner: buildBurner, press: buildPress, kiln: buildKiln, chamber: buildChamber };
 
 // ---------- People ----------
@@ -1241,6 +1308,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   const customers = new Map(); // id -> { agent, shown, inside, leaving }
   const buyers = new Map();
   const reactions = []; // { agent, text, kind, until, id }
+  const browsers = []; let browserId = 1;
 
   // You: the baker. Walks to whatever you tap.
   const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(-8.4, 0, -1.2) };
@@ -1362,6 +1430,24 @@ export function createScene(canvas, overlayEl, { onPick }) {
       if (e.leaving && !e.inside && arrived) { scene.remove(e.agent.group); customers.delete(id); }
     }
 
+    // Browsers: visual only. More of them when the shop is busier.
+    if (view.zone === 'shop' && !view.design && browsers.length < 4 && Math.random() < dt * Math.min(0.25, G.customersPerHour(s, s.clock) / 3600 * 6)) {
+      const look = { skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 };
+      const tray = trays[Math.floor(Math.random() * trays.length)];
+      browsers.push({ agent: new Agent(scene, look, 'customer', OUTSIDE.clone()), stage: 0, tray, until: 0, id: 'w' + (browserId++) });
+    }
+    for (let i = browsers.length - 1; i >= 0; i--) {
+      const w = browsers[i], a = w.agent;
+      if (w.stage === 0) { a.target.copy(GAP); a.face = null; if (a.group.position.distanceTo(GAP) < 0.15) w.stage = 1; }
+      else if (w.stage === 1) { a.target.set(w.tray.x + (Math.random() - 0.5) * 0.2, 0, 2.6 + Math.random() * 0.5); a.face = PI; w.stage = 2; }
+      else if (w.stage === 2 && a.group.position.distanceTo(a.target) < 0.1) { w.stage = 3; w.until = now + 3 + Math.random() * 4; if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 2, id: 'r' + w.id }); }
+      else if (w.stage === 3 && now > w.until) { w.stage = 4; a.face = null; }
+      else if (w.stage === 4) { a.target.copy(GAP); if (a.group.position.distanceTo(GAP) < 0.15) w.stage = 5; }
+      else if (w.stage === 5) a.target.copy(OUTSIDE);
+      const arrived = a.update(dt);
+      if ((w.stage === 5 && arrived) || (view.zone !== 'shop' && w.stage < 2)) { scene.remove(a.group); browsers.splice(i, 1); }
+    }
+
     // Night buyers: in through the back door, wait, leave the same way.
     const liveB = new Set();
     s.door.forEach((b, k) => {
@@ -1399,14 +1485,16 @@ export function createScene(canvas, overlayEl, { onPick }) {
 
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
   const bubbleEls = new Map();
+  let bubbleScale = 1;
   const tmp = new THREE.Vector3();
   function toScreen(v) {
     tmp.copy(v).project(camera);
     return [(tmp.x + 1) / 2 * W, (1 - tmp.y) / 2 * H];
   }
   const fmtLeft = sec => sec < 60 ? `${Math.ceil(sec)}s` : sec < 3600 ? `${Math.ceil(sec / 60)}m` : `${Math.floor(sec / 3600)}h${String(Math.floor(sec % 3600 / 60)).padStart(2, '0')}`;
-  function slotBubble(st, slot, s, m) {
+  function slotBubble(st, slot, s, m, crowded) {
     const at = `data-act="machine" data-kind="${st.kind}" data-idx="${st.idx}"`;
+    if (!slot.item && !m.broken && crowded) return { html: '<b>＋</b>', cls: 'bub add mini', at };
     if (m.broken) return { html: '<span>🔧</span>', cls: 'bub burn', at };
     if (st.kind === 'night' && G.sealed(s, s.clock)) return { html: '<span>🚧</span>', cls: 'bub burn', at };
     if (!slot.item) return { html: `<b>＋</b>`, cls: 'bub add', at };
@@ -1418,11 +1506,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
   function updateOverlay(s, now) {
     const want = new Map();
     if (!view.design) {
-      for (const st of stations) {
-        if ((st.kind === 'day') !== (view.zone === 'shop')) continue;
+      const here = stations.filter(st => (st.kind === 'day') === (view.zone === 'shop'));
+      const crowded = here.length > 7;
+      bubbleScale = Math.max(0.6, Math.min(1, (crowded ? 0.8 : 1) * (0.75 + 0.25 * cam.zoom)));
+      for (const st of here) {
         const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];
         if (!m) continue;
-        const b = slotBubble(st, G.jobView(s, m, s.clock, st.kind === 'night'), s, m);
+        const b = slotBubble(st, G.jobView(s, m, s.clock, st.kind === 'night'), s, m, crowded);
         if (b) want.set(`s-${st.kind}-${st.idx}`, { ...b, pos: st.anchorW });
       }
       const nowMs = Date.now();
@@ -1463,12 +1553,13 @@ export function createScene(canvas, overlayEl, { onPick }) {
       }
       if (b.p !== undefined) el.style.setProperty('--p', `${(b.p * 100).toFixed(1)}%`);
       const [x, y] = toScreen(b.pos);
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      const sc = b.cls.includes('react') || b.cls.includes('buyer') ? 1 : bubbleScale;
+      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%) scale(${sc.toFixed(2)})`;
     }
   }
 
   // ---------- Per-frame state sync ----------
-  let traySig = '';
+  let traySig = '', bagTint = null;
   function syncState(s, dt, now) {
     syncDesign(s, now);
     const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot]), s.lab.map(m => [m.type, m.spot])]);
@@ -1520,6 +1611,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
     cash.forEach((c, k) => { c.visible = k < Math.min(12, Math.ceil(s.dirty / 150)); });
     const bagsN = Object.values(s.bags).reduce((a, b) => a + b, 0), kitsN = Object.values(s.kits).reduce((a, b) => a + b, 0);
     bagPile.forEach((b, k) => { b.visible = k < Math.min(24, bagsN); });
+    const top = Object.entries(s.bags).sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (top !== bagTint) { bagTint = top; const c = new THREE.Color().setHSL(((top || 'x').split('').reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 360) / 360, 0.6, 0.7); for (const b of bagPile) b.material.color.copy(c); }
     kitsBoxes.forEach((b, k) => { b.visible = k < Math.min(8, kitsN); });
     camGroup.visible = G.has(s, 'camera');
     camLed.color.set(Math.sin(now * 4) > 0 ? '#ff3a3a' : '#551111');

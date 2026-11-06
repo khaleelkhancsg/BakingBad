@@ -100,6 +100,8 @@ export const EXPANSIONS = {
   island2: { level: 30, name: 'Bigger island', desc: 'The island grows: room for 2 more machines.', price: 9000, spots: 2, needs: 'island' },
   stalls:  { level: 36, name: 'Side stalls',   desc: 'Room for 5 machines on stalls down the side terrace.', price: 12000, spots: 5, needs: 'side' },
   bench2:  { level: 50, name: 'The cellar',    desc: 'A cellar under the back room: room for 1 more machine.', price: 25000, labSpots: 1 },
+  bench3:  { level: 32, name: 'More benches',  desc: 'A second row of benches in the back room: room for 2 more machines.', price: 14000, labSpots: 2, needs: 'bench' },
+  annex:   { level: 44, name: 'The annex',     desc: 'Knock through to the storeroom: room for 4 more back-room machines.', price: 40000, labSpots: 4, needs: 'bench3' },
 };
 export const SELL_BACK = 0.5;
 export const REPAIR_TILE = 8, REPAIR_PANEL = 12; // fixing damage costs at least this, even with a free style

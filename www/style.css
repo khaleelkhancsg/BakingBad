@@ -373,3 +373,19 @@ button.chip { cursor: pointer; }
 .catalog.exp { flex-direction: row; overflow-x: auto; overflow-y: hidden;
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
 .catalog.exp .dexp { flex: 0 0 auto; width: 176px; }
+
+/* Lots of machines: idle bubbles shrink to small dots */
+.bub { transform-origin: 50% 100%; }
+.bub.add.mini { min-width: 20px; height: 20px; font-size: 11px; padding: 0; border-width: 1.5px; animation: none; opacity: .85; }
+.mrow.tierrow { border-style: dashed; }
+/* Phones: a slimmer top bar */
+@media (max-width: 430px) {
+  #app .hud { padding: 6px 6px 0; }
+  .badge { font-size: 12px; padding: 3px 7px; gap: 4px; border-radius: 10px; }
+  .badge.daybadge { padding: 4px 10px 5px; }
+  .badge.daybadge b { font-size: 15px; }
+  .badge.daybadge small { font-size: 11px; }
+  .hud-row.stats { gap: 4px; margin-top: 4px; }
+  .meter { width: 40px; } .meter.xp { width: 30px; }
+  .hud-right { gap: 4px; }
+}

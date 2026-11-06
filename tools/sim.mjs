@@ -2,7 +2,7 @@
 // node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs] [days]
 import * as G from '../www/js/game.js';
 import * as D from '../www/js/design.js';
-import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS } from '../www/js/data.js';
+import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, BRANCHES, TIERS } from '../www/js/data.js';
 G.onToast(() => {});
 
 const RUNS = Number(process.argv[2]) || 6;
@@ -86,6 +86,11 @@ function checkIn(s, st, t, next) {
   hireIf('manager', spare() > 6000);
   for (const [id, c] of Object.entries(CAMPAIGNS)) if (!G.campaignBlock(s, id, t) && c.price < spare() * 0.05) G.startCampaign(s, id, t);
   placeSomeDecor(s);
+  // Machine tiers and branches once there's money to spare
+  s.machines.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0) < spare() * 0.15) G.upgradeMachine(s, i); });
+  for (const id of Object.keys(BRANCHES)) if (G.unlocked(s, BRANCHES[id].level) && G.branchCost(id, G.branchLevel(s, id)) < spare() * 0.3) G.growBranch(s, id);
+  hireIf('souschef', spare() > 8000);
+  hireIf('director', spare() > 20000);
   // Pay down the debt with anything well beyond what we need
   if (!s.won && spare() > 6000) G.payBank(s, spare() - 4000);
   if (G.restructureReady(s)) G.restructure(s);
@@ -107,6 +112,19 @@ function checkIn(s, st, t, next) {
   hireIf('driver', s.dirty > 4000);
   hireIf('lawyer', s.dirty > 8000);
   hireIf('accountant', spare() > 6000);
+  hireIf('host', s.dirty > 2000);
+  hireIf('runner', s.dirty > 1500 && Object.keys(s.corners).length > 0);
+  hireIf('assistant', s.dirty > 3000);
+  hireIf('copper', s.dirty > 10000);
+  s.lab.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0, true) < (G.machineCash(m.type, true) === 'dirty' ? s.dirty * 0.2 : spare() * 0.15)) G.upgradeMachine(s, i, true); });
+  // Corners: buy what we can afford, give each the product we have most of, keep them stocked
+  for (const [id, c] of Object.entries(CORNERS)) if (!s.corners[id] && G.unlocked(s, c.level) && c.price < s.dirty * 0.4) G.buyCorner(s, id);
+  for (const id of Object.keys(s.corners)) {
+    const k = s.corners[id];
+    const best = Object.keys(s.bags).filter(p => s.bags[p] > 0).sort((a, b) => PRODUCTS[b].price * s.bags[b] - PRODUCTS[a].price * s.bags[a])[0];
+    if (!k.product || (!k.stock && best && best !== k.product)) { if (best) G.setCornerProduct(s, id, best); }
+    if (k.product && s.bags[k.product] > 0) G.stockCorner(s, id, Math.floor(s.bags[k.product] / 2));
+  }
   for (const type of Object.keys(LAB_MACHINES)) { const cash = G.machineCash(type, true); if (!G.machineBlock(s, type, true) && G.machinePrice(s, type, true) < (cash === 'dirty' ? s.dirty * 0.5 : spare() * 0.3)) G.buyMachine(s, type, true); }
   if (s.heat >= st.bribeAt && s.dirty > CFG.bribeCost * 2) G.bribe(s);
   const cool = s.heat >= st.coolAt;
