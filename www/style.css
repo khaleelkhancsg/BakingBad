@@ -575,3 +575,11 @@ button.big { padding: 11px; font-size: 15px; }
 .gradeRow b { display: block; font-size: 24px; line-height: 1.1; }
 .gradeRow small { color: var(--mute); font-size: 11px; }
 .gA, .gB { color: var(--good); } .gC { color: var(--meh); } .gD, .gF { color: var(--bad); }
+
+/* The door between the shop and the back room */
+.bub.door { flex-direction: column; gap: 0; min-width: 40px; height: 40px; border-color: rgba(169, 139, 224, .7); background: #241a36; }
+.bub.door span { font-size: 15px; line-height: 1; }
+.bub.door small { font-size: 9px; color: var(--text); }
+.ptile.doorTile { flex-direction: row; justify-content: center; gap: 8px; grid-column: 1 / -1; padding: 9px; }
+.ptile.doorTile small { font-size: 12px; }
+.ptile.doorTile.night { background: #261c3a; border-color: rgba(169, 139, 224, .25); }

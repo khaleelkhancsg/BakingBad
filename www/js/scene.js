@@ -751,6 +751,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   wallZ(3.65, 4.6, -4.6, shopWall, shopWain, partition);
   partition.add(box(0.2, 0.9, 1.1, shopWall, -4.6, 2.1, 3.1));
   const innerDoor = box(0.06, 2.05, 1.05, '#7a4a2e', -4.6, 0, 3.1); partition.add(innerDoor);
+  innerDoor.userData = { act: 'room' };
   partition.add(box(0.1, 0.12, 0.1, '#e0c070', -4.53, 1.0, 2.75));
   const capM = mat('#d9d3c8');
   partition.add(box(0.34, 0.12, 9.3, capM, -4.6, 3.0, -0.05));
@@ -1289,6 +1290,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
     s.machines.forEach((m, i) => add(m, i, 'day'));
     s.lab.forEach((m, i) => add(m, i, 'night'));
     navGrid = null;
+    if (s.labUnlocked && !pickables.includes(innerDoor)) pickables.push(innerDoor);
   }
 
   // ---------- Particles (steam, smoke, vapour) ----------
@@ -1578,6 +1580,7 @@ export function createScene(canvas, overlayEl, { onPick }) {
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
   const bubbleEls = new Map();
   let bubbleScale = 1;
+  const DOOR_BUB = V3(-4.6, 2.35, 3.1);
   const tmp = new THREE.Vector3();
   function toScreen(v) {
     tmp.copy(v).project(camera);
@@ -1613,6 +1616,8 @@ export function createScene(canvas, overlayEl, { onPick }) {
         if (!c || e.shown || !e.inside || !ITEMS[c.want]) continue;
         want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
       }
+      // The door between the shop and the back room
+      if (s.labUnlocked) want.set('door', { html: view.zone === 'shop' ? '<span>🚪</span><small>Back</small>' : '<span>☀️</span><small>Shop</small>', cls: 'bub door', at: 'data-act="room"', pos: DOOR_BUB });
       if (view.zone === 'back') {
         for (const b of s.door) {
           const e = buyers.get(b.id);

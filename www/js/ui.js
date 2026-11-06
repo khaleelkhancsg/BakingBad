@@ -774,9 +774,10 @@ const TABS = {
   logistics: { label: 'Logistics', emoji: '🚚', fn: () => logisticsTab(), night: true },
 };
 function menuGroups() {
-  const groups = [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank']]];
-  if (s.labUnlocked) groups.push(['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]]);
-  return groups;
+  const dark = ['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]];
+  const business = ['Business', ['marketing', 'shops', 'bank']];
+  if (ui.room === 'back' && s.labUnlocked) return [dark, business];
+  return [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], business];
 }
 const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && doorTotal() ? doorTotal() : id === 'bank' && s.hmrc > 1 ? '!' : '');
 function openTab(id) {
@@ -794,7 +795,8 @@ function fabsHTML() {
   </div>`;
 }
 function menuPanel() {
-  return `<div class="panel menupanel">${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
+  const door = s.labUnlocked ? `<button class="ptile doorTile ${ui.room === 'back' ? '' : 'night'}" data-act="room"><span>${ui.room === 'back' ? '☀️' : '🚪'}</span><small>${ui.room === 'back' ? 'To the shop' : 'Back room'}</small>${ui.room !== 'back' && doorTotal() ? `<i>${doorTotal()}</i>` : ''}</button>` : '';
+  return `<div class="panel menupanel">${door ? `<div class="pgroup"><div class="pgrid">${door}</div></div>` : ''}${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
     <div class="pgrid">${ids.map(id => `<button class="ptile ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}"><span>${TABS[id].emoji}</span><small>${TABS[id].label}</small>${tabBadge(id) ? `<i>${tabBadge(id)}</i>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
 }
 function mapPanel() {
@@ -1023,7 +1025,7 @@ function modalHTML() {
 
 // ---------- Design mode ----------
 const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null };
-const openDesign = () => { ui.design = { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; ui.room = 'shop'; };
+const openDesign = () => { ui.design = ui.room === 'back' ? { cat: 'expand', item: null, sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
 
 function swatch(id, f, on, kind) {
   const [a, b] = f.colors, open = D.levelOk(s, f);
@@ -1039,7 +1041,7 @@ function emojiItem(id, d, on, kind) {
 
 function designScreen() {
   const dv = ui.design;
-  const cats = [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
+  const cats = dv.back ? [['expand', '💜 Back-room layout']] : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
   if (dv.cat === 'floor') {
@@ -1076,8 +1078,8 @@ function designScreen() {
       + `<div class="ditem ${dv.item === 'remove' ? 'on' : ''}" data-act="d-item" data-id="remove" role="button"><span class="em">🗑️</span><small>Take down</small><small class="price">half back</small></div>`;
     hint = dv.item === 'remove' ? 'Tap a panel to take its art down.' : `Tap a green wall panel to hang a <b>${D.ART[dv.item].name}</b>.`;
   } else if (dv.cat === 'expand') {
-    hint = 'Expansions add squares to decorate and room for more machines.';
-    items = Object.entries(D.EXPANSIONS).map(([id, e]) => {
+    hint = dv.back ? `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more back-room machines.` : 'Expansions add squares to decorate and room for more machines.';
+    items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots : !e.labSpots).map(([id, e]) => {
       const owned = s.design.expansions[id];
       const what = e.cells ? `${e.cells} squares` : e.spots ? `${e.spots} machine spots` : `${e.labSpots} back-room spots`;
       const btn = owned ? '<span class="good">✓ Yours</span>' : !D.levelOk(s, e) ? `<span class="lock">🔒 Lv ${e.level}</span>`
@@ -1204,7 +1206,12 @@ function act(el) {
     case 'dock-close': ui.tab = null; break;
     case 'map-go': G.viewShop(s, Number(id)); ui.room = 'shop'; ui.panel = null; if (ui.tab && TABS[ui.tab].night) ui.tab = null; break;
     case 'go-back': if (id !== undefined) G.viewShop(s, Number(id)); ui.room = 'back'; ui.panel = null; ui.tab = 'back'; break;
-    case 'room': ui.room = ui.room === 'back' ? 'shop' : 'back'; if (ui.room === 'back') ui.tab = 'back'; else if (ui.tab === 'back') ui.tab = null; break;
+    case 'room':
+      if (!s.labUnlocked) break;
+      ui.room = ui.room === 'back' ? 'shop' : 'back';
+      if (ui.tab && (ui.room === 'back') !== !!TABS[ui.tab]?.night) ui.tab = null;
+      ui.panel = null;
+      break;
     case 'intro-ok': s.introSeen = true; break;
     // Kitchen
     case 'machine': {

@@ -9,8 +9,8 @@ It's a 3D game: you look down into the shop at an angle. The bakery has ovens, m
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
 (or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
 
-A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Three buttons sit in the bottom-right corner: **☰ Menu** (everything, grouped into the bakery, business and after
-dark), **🎨 Design**, and **🗺️ Map** to move between your shops and the back room.
+A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: the bakery and business; in the back room: after dark and
+business), **🎨 Design** (in the back room: its benches, cellar and annex), and **🗺️ Map** to move between your shops and the back room.
 
 ## The real clock
 
