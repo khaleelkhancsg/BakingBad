@@ -57,8 +57,9 @@ again whenever its tray has room, and Grace the manager keeps the ingredients to
 
 ## The back room
 
-Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own, with its own
-machines and its own back door (bags, kits, heat, turf and laundering are shared across the business). Buy kits from Dez, cook them on the back-room machines, and sell the bags to
+Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own with its own
+machines, but only the stall has buyers: branch back rooms pack what they make into Rosa's vans, which drive it to
+the stall under the bakery's own deliveries (see Logistics). Bags, kits, heat, turf and laundering are shared. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
 buyers at the back door after dark. The products are parodies of real ones; the "chemistry" is all game mechanics.
 
 | Machine (back room of) | Products |
@@ -86,6 +87,16 @@ buyers at the back door after dark. The products are parodies of real ones; the 
   flagged), Ash spots officers, Sam bags finished cooks, Doc starts the next one, Kai keeps the corners stocked, DS Hale
   tips you off about raids, Big Ron sees off rivals.
 
+
+## Logistics
+
+- **Vans** (Menu → 🚚 Logistics): the first comes with your first branch. Buy more as you level up, make them bigger,
+  and fit hidden compartments. A run takes 1 hour from the café up to 4 from the maison.
+- **Stop and search**: any run can be stopped (more likely when heat is high or the load is big). If police find the
+  load it's seized, the van impounded for two days and the driver arrested. Marnie the dispatcher sends vans for you.
+- **Delivery rounds** (level 45): buyers phone instead of knocking and riders take the product to them. Most undercover
+  officers never get past the call, there's less heat around the stall, raids are less likely and buyers pay 10% more,
+  but riders can be stopped and searched or walk into a sting: the bags are lost and the rider arrested.
 
 ## Clean and dirty money
 

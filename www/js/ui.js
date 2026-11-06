@@ -2,7 +2,7 @@
 // opens in the evening, and when you come back the game plays forward the time you were away.
 import * as G from './game.js';
 import { CFG, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, CREW, FEATURES, MACHINES, LAB_MACHINES, PRODUCTS, PROPERTY,
-         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS } from './data.js';
+         CAPS, capAt, nextCap, CAMPAIGNS, GROUP_TEXT, CUTS, purityMult, TIERS, CORNERS, SHOPS, FAMILIES, TAX, DECLARE, MILESTONES, CRITIC, WASH, FRONTS, VANS, DELIVERY } from './data.js';
 import { createScene } from './scene.js';
 import * as D from './design.js';
 
@@ -196,6 +196,12 @@ function backTab() {
     cards += pcard(`<div class="ptop"><span class="em">${b.courier ? '📦' : '👤'}</span><div><b>${b.name}${b.hint ? ' 📷' : ''}</b><small>${p.emoji} ${p.name} ×${b.want} · ${secs(left)}</small></div></div>
       <div class="pbtns"><button class="small violet" data-act="buyer" data-id="${b.id}">Answer</button></div>`, '', `night ${b.hint ? 'flagged' : ''}`);
   }
+  // A branch back room packs for the stall
+  if (s.cur) {
+    const st = s.stock, n = G.packed(s, s.cur);
+    cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${VANS.travelHours[Math.min(s.cur, 4)]}h to the stall</small></div></div>
+      <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button><button class="small" data-act="tab" data-id="logistics">Fleet</button></div>`, ibtn('vans', 'x'), 'wide night');
+  }
   // Street reputation
   const stCls = s.street < 25 ? 'hot' : s.street < 45 ? 'warm' : '';
   cards += pcard(`<div class="ptop"><span class="em">🗣️</span><div><b>Street rep ${Math.round(s.street)}</b><small>≈ ${Math.round(G.buyersPerHour(s))} buyers an hour after dark</small></div></div>
@@ -238,7 +244,9 @@ function backTab() {
     <div class="pbtns"><button class="small violet" data-act="tab" data-id="turf">Corners</button></div>`, '', 'night');
   cards += FEATURES.filter(f => ['haggle', 'courier', 'rivals'].includes(f.id) && !G.unlocked(s, f.level)).map(f => pcard(`<div class="ptop"><span class="em">${{ haggle: '🤝', courier: '🚚', rivals: '👥' }[f.id]}</span><div><b>${f.name}</b><small>coming up</small></div></div>
       ${lockTag(f.level)}`, ibtn('feature', f.id), 'night locked')).join('');
-  const hint = G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
+  const hint = s.cur ? `This back room cooks for the stall: what it makes is packed into Rosa's vans and driven to the stall's back room under the bread. Buyers only come to the stall.`
+    : G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
+    : s.delivery.on ? `Delivery round on: ${s.delivery.riders} riders${s.delivery.out ? ` (${s.delivery.out} arrested)` : ''}, ${s.deliveries.length} out on drops. Buyers phone instead of knocking.`
     : doorOpen(t) ? `The back door is open until 7am. ${s.door.length ? `${s.door.length} waiting.` : 'Nobody at the door right now.'}`
     : `Cook any time. Buyers come to the back door from 6pm to 7am (opens in ${mins((G.nextNightStart(t) - t) / MIN)}).`;
   const where = `${G.shopDef(s).short}'s back room takes ${labHere.map(k => LAB_MACHINES[k].emoji + ' ' + LAB_MACHINES[k].name.toLowerCase()).join(', ')}. `;
@@ -269,6 +277,33 @@ function turfTab() {
   }
   const out = Object.values(s.corners).reduce((a, k) => a + k.stock, 0);
   return { cards, hint: `Corners sell while you're away: faster at night, and faster with a good street rep. ${out} bags out on the street.${s.crew.runner ? ' Kai keeps them stocked.' : ' Kai the runner (Crew) restocks them for you.'}` };
+}
+
+function logisticsTab() {
+  const t = s.clock, v = s.vans;
+  let cards = '';
+  const nx = nextCap(VANS.caps, s.level);
+  cards += pcard(`<div class="ptop"><span class="em">🚚</span><div><b>${v.count} van${v.count === 1 ? '' : 's'}</b><small>${G.vansFree(s)} free · ${s.shipments.length} on the road${v.impounded.filter(u => u > t).length ? ` · ${v.impounded.filter(u => u > t).length} impounded` : ''}<br>${G.vanCapacity(s)} bags a run</small></div></div>
+    <div class="pbtns">${v.count < G.vanCap(s) ? `<button class="small primary" data-act="van-buy" ${s.clean >= VANS.price * (1 + v.count) ? '' : 'disabled'}>+1 · ${money(VANS.price * (1 + v.count))}</button>` : `<div class="lockline">${nx ? `Level ${nx.level}: ${nx.amount} vans` : 'Full fleet'}</div>`}</div>`, ibtn('vans', 'x'), 'wide night');
+  const nextCapCost = VANS.capacityCost[v.level + 1], nextHide = VANS.hideCost[v.hide + 1];
+  cards += pcard(`<div class="ptop"><span class="em">📐</span><div><b>Bigger vans</b><small>${G.vanCapacity(s)} bags a run${nextCapCost ? ` → ${VANS.capacity[v.level + 1]}` : ''}</small></div></div>
+    <div class="pbtns">${nextCapCost ? `<button class="small primary" data-act="van-up" data-id="level" ${s.clean >= nextCapCost ? '' : 'disabled'}>💷 ${money(nextCapCost)}</button>` : '<span class="lock good">Biggest</span>'}</div>`, '', 'night');
+  cards += pcard(`<div class="ptop"><span class="em">🧰</span><div><b>Hidden compartments</b><small>level ${v.hide} · a search finds it ${pct(G.findChance(s))} of the time</small></div></div>
+    <div class="pbtns">${nextHide ? `<button class="small violet" data-act="van-up" data-id="hide" ${s.dirty >= nextHide ? '' : 'disabled'}>💜 ${money(nextHide)}</button>` : '<span class="lock good">Best</span>'}</div>`, '', 'night');
+  cards += pcard(`<div class="ptop"><span class="em">🚓</span><div><b>Stop and search</b><small>≈ ${pct(G.stopChance(s, G.vanCapacity(s) / 2))} a run at this heat · bigger loads get stopped more</small></div></div>`, ibtn('vans', 'x'), 'night');
+  for (const sh of s.shipments) cards += pcard(`<div class="ptop"><span class="em">🛣️</span><div><b>From ${SHOPS[s.shops[sh.from].id].short}</b><small>${sh.bags} bags · arrives in ${mins((sh.arrive - t) / MIN)}</small></div></div>`, '', 'night');
+  s.shops.forEach((x, i) => {
+    if (!i) return;
+    const n = G.packed(s, i);
+    cards += pcard(`<div class="ptop"><span class="em">${SHOPS[x.id].emoji}</span><div><b>${SHOPS[x.id].short}</b><small>${n} bags packed · ${VANS.travelHours[Math.min(i, 4)]}h drive</small></div></div>
+      <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${i}" ${n && G.vansFree(s) ? '' : 'disabled'}>Send a van</button></div>`, '', 'night');
+  });
+  // Delivery rounds
+  if (!G.deliveryOpen(s)) cards += pcard(`<div class="ptop"><span class="em">🛵</span><div><b>Delivery round</b><small>riders take the product to buyers</small></div></div>${lockTag(DELIVERY.level)}`, ibtn('delivery', 'x'), 'wide night locked');
+  else cards += pcard(`<div class="ptop"><span class="em">🛵</span><div><b>Delivery round ${s.delivery.on ? 'on' : 'off'}</b><small>${s.delivery.riders} of ${G.riderCap(s)} riders · 💜 ${money(DELIVERY.riderWage)}/day each${s.delivery.out ? ` · ${s.delivery.out} arrested today` : ''}<br>${s.deliveries.length} out on drops</small></div></div>
+    <div class="pbtns"><button class="small ${s.delivery.on ? 'violet' : ''}" data-act="delivery" data-id="${s.delivery.on ? 'off' : 'on'}">${s.delivery.on ? '✓ Delivering' : 'Start'}</button>
+      <button class="small" data-act="rider" data-n="-1" ${s.delivery.riders ? '' : 'disabled'}>−</button><button class="small" data-act="rider" data-n="1" ${s.delivery.riders < G.riderCap(s) ? '' : 'disabled'}>+ rider</button></div>`, ibtn('delivery', 'x'), 'wide night');
+  return { cards, hint: `Branch back rooms make product; vans bring it to the stall under the bakery's own deliveries.${s.crew.dispatcher ? ' Marnie sends the vans.' : ' Marnie the dispatcher (Crew) sends them for you.'}` };
 }
 
 function washTab() {
@@ -430,6 +465,8 @@ function unlocksAt(L) {
   for (const [, p] of Object.entries(PROPERTY)) if (p.level === L) out.push(`${p.emoji} ${p.name} (Shops)`);
   for (const [, c] of Object.entries(CORNERS)) if (c.level === L) out.push(`${c.emoji} ${c.name} (Turf)`);
   for (const [, w] of Object.entries(WASH)) if (w.level === L && L > 1) out.push(`${w.emoji} ${w.name} (Wash)`);
+  if (L === DELIVERY.level) out.push('🛵 Delivery rounds (Logistics)');
+  for (const [l, n] of VANS.caps) if (l === L && l > 1) out.push(`🚚 Run ${n} vans`);
   for (const [, f] of Object.entries(FRONTS)) if (f.level === L) out.push(`${f.emoji} A ${f.name.toLowerCase()} to buy as a front (Wash)`);
   for (const [, d] of Object.entries(SHOPS)) if (d.level === L && L > 1) out.push(`${d.emoji} ${d.name} can open (Shops)`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
@@ -527,6 +564,18 @@ function infoFor(kind, id) {
       + line('Made on', `${LAB_MACHINES[p.machine].emoji} ${LAB_MACHINES[p.machine].name}`) + line('Unlocks at', `level ${p.level}`)
       + line('You have', `${s.bags[id] || 0} bags, ${s.kits[id] || 0} kits`)
       + '<p class="mute">Purity comes from the machine\'s tier, back-room upgrades, Doc and Pip. Cutting makes more bags but each is worth less, and buyers notice: weak product hurts your street rep. Pricier products have fewer buyers and draw more attention.</p>');
+  }
+  if (kind === 'vans') {
+    return T('🚚 Rosa\'s vans', '<p>Branch back rooms don\'t sell anything. What they make is packed under bread trays and driven to the stall\'s back room with the bakery\'s own deliveries.</p>'
+      + line('Fleet', `${s.vans.count} of ${G.vanCap(s)} vans`) + line('A run carries', `${G.vanCapacity(s)} bags`) + line('Drive times', '1h from the café up to 4h from the maison')
+      + line('Stopped', `≈ ${pct(G.stopChance(s, G.vanCapacity(s) / 2))} of runs at this heat (more for bigger loads)`) + line('Found if searched', pct(G.findChance(s)))
+      + `<p class="mute">If the load is found it's seized, the van is impounded for ${VANS.impoundDays} days, the driver arrested and heat +${VANS.seizeHeat}. Hidden compartments and DS Hale help; so does keeping the heat down.</p>`);
+  }
+  if (kind === 'delivery') {
+    return T('🛵 Delivery round', `<p>Instead of buyers coming to the stall's back door, they phone and a rider takes it to them. Most undercover officers never get past the phone call, there's less heat around the stall and fewer raids, and buyers pay ${pct(DELIVERY.price - 1)} more.</p>`
+      + line('Riders', `${s.delivery.riders} of ${G.riderCap(s)}, 💜 ${money(DELIVERY.riderWage)} a day each`) + line('A drop takes', `${DELIVERY.minutes} minutes`)
+      + line('Risk per drop', `≈ ${pct(DELIVERY.stop + s.heat * DELIVERY.stopPerHeat)} stop and search, plus the odd sting`) + line('Unlocks at', `level ${DELIVERY.level}`)
+      + '<p class="mute">A rider who\'s stopped or stung is arrested and the bags are lost; arrested riders are replaced by morning. When every rider is busy, buyers come to the door as before.</p>');
   }
   if (kind === 'wash') {
     const w = WASH[id], open = G.washOpen(s, id);
@@ -663,10 +712,11 @@ const TABS = {
   shops: { label: 'Shops & property', emoji: '🏪', fn: () => shopsTab() }, bank: { label: 'Bank & tax', emoji: '🏦', fn: () => bankTab() },
   back: { label: 'Back room', emoji: '💜', fn: () => backTab(), night: true }, turf: { label: 'Turf', emoji: '🗺️', fn: () => turfTab(), night: true },
   wash: { label: 'Wash', emoji: '🧼', fn: () => washTab(), night: true },
+  logistics: { label: 'Logistics', emoji: '🚚', fn: () => logisticsTab(), night: true },
 };
 function menuGroups() {
   const groups = [['The bakery', ['kitchen', 'supplies', 'shop', 'crew', 'orders']], ['Business', ['marketing', 'shops', 'bank']]];
-  if (s.labUnlocked) groups.push(['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash']]);
+  if (s.labUnlocked) groups.push(['After dark', ['back', ...(s.level >= 6 ? ['turf'] : []), 'wash', ...(s.shops.length > 1 || G.deliveryOpen(s) ? ['logistics'] : [])]]);
   return groups;
 }
 const tabBadge = id => (id === 'orders' && s.orders.length ? s.orders.length : id === 'back' && doorTotal() ? doorTotal() : id === 'bank' && s.hmrc > 1 ? '!' : '');
@@ -695,7 +745,7 @@ function mapPanel() {
     const d = SHOPS[x.id], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
     const labReady = x.lab.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
     places.push(`<button class="place ${cur === i && !back ? 'on' : ''}" data-act="map-go" data-id="${i}"><span>${d.emoji}</span><b>${d.short}</b><small>${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}</small></button>`);
-    if (s.labUnlocked) places.push(`<button class="place night ${cur === i && back ? 'on' : ''}" data-act="go-back" data-id="${i}"><span>💜</span><b>Back room</b><small>${x.lab.length} machines${labReady ? ` · ${labReady} ready` : ''}${x.door.length ? ` · ${x.door.length} at the door` : ''}</small></button>`);
+    if (s.labUnlocked) places.push(`<button class="place night ${cur === i && back ? 'on' : ''}" data-act="go-back" data-id="${i}"><span>💜</span><b>Back room</b><small>${x.lab.length} machines${labReady ? ` · ${labReady} ready` : ''}${i ? (G.packed(s, i) ? ` · ${G.packed(s, i)} packed` : '') : x.door.length ? ` · ${x.door.length} at the door` : ''}</small></button>`);
   });
   const next = G.nextShops(s)[0];
   if (next) {
@@ -1103,6 +1153,11 @@ function act(el) {
     case 'bribe': G.bribe(s); break;
     case 'cut': G.setCut(s, id, el.dataset.cut); break;
     case 'declare': G.setDeclare(s, id); break;
+    case 'van-send': G.sendVan(s, Number(id)); break;
+    case 'van-buy': G.buyVan(s); break;
+    case 'van-up': G.upgradeVans(s, id); break;
+    case 'delivery': G.setDelivery(s, id === 'on'); break;
+    case 'rider': G.hireRider(s, Number(el.dataset.n)); break;
     case 'wash': G.washVia(s, id, el.dataset.n === 'max' ? Infinity : Number(el.dataset.n)); break;
     case 'art': G.buyArt(s, el.dataset.n === 'max' ? Infinity : Number(el.dataset.n)); break;
     case 'smurf': G.setSmurfing(s, Number(el.dataset.n)); break;

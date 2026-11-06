@@ -140,6 +140,11 @@ function checkIn(s, st, t, next) {
     const options = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)).sort((a, b) => PRODUCTS[b].level - PRODUCTS[a].level);
     for (const id of options) if (G.startLab(s, i, id, t, { quiet: true })) break;
   }));
+  // Logistics: vans from the branches, and a delivery round once it opens
+  hireIf('dispatcher', s.shops.length > 1);
+  while (s.vans.count < G.vanCap(s) && s.shops.length > 1 && 8000 * (1 + s.vans.count) < spare() * 0.1) G.buyVan(s);
+  for (let i = 1; i < s.shops.length; i++) G.sendVan(s, i, t, true);
+  if (G.deliveryOpen(s) && st.declare !== 'half') { G.setDelivery(s, true); while (s.delivery.riders < G.riderCap(s)) G.hireRider(s, 1); }
   // Spread the rest: fronts, smurfs, a money man, the casino; careful players stash some offshore
   for (const id of Object.keys(FRONTS)) if (!s.wash.fronts[id] && G.unlocked(s, FRONTS[id].level) && FRONTS[id].price < spare() * 0.25) G.buyFront(s, id);
   if (G.washOpen(s, 'smurf')) G.setSmurfing(s, G.washCap(s, 'smurf'));

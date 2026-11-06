@@ -83,6 +83,19 @@ export const FRONTS = {
 };
 export const FRONT_AUDIT = 0.25; // chance an HMRC investigation also closes one of your fronts for a few days
 
+// Logistics: branch back rooms pack what they make into Rosa's vans, which drive it to the stall's back room
+// under the bakery's own deliveries. Every run can be stopped and searched.
+export const VANS = {
+  price: 8000, caps: [[1, 1], [24, 2], [40, 3], [60, 4], [80, 5]],          // how many vans you may run, by level
+  capacity: [40, 80, 160, 320, 640], capacityCost: [0, 12000, 45000, 160000, 600000],   // bags a run, by van level
+  hideCost: [0, 6000, 30000, 120000], hideCut: 0.22,                        // hidden compartments: each level hides better
+  travelHours: [0, 1, 2, 3, 4],                                             // from each shop to the stall
+  stop: 0.04, stopPerHeat: 1 / 500, stopPerBag: 0.0003, find: 0.65, impoundDays: 2, seizeHeat: 8,
+};
+// Delivery rounds: riders take orders by phone and deliver, so nobody queues at the back door
+export const DELIVERY = { level: 45, price: 1.1, copMult: 0.4, heatMult: 0.5, raidMult: 0.75, minutes: 45,
+  stop: 0.015, stopPerHeat: 1 / 800, stingHeat: 10, stopHeat: 6, riderWage: 80, caps: [[45, 2], [55, 4], [70, 6], [85, 10]] };
+
 // Special orders: a client wants a batch of something by a deadline and pays well for it
 export const CLIENTS = ['The Kingsmere Cricket Club', 'A wedding at St Mary\'s', 'An office leaving do', 'The primary school fete', 'A film crew on location',
   'The bowls club', 'A christening', 'The council canteen', 'A charity fun run', 'The rugby club bar', 'A hen party', 'The care home',
@@ -637,6 +650,8 @@ export const CREW = {
              desc: 'Tips you off: raids are 40% less likely and police sweeps on your corners happen half as often.' },
   moneyman: { name: 'Felix',  role: 'Money man',     emoji: '💼', level: 28, wage: 200, cash: 'dirty', shift: 'night', lab: true,
              desc: 'Every morning he spreads your dirty cash across the casino, crypto (when the cut is low) and the art dealer, keeping a float for kits.' },
+  dispatcher: { name: 'Marnie', role: 'Dispatcher', emoji: '🗒️', level: 18, wage: 90, cash: 'dirty', shift: 'night', lab: true,
+             desc: 'Sends a van from any branch whose back room has packed enough to be worth the trip, and books it in as bakery stock.' },
   souschef: { name: 'Chen',   role: 'Sous chef',     emoji: '🧑‍🍳', level: 45, wage: 150, cash: 'clean', shift: 'day',
              desc: 'Every batch makes 10% more servings.' },
   director: { name: 'Imogen', role: 'Marketing director', emoji: '💼', level: 60, wage: 200, cash: 'clean', shift: 'day',
