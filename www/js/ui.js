@@ -218,7 +218,7 @@ function kitchenTab() {
     const status = n ? [['busy', 'cooking'], ['ready', 'ready'], ['idle', 'idle'], ['broken', 'broken']].map(([k, w]) => { const c = states.filter(x => x === k).length; return c ? `${c} ${w}` : ''; }).filter(Boolean).join(' · ') : '';
     const buy = block
       ? `<div class="lockline">${block.text}</div>`
-      : `<button class="small" data-act="buymachine" data-id="${type}" ${s.clean < G.machinePrice(s, type) ? 'disabled' : ''}>+1 · ${money(G.machinePrice(s, type))}</button>`;
+      : `<button class="small" data-act="buymachine" data-id="${type}" ${s.clean < G.machinePrice(s, type) ? 'disabled' : ''}>+1 · ${money(G.machinePrice(s, type))} · place it</button>`;
     return pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>${open ? `× ${n} · ${known}/${total} recipes${status ? `<br>${status}` : ''}` : 'not yet'}</small></div></div>
       <div class="pbtns col">${n ? `<button class="small primary" data-act="machine" data-kind="day" data-idx="${list[0][1]}">Open</button>` : ''}${open || block ? buy : ''}</div>`,
       ibtn('machine', type), `wide ${open ? '' : 'locked'}`);
@@ -278,7 +278,7 @@ function backTab() {
     const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
     cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
       <div class="pbtns col">${list.length ? `<button class="small violet" data-act="machine" data-kind="night" data-idx="${list[0][1]}">Open</button>` : ''}
-      ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)}</button>`}</div>`,
+      ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)} · place it</button>`}</div>`,
       ibtn('labmachine', type), `wide night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
   }
 
@@ -875,7 +875,7 @@ function infoFor(kind, id) {
   }
   if (kind === 'tray') {
     const k = Number(id), menu = G.counterList(s), item = menu[k], nc = G.nextCounter(s);
-    const more = nc ? line('Another counter', G.unlocked(s, nc.level) ? money(nc.price) : `level ${nc.level}`) + '<p class="mute">Tap a bare counter by the till to buy it.</p>' : '<p class="mute">All 7 counters are yours.</p>';
+    const more = nc ? line('Another counter', G.unlocked(s, nc.level) ? money(nc.price) : `level ${nc.level}`) + '<p class="mute">Buy it in 🎨 Design → 🍳 Kitchen, and tap where it goes.</p>' : '<p class="mute">All 7 counters are yours.</p>';
     if (!item) return T(`🧺 Counter ${k + 1}: empty`, `<p>Nothing on this counter yet. Cook anything and it goes onto the counters by itself: on top of its own counter first, then onto a free one like this.</p>`
       + line('Counters', `${G.countersOf(s.design)} of 7`) + more);
     const it = ITEMS[item], have = Math.floor(s.display[item] || 0), cap = G.trayCap(s, item);
@@ -1246,7 +1246,7 @@ function modalHTML() {
 }
 
 // ---------- Design mode ----------
-const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null };
+const DESIGN_DEFAULT = { floor: 'mint', wall: 'stripes', decor: null, art: 'painting', expand: null, kitchen: null, bmachines: null };
 const openDesign = () => { guideSeen('design'); ui.design = ui.room === 'back' ? { cat: 'bdecor', item: 'crates', sel: null, moving: null, back: true } : { cat: 'floor', item: DESIGN_DEFAULT.floor, sel: null, moving: null }; };
 
 function swatch(id, f, on, kind) {
@@ -1266,10 +1266,33 @@ function designScreen() {
   if (dv.back) return backDesignScreen();
   // Zoomed out, the Outside button opens the outside on its own, one part per tab
   const cats = dv.cat === 'outside' ? OUT_PARTS.map(([id, label]) => [id, label, 'o-part'])
-    : [['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
+    : [['kitchen', '🍳 Kitchen'], ['floor', '🟫 Floor'], ['wall', '🧱 Walls'], ['decor', '🪴 Decor'], ['art', '🖼️ Wall art'], ['expand', '➕ Expand']];
   const bonus = Math.round((D.charmBonus(s) - 1) * 100);
   let items = '', hint = '', extra = '', sel = '';
-  if (dv.cat === 'floor') {
+  if (dv.cat === 'kitchen') {
+    // Machines this shop can have, and another counter: pick one, then tap a green square
+    items = G.shopDef(s).machines.map(type => {
+      const M = MACHINES[type], block = G.machineBlock(s, type), price = G.machinePrice(s, type);
+      return `<div class="ditem ${dv.item === 'm:' + type ? 'on' : ''} ${block ? 'locked' : ''}" data-act="d-item" data-id="m:${type}" role="button">${ibtn('machine', type)}
+        <span class="em">${M.emoji}</span><small>${M.name}</small><small class="price">${block ? (block.text.length > 26 ? '🔒 ' + block.text.split(':')[0].slice(0, 24) : '🔒 ' + block.text) : money(price)}</small></div>`;
+    }).join('');
+    const nc = G.nextCounter(s);
+    items += `<div class="ditem ${dv.item === 'counter' ? 'on' : ''} ${nc && G.unlocked(s, nc.level) ? '' : 'locked'}" data-act="d-item" data-id="counter" role="button">
+      <span class="em">🧁</span><small>Counter</small><small class="price">${!nc ? 'all 7 yours' : G.unlocked(s, nc.level) ? money(nc.price) : `🔒 Lv ${nc.level}`}</small></div>`;
+    const pk = dv.pick, pm = pk?.kind === 'machine' ? s.machines[pk.idx] : null;
+    if (dv.moving) hint = 'Tap a green square to put it there. It keeps cooking.';
+    else if (pk) hint = 'Move it, or turn it to face another way. The square in front has to stay reachable.';
+    else if (dv.item) hint = `Tap a green square to put the <b>${dv.item === 'counter' ? 'counter' : MACHINES[dv.item.slice(2)].name.toLowerCase()}</b> there (you pay when it goes down). It faces away from the wall; turn it after.`;
+    else hint = 'Pick a machine or counter to buy, or tap one in the shop to move or turn it.';
+    hint += ` <span class="mute">(${s.machines.length} machines, room for ${G.roomLeft(s)} more · ${G.countersOf(s.design)} counters)</span>`;
+    if (pk) {
+      const label = pm ? `${MACHINES[pm.type].emoji} <b>${MACHINES[pm.type].name}</b>` : `🧁 <b>Counter ${pk.idx + 1}</b>`;
+      sel = `<div class="dsel">${label}
+        <button class="small" data-act="k-move">${dv.moving ? 'Moving…' : 'Move'}</button>
+        <button class="small" data-act="k-turn">Turn</button>
+        <button class="small" data-act="d-deselect">✕</button></div>`;
+    }
+  } else if (dv.cat === 'floor') {
     items = Object.entries(D.FLOORS).filter(([, f]) => !f.hidden).map(([id, f]) => swatch(id, f, dv.item === id, 'floor')).join('');
     const { n, cost } = D.fillFloorCost(s, dv.item);
     hint = `Tap squares to lay <b>${D.FLOORS[dv.item].name}</b> (${money(D.FLOORS[dv.item].price)} a square).`;
@@ -1341,10 +1364,22 @@ function designScreen() {
 // The back room's design: whole-room floor and walls, decor on its grid, and its layout expansions
 function backDesignScreen() {
   const dv = ui.design, b = D.backOf(s), st = D.backStats(s);
-  const cats = [['bdecor', '🛋️ Decor'], ['bfloor', '🟫 Floor'], ['bwall', '🧱 Walls'], ['expand', '➕ Layout']];
+  const cats = [['bmachines', '🧪 Machines'], ['bdecor', '🛋️ Decor'], ['bfloor', '🟫 Floor'], ['bwall', '🧱 Walls'], ['expand', '➕ Layout']];
   let items = '', hint = '', sel = '';
   const priceTag = p => (p ? `💜 ${money(p)}` : 'free');
-  if (dv.cat === 'bfloor' || dv.cat === 'bwall') {
+  if (dv.cat === 'bmachines') {
+    items = G.shopDef(s).lab.map(type => {
+      const M = LAB_MACHINES[type], block = G.machineBlock(s, type, true), price = G.machinePrice(s, type, true), cash = G.machineCash(type, true);
+      return `<div class="ditem ${dv.item === type ? 'on' : ''} ${block ? 'locked' : ''}" data-act="d-item" data-id="${type}" role="button">
+        <span class="em">${M.emoji}</span><small>${M.name}</small><small class="price">${block ? '🔒 ' + block.text.slice(0, 28) : `${cash === 'dirty' ? '💜' : '💷'} ${money(price)}`}</small></div>`;
+    }).join('');
+    const pm = dv.pick ? s.lab[dv.pick.idx] : null;
+    hint = dv.moving ? 'Tap a green square to put it there. It keeps cooking.' : pm ? 'Move it or turn it. The square in front has to stay reachable from the stairs.'
+      : dv.item ? `Tap a green square to put the ${LAB_MACHINES[dv.item].name.toLowerCase()} there (you pay when it goes down).` : 'Pick a machine to buy, or tap one in the room to move or turn it.';
+    hint += ` <span class="mute">(${s.lab.length} machines, room for ${G.roomLeft(s, true)} more)</span>`;
+    if (pm) sel = `<div class="dsel">${LAB_MACHINES[pm.type].emoji} <b>${LAB_MACHINES[pm.type].name}</b>
+      <button class="small" data-act="k-move">${dv.moving ? 'Moving…' : 'Move'}</button><button class="small" data-act="k-turn">Turn</button><button class="small" data-act="d-deselect">✕</button></div>`;
+  } else if (dv.cat === 'bfloor' || dv.cat === 'bwall') {
     const T = dv.cat === 'bfloor' ? D.BACK_FLOORS : D.BACK_WALLS, cur = dv.cat === 'bfloor' ? b.floor : b.wall;
     items = Object.entries(T).map(([id, f]) => { const open = D.levelOk(s, f);
       return `<div class="ditem ${cur === id ? 'on' : ''} ${open ? '' : 'locked'}" data-act="${dv.cat === 'bfloor' ? 'b-floor' : 'b-wall'}" data-id="${id}" data-level="${f.level}" role="button">
@@ -1391,6 +1426,46 @@ function designTap(info) {
   const dv = ui.design;
   let r = null;
   D.startCart(s);
+  // Machines and counters: buy onto a square, pick up, move, turn
+  if (info.kind === 'labmachine' || (dv.back && dv.cat === 'bmachines' && info.kind === 'bcell')) {
+    if (info.kind === 'labmachine') { Object.assign(dv, { cat: 'bmachines', pick: { kind: 'machine', idx: info.idx }, item: null, moving: null }); }
+    else if (dv.moving) {
+      const m = s.lab[dv.moving.idx], rot = D.backBestRot(s, info.bx, info.bz, { kind: 'machine', idx: dv.moving.idx }, LAB_MACHINES[m.type].name);
+      r = rot >= 0 ? G.moveMachine(s, dv.moving.idx, true, { bx: info.bx, bz: info.bz, rot }) : { msg: D.backPlaceProblem(s, 'machine', info.bx, info.bz, m.rot || 0, { kind: 'machine', idx: dv.moving.idx }, LAB_MACHINES[m.type].name) };
+      if (r.ok) dv.moving = null;
+    } else if (dv.item) {
+      const f = G.machineFits(s, dv.item, true, info.bx, info.bz);
+      if (f.why) r = { msg: f.why };
+      else if (G.buyMachine(s, dv.item, true, { bx: info.bx, bz: info.bz, rot: f.rot })) { dv.pick = { kind: 'machine', idx: s.lab.length - 1 }; dv.item = null; }
+    } else { const i = s.lab.findIndex(m => m.bx === info.bx && m.bz === info.bz); dv.pick = i >= 0 ? { kind: 'machine', idx: i } : null; }
+    if (r?.msg) showToast(r.msg, r.ok ? 'good' : 'bad');
+    save(); render();
+    return;
+  }
+  if (info.kind === 'machine' || info.kind === 'counter' || (!dv.back && dv.cat === 'kitchen' && info.kind === 'cell')) {
+    if (info.kind !== 'cell') { Object.assign(dv, { cat: 'kitchen', pick: { kind: info.kind, idx: info.idx }, item: null, moving: null, sel: null }); }
+    else if (dv.moving) {
+      const mv = dv.moving, name = mv.kind === 'machine' ? MACHINES[s.machines[mv.idx].type].name : 'counter';
+      const rot = D.bestRot(s, mv.kind, info.cx, info.cz, mv, { name });
+      if (rot < 0) r = { msg: D.shopPlaceProblem(s, mv.kind, info.cx, info.cz, 0, mv, { name }) };
+      else r = mv.kind === 'machine' ? G.moveMachine(s, mv.idx, false, { cx: info.cx, cz: info.cz, rot }) : G.moveCounter(s, mv.idx, { cx: info.cx, cz: info.cz, rot });
+      if (r.ok) dv.moving = null;
+    } else if (dv.item === 'counter') {
+      const rot = D.bestRot(s, 'counter', info.cx, info.cz);
+      if (rot < 0) r = { msg: D.shopPlaceProblem(s, 'counter', info.cx, info.cz, 0) };
+      else if (G.buyCounter(s, { cx: info.cx, cz: info.cz, rot })) { dv.pick = { kind: 'counter', idx: G.countersOf(s.design) - 1 }; dv.item = null; }
+    } else if (dv.item?.startsWith('m:')) {
+      const type = dv.item.slice(2), f = G.machineFits(s, type, false, info.cx, info.cz);
+      if (f.why) r = { msg: f.why };
+      else if (G.buyMachine(s, type, false, { cx: info.cx, cz: info.cz, rot: f.rot })) { dv.pick = { kind: 'machine', idx: s.machines.length - 1 }; dv.item = null; }
+    } else {
+      const mi = s.machines.findIndex(m => m.cx === info.cx && m.cz === info.cz), ci = D.counterCells(s).findIndex(c => c.cx === info.cx && c.cz === info.cz);
+      dv.pick = mi >= 0 ? { kind: 'machine', idx: mi } : ci >= 0 ? { kind: 'counter', idx: ci } : null;
+    }
+    if (r?.msg) showToast(r.msg, r.ok ? 'good' : 'bad');
+    save(); render();
+    return;
+  }
   if (dv.back) {
     if (info.kind === 'bdecor') { dv.sel = info.idx; dv.item = null; dv.cat = 'bdecor'; }
     else if (info.kind === 'bcell' && dv.cat === 'bdecor') {
@@ -1624,8 +1699,8 @@ function act(el) {
     case 'learn': G.buyRecipe(s, id); break;
     case 'collectlab': { let n = 0; s.lab.forEach((m, i) => { const item = m.job?.item; if (m.job && t >= m.job.start + m.job.dur && G.collectLab(s, i, t, { quiet: true })) { n++; world.poke(s, 'night', i, item); } }); showToast(n ? `Bagged ${n} cook${n === 1 ? '' : 's'}.` : 'Nothing ready.', n ? 'good' : 'bad'); break; }
     case 'restartlab': { let n = 0; s.lab.forEach((m, i) => { if (!m.job && m.last && !m.broken && G.startLab(s, i, m.last, t, { quiet: true })) n++; }); showToast(n ? `Started ${n} cook${n === 1 ? '' : 's'}.` : 'Couldn\'t start anything: check kits.', n ? 'good' : 'bad'); break; }
-    case 'buymachine': G.buyMachine(s, id); break;
-    case 'buylab': G.buyMachine(s, id, true); break;
+    case 'buymachine': ui.tab = null; ui.panel = null; ui.room = 'shop'; ui.design = { cat: 'kitchen', item: 'm:' + id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
+    case 'buylab': ui.tab = null; ui.panel = null; ui.room = 'back'; ui.design = { back: true, cat: 'bmachines', item: id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${LAB_MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
     case 'repair': G.repairMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
     case 'price': G.setPriceLevel(s, id, el.dataset.lvl); break;
     case 'basket': { const n = Math.max(0, (ui.basket[id] || 0) + Number(el.dataset.n)); if (n) ui.basket[id] = n; else delete ui.basket[id]; break; }
@@ -1714,15 +1789,19 @@ function act(el) {
     case 'confirm-no': ui.modal = ui.confirm?.back || null; ui.confirm = null; break;
     // Design
     case 'o-part': ui.design.part = id; break;
-    case 'd-cat': Object.assign(ui.design, { cat: id, item: DESIGN_DEFAULT[id], sel: null, moving: null }); break;
+    case 'd-cat': Object.assign(ui.design, { cat: id, item: DESIGN_DEFAULT[id], sel: null, moving: null, pick: null }); break;
     case 'd-item':
       if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
-      Object.assign(ui.design, { item: id, sel: null, moving: null }); break;
+      { const lab = ui.design.cat === 'bmachines', type = lab ? id : id.startsWith('m:') ? id.slice(2) : null;
+        const b = type ? G.machineBlock(s, type, lab) : null; if (b) { showToast(b.text + '.', 'bad'); return; } }
+      Object.assign(ui.design, { item: id, sel: null, moving: null, pick: null }); break;
     case 'd-fill': { D.startCart(s); const r = ui.design.cat === 'floor' ? D.fillFloor(s, ui.design.item) : D.fillWalls(s, ui.design.item); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-move': if (ui.design.sel != null) ui.design.moving = ui.design.sel; break;
     case 'd-rotate': if (ui.design.sel != null) { D.startCart(s); D.rotateDecor(s, ui.design.sel); } break;
     case 'd-sell': if (ui.design.sel != null) { D.startCart(s); const r = D.sellDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
-    case 'd-deselect': ui.design.sel = null; ui.design.moving = null; break;
+    case 'd-deselect': ui.design.sel = null; ui.design.moving = null; ui.design.pick = null; break;
+    case 'k-move': if (ui.design.pick) ui.design.moving = ui.design.moving ? null : { ...ui.design.pick }; break;
+    case 'k-turn': if (ui.design.pick) { const pk = ui.design.pick, lab = !!ui.design.back; const r = pk.kind === 'counter' ? G.turnCounter(s, pk.idx) : G.turnMachine(s, pk.idx, lab); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); } break;
     case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-done': D.checkoutCart(s); ui.design = null; break;
     case 'o-set': case 'o-extra': {

@@ -17,10 +17,14 @@ function check(s) {
   if (s.dirty < -0.01) flag('dirty cash below zero', s, s.dirty);
   if (s.heat < 0 || s.heat > 100) flag('heat out of range', s, s.heat);
   G.eachShop(s, i => {
-    const used = new Set();
-    s.machines.forEach(m => { if (used.has(m.spot)) flag('two machines on one spot', s, `shop ${i}`); used.add(m.spot); const sp = SPOTS[m.spot]; if (!sp) flag('machine on a missing spot', s); else if (sp.need && !s.design.expansions[sp.need]) flag('machine on a spot not yet opened', s, sp.need); });
-    const lused = new Set();
-    s.lab.forEach(m => { if (lused.has(m.spot)) flag('two lab machines on one spot', s); lused.add(m.spot); const sp = LAB_SPOTS[m.spot]; if (!sp) flag('lab machine on a missing spot', s); else if (sp.need && !s.design.expansions[sp.need]) flag('lab machine on a spot not yet opened', s, sp.need); });
+    // every machine, counter and decoration on its own square, and everyone can get where they need to
+    const shopWhy = D.shopLayoutProblem(s); if (shopWhy) flag('shop layout broken', s, `shop ${i}: ${shopWhy}`);
+    if (s.machines.some(m => !(m.cx >= 0))) flag('a machine with no square', s);
+    if (s.machines.length > D.kitchenRoom(s)) flag('more machines than the room allows', s);
+    if (D.counterCells(s).length !== G.countersOf(s.design)) flag('counters and their squares differ', s, `${D.counterCells(s).length} vs ${G.countersOf(s.design)}`);
+    if (s.lab.length) { const backWhy = D.backLayoutProblem(s); if (backWhy) flag('basement layout broken', s, `shop ${i}: ${backWhy}`); }
+    if (s.lab.some(m => !(m.bx >= 0))) flag('a basement machine with no square', s);
+    if (s.lab.length > D.labRoom(s)) flag('more basement machines than the room allows', s);
     for (const [id, v] of Object.entries(s.display)) { if (!Number.isFinite(v) || v < 0) flag('display stock negative or NaN', s, `${id}=${v}`); }
     if (G.counterList(s).length !== G.menuSlots(s)) flag('counter list the wrong length', s);
     for (const [id, v] of Object.entries(s.display)) {
@@ -29,7 +33,6 @@ function check(s) {
     }
     const b = s.design.back;
     if (b) for (const d of b.decor) if (D.backCellBlocked(d.bx, d.bz, s.design.expansions)) flag('basement decor on a blocked square', s, `${d.type}@${d.bx},${d.bz}`);
-    if (b && !D.backPathsOk(s, b.decor)) flag('basement decor cuts off a machine or the stairs', s);
     if (s.design.special && !s.recipes.includes(s.design.special)) flag("today's special isn't a known recipe", s, s.design.special);
   });
   for (const [id, v] of Object.entries(s.bags)) if (!Number.isFinite(v) || v < 0) flag('bags negative or NaN', s, `${id}=${v}`);
@@ -47,6 +50,14 @@ function randomActions(s, t) {
     () => { const t2 = pick(Object.keys(MACHINES)); G.buyMachine(s, t2); },
     () => { if (s.labUnlocked) G.buyMachine(s, pick(Object.keys(LAB_MACHINES)), true); },
     () => G.buyCounter(s),
+    // moving and turning things, by hand, to random squares (most get refused; the ones that go through must keep the rules)
+    () => { if (s.machines.length) { const i = Math.floor(rnd() * s.machines.length); G.moveMachine(s, i, false, { cx: Math.floor(rnd() * 11), cz: Math.floor(rnd() * 11), rot: Math.floor(rnd() * 4) }); } },
+    () => { if (s.machines.length) G.turnMachine(s, Math.floor(rnd() * s.machines.length), false); },
+    () => { const n = D.counterCells(s).length; if (n) G.moveCounter(s, Math.floor(rnd() * n), { cx: Math.floor(rnd() * 9), cz: Math.floor(rnd() * 9), rot: Math.floor(rnd() * 4) }); },
+    () => { const n = D.counterCells(s).length; if (n) G.turnCounter(s, Math.floor(rnd() * n)); },
+    () => { if (s.lab.length) G.moveMachine(s, Math.floor(rnd() * s.lab.length), true, { bx: Math.floor(rnd() * 11), bz: Math.floor(rnd() * 11), rot: Math.floor(rnd() * 4) }); },
+    () => { const t2 = pick(Object.keys(MACHINES)); G.buyMachine(s, t2, false, { cx: Math.floor(rnd() * 11), cz: Math.floor(rnd() * 11), rot: Math.floor(rnd() * 4) }); },
+    () => { D.startCart(s); D.placeDecor(s, pick(Object.keys(D.DECOR)), Math.floor(rnd() * 11), Math.floor(rnd() * 11)); if (rnd() < 0.3) D.cancelCart(s); else D.checkoutCart(s); },
     () => { const m = G.menuOf(s); if (m.length) G.setSpecial(s, pick(m)); },
     () => { const m = G.menuOf(s); if (m.length) G.throwAway(s, pick(m)); },
     () => G.buyCabinet(s, Math.floor(rnd() * 7)),

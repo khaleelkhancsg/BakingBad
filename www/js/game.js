@@ -4,7 +4,7 @@
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
          PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS } from './data.js';
-import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
+import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty, shopPlaceProblem, backPlaceProblem, autoSpot, backAutoSpot, kitchenRoom, labRoom, cellFromSpot, backCellFromSpot, bestRot, backBestRot, fixLayout } from './design.js';
 
 export const SAVE_VERSION = 5;
 const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -141,7 +141,7 @@ function applyPerks(s) {
   for (const id in ITEMS) if (ITEMS[id].level <= known && !s.recipes.includes(id)) s.recipes.push(id);
   if (perk(s, 'contacts')) {
     s.labUnlocked = true; s.offerPending = false;
-    s.shops[0].lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
+    s.shops[0].lab.push({ type: 'tent', ...backCellFromSpot(0), job: null, last: null, broken: false, tier: 0 });
     s.kits.homegrown = 2;
   }
   s.street = Math.min(100, s.street + 10 * perk(s, 'legend'));
@@ -621,12 +621,10 @@ export function machinePrice(s, type, lab = false) {
   const M = TYPES(lab)[type], extra = Math.max(0, machineCount(s, type, lab) - (M.free || 0));
   return Math.round(M.price * (1 + MACHINE_PRICE_STEP * extra) * (1 - 0.05 * perk(s, 'bulk')) / 10) * 10;
 }
-const designFor = s => s.design; // each shop's own expansions open its own spots, front and back
-const spotOpen = (s, spot, lab) => !spot.need || !!designFor(s, lab).expansions[spot.need];
-export function freeSpots(s, lab = false) {
-  const spots = lab ? LAB_SPOTS : SPOTS, used = kitchenList(s, lab);
-  return spots.map((_, i) => i).filter(i => spotOpen(s, spots[i], lab) && !used.some(m => m.spot === i));
-}
+// How many more machines this room has space for (its expansions decide), as a list for counting
+export const roomLeft = (s, lab = false) => Math.max(0, (lab ? labRoom(s) : kitchenRoom(s)) - kitchenList(s, lab).length);
+export const freeSpots = (s, lab = false) => [...Array(roomLeft(s, lab)).keys()];
+const designFor = s => s.design;
 // The next expansion that would open more room, for the locked message.
 function nextRoom(s, lab) {
   const key = lab ? 'labSpots' : 'spots';
@@ -643,7 +641,7 @@ export function machineBlock(s, type, lab = false) {
     const nx = machineNextCap(s, type, lab);
     return { lock: true, text: nx ? `Reach level ${nx.level} to unlock additional ${M.plural}` : `That's as many ${M.plural} as you can have` };
   }
-  if (!freeSpots(s, lab).length) {
+  if (!roomLeft(s, lab)) {
     const nr = nextRoom(s, lab);
     return { lock: true, text: nr ? (unlocked(s, nr[1].level) ? `No room: buy the ${nr[1].name.toLowerCase()} in Design → Expand` : `No room: reach level ${nr[1].level} for the ${nr[1].name.toLowerCase()}`) : 'No room left' };
   }
@@ -651,22 +649,56 @@ export function machineBlock(s, type, lab = false) {
 }
 // The back room runs on dirty cash; the shops on clean
 export const machineCash = (type, lab) => (lab ? 'dirty' : 'clean');
-export function buyMachine(s, type, lab = false) {
+// Buy a machine and stand it on a square (at: { cx, cz, rot } in the shop, { bx, bz, rot } in the basement); with no
+// square given it goes on the first free one along the walls
+export function buyMachine(s, type, lab = false, at = null) {
   const M = TYPES(lab)[type];
-  if (!M) return;
-  if (lab && !s.labUnlocked) return say('The back room isn\'t yours yet.', 'bad');
+  if (!M) return false;
+  if (lab && !s.labUnlocked) return say('The back room isn\'t yours yet.', 'bad'), false;
   const block = machineBlock(s, type, lab);
-  if (block) return say(block.text + '.', 'bad');
+  if (block) return say(block.text + '.', 'bad'), false;
   const cost = machinePrice(s, type, lab), cash = machineCash(type, lab);
-  if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad');
+  if (s[cash] < cost) return say(`Not enough ${cash} cash.`, 'bad'), false;
+  let spot = at;
+  if (spot) {
+    const why = lab ? backPlaceProblem(s, 'machine', spot.bx, spot.bz, spot.rot, null, M.name) : shopPlaceProblem(s, 'machine', spot.cx, spot.cz, spot.rot, null, { name: M.name });
+    if (why) return say(why, 'bad'), false;
+  } else spot = lab ? backAutoSpot(s, M.name) : autoSpot(s, 'machine', { name: M.name });
+  if (!spot) return say('No free square for it: move things around in Design, or expand.', 'bad'), false;
   s[cash] = round2(s[cash] - cost);
   if (cash === 'clean') s.today.capex += cost;
-  const free = freeSpots(s, lab);
-  const spot = lab ? free[0] : (free.find(i => SPOTS[i].wall === MACHINE_WALL[type]) ?? free[0]);
-  kitchenList(s, lab).push({ type, spot, job: null, last: null, broken: false });
+  kitchenList(s, lab).push({ type, ...spot, job: null, last: null, broken: false });
   learnFree(s);
   say(`New ${M.name.toLowerCase()} installed.`, 'good');
+  return true;
 }
+// Pick a machine up and put it down somewhere else (or turn it): free, and whatever it's cooking carries on
+export function moveMachine(s, idx, lab, to) {
+  const m = kitchenList(s, lab)[idx], M = m && TYPES(lab)[m.type];
+  if (!m) return { msg: 'Nothing selected.' };
+  const why = lab ? backPlaceProblem(s, 'machine', to.bx, to.bz, to.rot, { kind: 'machine', idx }, M.name) : shopPlaceProblem(s, 'machine', to.cx, to.cz, to.rot, { kind: 'machine', idx }, { name: M.name });
+  if (why) return { msg: why };
+  Object.assign(m, lab ? { bx: to.bx, bz: to.bz, rot: to.rot } : { cx: to.cx, cz: to.cz, rot: to.rot });
+  return { ok: true };
+}
+// Turn it to the next way it can face where it stands
+export function turnMachine(s, idx, lab) {
+  const m = kitchenList(s, lab)[idx];
+  if (!m) return { msg: 'Nothing selected.' };
+  for (let k = 1; k <= 3; k++) {
+    const rot = ((m.rot || 0) + k) & 3, r = moveMachine(s, idx, lab, lab ? { bx: m.bx, bz: m.bz, rot } : { cx: m.cx, cz: m.cz, rot });
+    if (r.ok) return r;
+  }
+  return { msg: 'It can only face this way here.' };
+}
+// Where a new machine of this type could go on a square (a facing), or null with the reason
+export function machineFits(s, type, lab, x, z) {
+  const M = TYPES(lab)[type];
+  const rot = lab ? backBestRot(s, x, z, null, M.name) : bestRot(s, 'machine', x, z, null, { name: M.name });
+  if (rot >= 0) return { rot };
+  return { why: lab ? backPlaceProblem(s, 'machine', x, z, 0, null, M.name) : shopPlaceProblem(s, 'machine', x, z, naturalFacing(x, z), null, { name: M.name }) };
+}
+const naturalFacing = (cx, cz) => (cz === 0 ? 0 : cx === 0 ? 1 : cx === 8 ? 3 : cz === 8 ? 2 : 0);
 // ---------- Seasons ----------
 let curSeason = null; // the season at the game's clock, kept up to date by advance()
 export function seasonAt(t) {
@@ -914,15 +946,35 @@ function runCorners(s, t0, t1, mins) {
 export const countersOf = d => Math.max(1, Math.min(COUNTERS.length, Math.round(d?.counters ?? 2)));
 export const menuSlots = s => countersOf(s.design) * PER_COUNTER;
 export const nextCounter = s => COUNTERS[countersOf(s.design)] || null;
-export function buyCounter(s) {
+export function buyCounter(s, at = null) {
   const c = nextCounter(s);
-  if (!c) return say(`That's every counter there's room for (${COUNTERS.length}).`, 'bad');
-  if (!unlocked(s, c.level)) return say(`Reach level ${c.level} for another counter.`, 'bad');
-  if (s.clean < c.price) return say('Not enough clean cash.', 'bad');
+  if (!c) return say(`That's every counter there's room for (${COUNTERS.length}).`, 'bad'), false;
+  if (!unlocked(s, c.level)) return say(`Reach level ${c.level} for another counter.`, 'bad'), false;
+  if (s.clean < c.price) return say('Not enough clean cash.', 'bad'), false;
+  let spot = at;
+  if (spot) { const why = shopPlaceProblem(s, 'counter', spot.cx, spot.cz, spot.rot); if (why) return say(why, 'bad'), false; }
+  else spot = autoSpot(s, 'counter');
+  if (!spot) return say('No free square for a counter: move things around in Design.', 'bad'), false;
   s.clean = round2(s.clean - c.price); s.today.capex += c.price;
+  s.design.counterAt ||= [];
   s.design.counters = countersOf(s.design) + 1;
-  say(`New display counter: ${menuSlots(s)} by the till now.`, 'good');
+  s.design.counterAt.push({ cx: spot.cx, cz: spot.cz, rot: spot.rot });
+  say(`New display counter: ${menuSlots(s)} now.`, 'good');
   return true;
+}
+export function moveCounter(s, k, to) {
+  const c = s.design.counterAt?.[k];
+  if (!c) return { msg: 'Nothing selected.' };
+  const why = shopPlaceProblem(s, 'counter', to.cx, to.cz, to.rot, { kind: 'counter', idx: k });
+  if (why) return { msg: why };
+  Object.assign(c, { cx: to.cx, cz: to.cz, rot: to.rot });
+  return { ok: true };
+}
+export function turnCounter(s, k) {
+  const c = s.design.counterAt?.[k];
+  if (!c) return { msg: 'Nothing selected.' };
+  for (let d = 1; d <= 3; d++) { const r = moveCounter(s, k, { cx: c.cx, cz: c.cz, rot: ((c.rot || 0) + d) & 3 }); if (r.ok) return r; }
+  return { msg: 'It can only face this way here.' };
 }
 // The counters in order (a product, or null for an empty one), and the products on them (each once)
 export const counterList = s => { const n = menuSlots(s), a = (s.onMenu || []).slice(0, n).map(id => (id && ITEMS[id] ? id : null)); while (a.length < n) a.push(null); return a; };
@@ -1169,7 +1221,7 @@ export function answerOffer(s, yes) {
   if (yes) {
     s.labUnlocked = true;
     s.kits.homegrown = (s.kits.homegrown || 0) + 1;
-    if (!s.shops[0].lab.length) s.shops[0].lab.push({ type: 'tent', spot: 0, job: null, last: null, broken: false, tier: 0 });
+    if (!s.shops[0].lab.length) s.shops[0].lab.push({ type: 'tent', ...backCellFromSpot(0), job: null, last: null, broken: false, tier: 0 });
     say('Dez drops off a kit and shows you the back room.', 'good');
   } else s.offerAfter = s.clock + 3 * DAY;
 }
@@ -1699,7 +1751,7 @@ export function newGame(t = Date.now(), prestige = null) {
     stats: { totalBags: 0, totalLaundered: 0, totalSales: 0, paid: 0, busts: 0, visits: 0, xp: 0, served: 0, missed: 0, nightCash: 0 },
   };
   bindShops(s);
-  s.machines = [{ type: 'oven', spot: 0, job: null, last: null }, { type: 'oven', spot: 2, job: null, last: null }, { type: 'mixer', spot: 5, job: null, last: null }];
+  s.machines = [0, 2, 5].map((sp, k) => ({ type: k < 2 ? 'oven' : 'mixer', ...cellFromSpot(sp), job: null, last: null }));
   for (const id in ITEMS) s.priceLevel[id] = 'normal';
   s.display.sourdough = 20; s.display.croissant = 16; // Aunt Rosa's last bake
   s.onMenu = []; settleCounters(s);
@@ -1770,9 +1822,9 @@ export function migrate(s, t = Date.now()) {
   for (const k in s.inv || {}) if (INGREDIENTS[k]) n.inv[k] = s.inv[k];
   for (const id in s.upgrades || {}) if (UPGRADES.some(u => u.id === id)) n.upgrades[id] = true;
   for (const r in s.crew || {}) if (CREW[r]) n.crew[r] = !!s.crew[r];
-  if (Array.isArray(s.machines)) n.machines = s.machines.filter(m => MACHINES[m.type]).map(m => ({ type: m.type, spot: m.spot, job: null, last: null, broken: !!m.broken }));
+  if (Array.isArray(s.machines)) n.machines = s.machines.filter(m => MACHINES[m.type]).map(m => ({ type: m.type, spot: m.spot, cx: m.cx, cz: m.cz, rot: m.rot, job: null, last: null, broken: !!m.broken }));
   if (n.labUnlocked) {
-    n.shops[0].lab = [{ type: 'tent', spot: 0, job: null, last: null, tier: 0 }];
+    n.shops[0].lab = [{ type: 'tent', ...backCellFromSpot(0), job: null, last: null, tier: 0 }];
     n.kits = { homegrown: 2 };
   }
   if (s.design) n.design = { ...s.design, base: n.design.base };

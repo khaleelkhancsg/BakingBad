@@ -57,12 +57,22 @@ bigger batches and cover the hours you're out or asleep. Later recipes sell for 
 The stall only takes the first four; the rest are fitted in Rosa's branches (see Shops). You can run at most three of any machine in a shop.
 
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
-expansions (Design → Expand) add more spots, so a room never fills up before it has grown. The bakery starts with 6
-spots along its walls; the kitchen refit (level 7) adds 4 between them, the island 2 and the bigger island 2 more (back to
-back, with an aisle in front of each row), then food carts and side stalls outside. The basement starts with 4 on its back
-wall; clearing the coal store (level 14) adds one more there, then the bench rows (back to back), the cold store and
-the right-hand wall, and digging out under the front and side terraces (once you have them) adds 3 more each. At the limit the buy
-button says "Reach level N to unlock additional ovens".
+expansions (Design → Expand) add room for more, so a room never fills up before it has grown. The bakery starts with room
+for 6 machines; the kitchen refit (level 7) adds 4, the island 2 and the bigger island 2 more, then food carts and side
+stalls 5 each (on the terraces or anywhere). The basement starts with room for 4; clearing the coal store (level 14) adds
+one more, then the benches, the cold store, the far wall, and digging out under the front and side terraces 3 each. At the
+limit the buy button says "Reach level N to unlock additional ovens".
+
+**Placing machines and counters.** Nothing has a fixed spot: you choose where every machine and counter stands. Buying a
+machine (☰ Menu → Kitchen, "+1 · place it") opens 🎨 Design → 🍳 Kitchen with it picked up: the floor turns green where it
+can go and red where it can't, and you pay when you tap a green square. Counters are bought the same way (the 🧁 Counter
+in the Kitchen tab). Tap any machine or counter in Design to **Move** it (it carries on cooking) or **Turn** it. Each faces
+away from the wall it's against to start with. The rules keep the room workable: nothing goes on the till, the shop door
+or the door to the back room; the square in front of every machine must stay reachable (that's where you work it), and
+so must the front of every counter and the till (where customers stand). Machines out on a terrace stand on a low wooden
+deck. In the basement, 🎨 Design → 🧪 Machines does the same, with everything reachable from the foot of the stairs and
+the stairs' landing, the buyers' spots and the tables kept clear. You, Priya, customers and buyers all walk around
+whatever you've put down; customers queue in front of the counter they want, wherever it is.
 
 **Display counters.** There's no menu to manage: anything you've learned (and is in season) can be cooked, and when
 it's collected it goes onto the glass counters by the till by itself. Each counter holds one product, 4 batches of it.
@@ -70,7 +80,7 @@ A batch first tops up a counter already showing that product; if that would go o
 rest goes onto a free counter; with no free counter left, what didn't fit waits in the machine (✓ still showing) until
 there's room, and spoils on its usual timer. A counter that sells out is free again, and so is a product's extra counter
 once what's left fits on fewer. Every branch starts with 2 counters and can buy up to 7 (levels 2–22, £250 to £12,000);
-bare ones have a green card on them, tap one to buy it. Tap a stocked counter to see how many servings are on it (and
+buy one in 🎨 Design → 🍳 Kitchen and tap where it goes. Tap a stocked counter to see how many servings are on it (and
 on all its counters), its price and how many it holds. Every recipe has its own little model on the counter, and the
 more different things are out the more customers come (variety, up to +40% with 7). Counters running low show an amber
 ⚠️. The counter window has **Restock** (starts a free machine on it), **today's special** (one per shop: 20% dearer and
@@ -210,12 +220,13 @@ a week and is paid from clean cash; see it building up in the 🏦 Bank tab.
 In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the same basket and checkout):
 
 - **Floor** and **Walls**: whole-room styles, from bare concrete and breeze block to lab epoxy, soundproof foam and gold leaf.
-- **Decor** on the back room's free squares (machine spots, the doors and where buyers stand stay clear). Pieces do
+- **Machines**: buy back-room machines onto a square, and move or turn the ones you have.
+- **Decor** on the back room's free squares (the stairs, where buyers stand and the tables stay clear). Pieces do
   something, added up across all your back rooms:
   - 😌 **Comfort** (sofas, a big telly, a pool table, a fish tank, a jukebox): the night crew gain loyalty faster.
   - 🫥 **Cover** (bread crates, flour shelving, a wall safe, a false wall): raids find product less often (up to 40% less).
   - 🛡️ **Security** (CCTV monitors, a reinforced door, a panic room): heat cools faster (up to 50%).
-- **Layout**: clear the coal store first, then the benches, cold store and the far wall for more machine spots, and
+- **Layout**: clear the coal store first, then the benches, cold store and the far wall for room for more machines, and
   dig out under the front and side terraces to make the basement bigger. Decor can't go where it would cut anyone off from a machine, a door or the buyers (those squares show
   faint red); decor already in the way when the room changes comes down with a full refund.
 - **Walking**: people walk around machines, counters and decor. If there's no way through they stop as close as they
@@ -404,7 +415,8 @@ Open **🎨 Design** any time:
 
 - **Floor**: tap single squares to lay tiles, or do the whole floor.
 - **Walls**: wallpaper each wall panel.
-- **Decor**: place plants, tables, a piano, an aquarium, a carousel and more on the green squares. Tap one to move, turn or sell it (half back).
+- **Kitchen**: buy machines and counters onto a square, and move or turn the ones you have (see Placing machines and counters).
+- **Decor**: place plants, tables, a piano, an aquarium, a carousel and more on the green squares (anywhere that keeps the machines, counters, till and doors reachable; rugs can go anywhere free). Tap one to move, turn or sell it (half back).
 - **Wall art**: paintings, mirrors, gold records and more on the wall panels.
 - **Outside**: each shop's paint, wall finish (render, brick, timber cladding, stone, glazed tiles, marble), windows
   (plain, Georgian, arched, stained glass, neon or gold frames), front door (wood, green, red, glass, Victorian, revolving,
@@ -419,8 +431,8 @@ Open **🎨 Design** any time:
   flat upstairs adds a second storey to the stall (its windows light up in the evening and early morning). The OPEN sign
   on the door turns to CLOSED when trade stops for the night, and with a revolving door people keep to one side going in
   and the other coming out while the wings turn with them.
-- **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for more machines.
-  You can see them: an island counter, striped food carts and stall canopies, steel benches, a cellar hatch and the annex.
+- **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for room for more
+  machines. From outside you can see them: parasols, the stalls' lean-to roof, roof lanterns, extractor fans, a cellar grille.
 
 Upgraded machines look it too: chrome bands, a glow strip, gold trim and a star at tier 5, with pips for the tier.
 
@@ -448,7 +460,7 @@ node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 3 365
 
 `node tools/fuzz.mjs [runs] [days]` plays games with random actions (cooking, counters, specials, cabinets,
 managers, expansions, decor, branches, decisions, saving and loading) and reports any broken rule: negative or NaN
-money, two machines on one spot, stock with no counter, a counter held by nothing, decor blocking a machine, and so on.
+money, a broken layout (two things on a square, a machine, counter, till or door nobody can reach), more machines than a room allows, stock with no counter, and so on.
 
 `node tools/crewcheck.mjs` runs the game with and without each crew member and each upgrade and checks it does what
 its card says: Priya collects every machine type in every shop onto the counters (and the rest waits when they're

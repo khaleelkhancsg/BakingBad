@@ -1,4 +1,4 @@
-import { CAPS, capAt, nextCap, SPOTS, LAB_SPOTS, labSpotAt } from './data.js';
+import { CAPS, capAt, nextCap, SPOTS, LAB_SPOTS, labSpotAt, MACHINES, LAB_MACHINES } from './data.js';
 
 // Designing the bakery: floor tiles per square, wallpaper per wall panel, decorations on free squares,
 // wall art on panels, and terrace expansions. No DOM here; actions return { ok, msg }.
@@ -94,13 +94,13 @@ export const ART = {
 export const EXPANSIONS = {
   front:   { level: 5,  name: 'Front terrace', desc: 'Two rows of pavement in front of the shop become yours, for tiles, tables and plants.', price: 1200, cells: 18 },
   side:    { level: 9,  name: 'Side terrace',  desc: 'The pavement down the side of the shop, for more outdoor seating.', price: 1000, cells: 14 },
-  refit:   { level: 7,  name: 'Kitchen refit', desc: 'Re-plan the kitchen walls: room for 4 more machines between the ones you have.', price: 1500, spots: 4 },
-  island:  { level: 12, name: 'Kitchen island', desc: 'An island in the middle of the kitchen: room for 2 more machines.', price: 3000, spots: 2 },
-  carts:   { level: 18, name: 'Food carts',    desc: 'Room for 5 machines on carts along the front terrace.', price: 6000, spots: 5, needs: 'front' },
+  refit:   { level: 7,  name: 'Kitchen refit', desc: 'Re-plan the kitchen: room for 4 more machines, wherever you put them.', price: 1500, spots: 4 },
+  island:  { level: 12, name: 'Kitchen island', desc: 'Space for an island of machines in the middle of the kitchen: room for 2 more.', price: 3000, spots: 2 },
+  carts:   { level: 18, name: 'Food carts',    desc: 'Gas, water and power out to the front terrace: room for 5 more machines (on the terrace or anywhere).', price: 6000, spots: 5, needs: 'front' },
   storeroom: { level: 14, name: 'Clear the coal store', desc: 'Clear the old coal store at the end of the basement\'s back wall: room for 1 more machine, and the basement is ready for benches.', price: 5000, labSpots: 1 },
   bench:   { level: 25, name: 'Back-room benches', desc: 'A row of benches across the basement: room for 2 more machines.', price: 8000, labSpots: 2, needs: 'storeroom' },
   island2: { level: 30, name: 'Bigger island', desc: 'The island grows: room for 2 more machines.', price: 9000, spots: 2, needs: 'island' },
-  stalls:  { level: 36, name: 'Side stalls',   desc: 'Room for 5 machines on stalls down the side terrace.', price: 12000, spots: 5, needs: 'side' },
+  stalls:  { level: 36, name: 'Side stalls',   desc: 'Gas, water and power down the side terrace: room for 5 more machines (on the terrace or anywhere).', price: 12000, spots: 5, needs: 'side' },
   bench2:  { level: 50, name: 'The cellar',    desc: 'A cold store at the end of the bench row: room for 1 more machine.', price: 25000, labSpots: 1, needs: 'bench' },
   bench3:  { level: 32, name: 'More benches',  desc: 'A second row of benches, back to back with the first: room for 2 more machines.', price: 14000, labSpots: 2, needs: 'bench' },
   backdoor: { level: 25, name: 'Open a back door here', desc: 'A branch only: buyers come to this branch\'s own back door after dark, and what its basement makes goes straight into your bags instead of the vans.', price: 20000, back: true, branch: true },
@@ -263,52 +263,58 @@ export const BUYER_SPOTS_LOCAL = [[-2.1, 2.4], [-1.1, 2.4], [-0.1, 2.4], [-2.1, 
 // Tables and kit boxes sit on whole squares: the bag table, the cash table (two squares), the kit boxes
 export const BACK_PROPS = { bagTable: [0.9, 3.9], cashTable: [2.4, 3.9], kits: [-3.1, 3.9] };
 const BACK_CLUTTER = [[0.9, 3.9], [1.9, 3.9], [2.9, 3.9], [-3.1, 3.9], [-4.1, 0.9]];
-// Squares that stay clear: machine spots, the stairs and the landing at their foot, where buyers stand, the tables
-const BACK_BLOCKS = [[-3.1, 1.1, 0.7], ...BUYER_SPOTS_LOCAL.map(([x, z]) => [x, z, 0.6]), ...BACK_CLUTTER.map(([x, z]) => [x, z, 0.6])];
+// Squares nobody can stand on (the stairs, the tables, the kit boxes) and squares that stay clear to walk on (the
+// landing at the foot of the stairs, where buyers stand, the front of the tables)
+const nearBack = (bx, bz, pts, r) => { const { x, z } = backCellCenter(bx, bz); return pts.some(([px, pz]) => Math.abs(px - x) < r && Math.abs(pz - z) < r); };
+const onStairs = (bx, bz) => { const { x, z } = backCellCenter(bx, bz); return x > STAIRS.x0 - 0.3 && x < STAIRS.x1 + 0.3 && z > STAIRS.z0 - 0.5 && z < STAIRS.z1 + 0.3; };
+export const backFixed = (bx, bz) => onStairs(bx, bz) || nearBack(bx, bz, BACK_CLUTTER, 0.5);
+export const backReserved = (bx, bz) => nearBack(bx, bz, [[-3.1, 1.1]], 0.7) || nearBack(bx, bz, BUYER_SPOTS_LOCAL, 0.6) || nearBack(bx, bz, [[1.9, 2.9]], 0.5);
 export function backCellBlocked(bx, bz, ex = {}) {
   if (typeof ex !== 'object') ex = {};
   const { cols, rows } = backBounds(ex);
-  if (bx < 0 || bz < 0 || bx >= cols || bz >= rows) return true;
-  const { x, z } = backCellCenter(bx, bz);
-  if (LAB_SPOTS.some(p => Math.abs(p.x - x) < 0.85 && Math.abs(p.z - z) < 0.85)) return true;
-  if (x > STAIRS.x0 - 0.3 && x < STAIRS.x1 + 0.3 && z > STAIRS.z0 - 0.5 && z < STAIRS.z1 + 0.3) return true;
-  return BACK_BLOCKS.some(([bxp, bzp, r]) => Math.abs(bxp - x) < r && Math.abs(bzp - z) < r);
+  return bx < 0 || bz < 0 || bx >= cols || bz >= rows || backFixed(bx, bz) || backReserved(bx, bz);
 }
-// Walking room in the basement, on its design squares: decor may not cut anyone off from a machine, the stairs, the
-// tables or the buyers' spots. A square is walkable unless a machine, a table or a piece of decor stands on it.
 const BACK_GOALS = [STAIRS.bottom, ...BUYER_SPOTS_LOCAL, [1.9, 2.9]]; // the stairs, buyers, the tables' front
-export const backPathsOk = (s, decor) => backCutOff(s, decor) === 0;
-// How many machines, buyer spots and the stairs can't be reached with this decor in place
-export function backCutOff(s, decor) {
+const backCellOfXZ = (x, z) => [Math.round((x - BACK_GRID.x0) / BACK_GRID.size), Math.round((z - BACK_GRID.z0) / BACK_GRID.size)];
+// Everything standing on the basement floor (machines and decor), leaving one out if asked
+export function backItems(s, ignore = null) {
+  const out = [];
+  (s.lab || []).forEach((m, i) => { if (!(ignore?.kind === 'machine' && ignore.idx === i)) out.push({ kind: 'machine', idx: i, bx: m.bx, bz: m.bz, rot: m.rot || 0, name: LAB_MACHINES[m.type]?.name || 'machine' }); });
+  backOf(s).decor.forEach((d, i) => { if (!(ignore?.kind === 'decor' && ignore.idx === i)) out.push({ kind: 'decor', idx: i, bx: d.bx, bz: d.bz }); });
+  return out;
+}
+// What's wrong with a basement layout: two things on one square, or someone who can't get from the stairs to a machine's
+// front, the buyers' spots or the tables. null when it's fine.
+export function backLayoutProblem(s, items = backItems(s)) {
   const ex = s.design.expansions || {}, { cols, rows } = backBounds(ex);
-  const key = (bx, bz) => bz * cols + bx;
-  const free = new Uint8Array(cols * rows).fill(1);
-  const open = LAB_SPOTS.filter(sp => !sp.need || ex[sp.need]);
-  const cellOfXZ = (x, z) => [Math.round((x - BACK_GRID.x0) / BACK_GRID.size), Math.round((z - BACK_GRID.z0) / BACK_GRID.size)];
-  for (let bz = 0; bz < rows; bz++) for (let bx = 0; bx < cols; bx++) {
-    const { x, z } = backCellCenter(bx, bz);
-    const onMachine = open.some(p => { const side = Math.abs(Math.sin(p.ry)) > 0.5, hx = side ? 0.45 : 0.6, hz = side ? 0.6 : 0.45; return Math.abs(p.x - x) < hx && Math.abs(p.z - z) < hz; });
-    const onStairs = x > STAIRS.x0 && x < STAIRS.x1 && z > STAIRS.z0 && z < STAIRS.z1;
-    if (onMachine || onStairs || BACK_CLUTTER.some(([cx, cz]) => Math.abs(cx - x) < 0.5 && Math.abs(cz - z) < 0.5)) free[key(bx, bz)] = 0;
+  const key = (bx, bz) => bz * cols + bx, taken = new Map();
+  for (const it of items) {
+    if (it.bx < 0 || it.bz < 0 || it.bx >= cols || it.bz >= rows || backFixed(it.bx, it.bz)) return `${it.name || 'That'} isn't on the floor.`;
+    if (taken.has(key(it.bx, it.bz))) return 'Two things on one square.';
+    taken.set(key(it.bx, it.bz), it);
   }
-  for (const d of decor) if (d.bz >= 0 && d.bz < rows && d.bx >= 0 && d.bx < cols) free[key(d.bx, d.bz)] = 0;
-  // Everyone comes down the stairs: flood out from their foot
-  const [sx, sz] = cellOfXZ(...STAIRS.bottom), seen = new Uint8Array(cols * rows), q = [[sx, sz]];
-  seen[key(sx, sz)] = 1;
+  const walk = (bx, bz) => bx >= 0 && bz >= 0 && bx < cols && bz < rows && !backFixed(bx, bz) && !taken.has(key(bx, bz));
+  const [sx, sz] = backCellOfXZ(...STAIRS.bottom), seen = new Uint8Array(cols * rows), q = [];
+  if (walk(sx, sz)) { seen[key(sx, sz)] = 1; q.push([sx, sz]); }
   while (q.length) {
     const [bx, bz] = q.pop();
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = bx + dx, nz = bz + dz;
-      if (nx < 0 || nx >= cols || nz < 0 || nz >= rows) continue;
-      const k = key(nx, nz);
-      if (seen[k] || !free[k]) continue;
-      seen[k] = 1; q.push([nx, nz]);
-    }
+    for (const [dx, dz] of DIRS) { const nx = bx + dx, nz = bz + dz; if (walk(nx, nz) && !seen[key(nx, nz)]) { seen[key(nx, nz)] = 1; q.push([nx, nz]); } }
   }
-  const reach = (x, z) => { const [bx, bz] = cellOfXZ(x, z); return bz >= 0 && bz < rows && bx >= 0 && bx < cols && !!seen[key(bx, bz)]; };
-  // Each machine is worked from the square in front of it
-  const fronts = open.map(p => [p.x + Math.sin(p.ry) * 0.95, p.z + Math.cos(p.ry) * 0.95]);
-  return [...BACK_GOALS, ...fronts].filter(([x, z]) => !reach(x, z)).length;
+  const reach = (bx, bz) => bx >= 0 && bz >= 0 && bx < cols && bz < rows && !!seen[key(bx, bz)];
+  for (const [x, z] of BACK_GOALS) if (!reach(...backCellOfXZ(x, z))) return 'That would block the way to the stairs, the tables or the buyers.';
+  for (const it of items) if (it.kind === 'machine') { const [dx, dz] = DIRS[it.rot & 3]; if (!reach(it.bx + dx, it.bz + dz)) return `Nobody could get to the front of the ${it.name.toLowerCase()}.`; }
+  return null;
+}
+export const backPathsOk = (s, decor) => !backLayoutProblem(s, [...backItems(s).filter(it => it.kind !== 'decor'), ...decor.map(d => ({ kind: 'decor', bx: d.bx, bz: d.bz }))]);
+// Can this go on that basement square (facing that way)?
+export function backPlaceProblem(s, kind, bx, bz, rot = 0, ignore = null, name = '') {
+  const ex = backExt(s), { cols, rows } = backBounds(ex);
+  if (bx < 0 || bz < 0 || bx >= cols || bz >= rows) return 'Not part of the basement.';
+  if (backFixed(bx, bz)) return 'The stairs or the tables are there.';
+  if (backReserved(bx, bz)) return 'That square stays clear: the foot of the stairs, the buyers or the tables.';
+  const items = backItems(s, ignore);
+  if (items.some(it => it.bx === bx && it.bz === bz)) return 'Something is already there.';
+  return backLayoutProblem(s, [...items, { kind, bx, bz, rot, name: name || 'machine' }]);
 }
 export function backOf(s) {
   s.design.back ||= { floor: 'concrete', wall: 'block', decor: [] };
@@ -339,17 +345,16 @@ export function placeBackDecor(s, type, bx, bz) {
   const d = BACK_DECOR[type]; if (!d) return { msg: 'Pick something to place first.' };
   if (!levelOk(s, d)) return lockMsg(d);
   if (backOf(s).decor.length >= backDecorCap(s)) return { msg: `The back room has room for ${backDecorCap(s)} things at your level.` };
-  if (backCellBlocked(bx, bz, backExt(s))) return { msg: 'That square has to stay clear (machines, doors or buyers).' };
-  if (backDecorAt(s, bx, bz) >= 0) return { msg: 'Something is already there.' };
-  if (!backPathsOk(s, [...backOf(s).decor, { bx, bz }])) return { msg: 'That would block the way to a machine or a door.' };
+  const why = backPlaceProblem(s, 'decor', bx, bz);
+  if (why) return { msg: why };
   if (!payDirty(s, d.price)) return { msg: 'Not enough dirty cash.' };
   backOf(s).decor.push({ type, bx, bz, rot: 0 });
   return { ok: true, msg: `Placed: ${d.name}` };
 }
 export function moveBackDecor(s, idx, bx, bz) {
   const it = backOf(s).decor[idx]; if (!it) return { msg: '' };
-  if (backCellBlocked(bx, bz, backExt(s)) || backDecorAt(s, bx, bz, idx) >= 0) return { msg: 'You can\u2019t put it there.' };
-  if (!backPathsOk(s, backOf(s).decor.map((d, k) => (k === idx ? { bx, bz } : d)))) return { msg: 'That would block the way to a machine or a door.' };
+  const why = backPlaceProblem(s, 'decor', bx, bz, 0, { kind: 'decor', idx });
+  if (why) return { msg: why };
   it.bx = bx; it.bz = bz; return { ok: true, msg: 'Moved.' };
 }
 export function rotateBackDecor(s, idx) { const it = backOf(s).decor[idx]; if (it) it.rot = ((it.rot || 0) + 1) % 4; }
@@ -400,16 +405,189 @@ export function cellOwned(s, cx, cz) {
   const z = cellZone(cx, cz);
   return z === 'inside' || (!!z && !!s.design.expansions[z]);
 }
-// Squares inside kept clear for the kitchen, the baker, the counter, the queue and the doorway.
-const KEEP_CLEAR = new Set();
-for (let cz = 0; cz <= 8; cz++) for (let cx = 0; cx <= 8; cx++) {
-  const kitchen = (cx <= 1 && cz <= 6) || (cz <= 1 && cx <= 6) || (cx <= 5 && cz <= 4); // machines along both walls, and room to work
-  const counter = cz === 5 && cx >= 2;
-  const queue = cz >= 6 && cx >= 2 && cx <= 7;
-  const door = cx === 8 && cz >= 5;
-  if (kitchen || counter || queue || door) KEEP_CLEAR.add(cellKey(cx, cz));
+// ---------- Layout: machines, counters, the till and decor stand on the floor squares ----------
+// Facing: rot 0 faces +z (out from the back wall), 1 faces +x, 2 faces -z, 3 faces -x. A machine is worked from the
+// square in front of it; customers stand in front of a counter.
+export const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+export const rotY = rot => [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot & 3];
+export const TILL_CELL = [7, 5], SHOP_DOOR_CELL = [8, 8], INNER_DOOR_CELL = [0, 7];
+const RESERVED = new Set([TILL_CELL, SHOP_DOOR_CELL, INNER_DOOR_CELL].map(c => cellKey(...c)));
+export const solidDecor = type => !/rug|mat/.test(type);
+// Where the counters stand (one entry per counter you own)
+export const DEFAULT_COUNTERS = [[6, 5], [5, 5], [4, 5], [3, 5], [2, 5], [1, 5], [6, 4]];
+export const counterCells = s => s.design.counterAt || [];
+// Everything standing on the shop floor, leaving one thing out if asked (when it's the one being moved)
+export function shopItems(s, ignore = null) {
+  const out = [{ kind: 'till', cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0, name: 'till' }];
+  (s.machines || []).forEach((m, i) => { if (!(ignore?.kind === 'machine' && ignore.idx === i)) out.push({ kind: 'machine', idx: i, cx: m.cx, cz: m.cz, rot: m.rot || 0, name: MACHINES[m.type]?.name || 'machine' }); });
+  counterCells(s).forEach((c, k) => { if (!(ignore?.kind === 'counter' && ignore.idx === k)) out.push({ kind: 'counter', idx: k, cx: c.cx, cz: c.cz, rot: c.rot || 0, name: 'counter' }); });
+  (s.design.decor || []).forEach((d, i) => { if (!(ignore?.kind === 'decor' && ignore.idx === i)) out.push({ kind: 'decor', idx: i, cx: d.cx, cz: d.cz, solid: solidDecor(d.type) }); });
+  return out;
 }
-export const keptClear = (cx, cz) => KEEP_CLEAR.has(cellKey(cx, cz));
+// Squares on the same side of the shop wall (inside, or out on the terraces) connect; the shop door joins them
+const sideOf = (cx, cz) => (cellZone(cx, cz) === 'inside' ? 'in' : 'out');
+// What's wrong with a shop layout: two things on one square, the baker unable to reach a machine's front, customers
+// unable to reach a counter or the till, or a door blocked. null when it's fine.
+export function shopLayoutProblem(s, items = shopItems(s)) {
+  const taken = new Map();
+  for (const it of items) {
+    if (!cellZone(it.cx, it.cz) || !cellOwned(s, it.cx, it.cz)) return `The ${it.name || 'decoration'} isn't on your floor.`;
+    if (taken.has(cellKey(it.cx, it.cz))) return 'Two things on one square.';
+    taken.set(cellKey(it.cx, it.cz), it);
+  }
+  const walk = (cx, cz) => { if (!cellZone(cx, cz) || !cellOwned(s, cx, cz)) return false; const o = taken.get(cellKey(cx, cz)); return !o || (o.kind === 'decor' && !o.solid); };
+  // Flood in from the shop door, and in from the street along the terraces' outer edges
+  const seen = new Set(), q = [];
+  const seed = (cx, cz) => { const k = cellKey(cx, cz); if (walk(cx, cz) && !seen.has(k)) { seen.add(k); q.push([cx, cz]); } };
+  seed(...SHOP_DOOR_CELL);
+  for (const [cx, cz] of [...allCells('front'), ...allCells('side')]) if (cz === 10 || cx === 10) seed(cx, cz);
+  while (q.length) { const [cx, cz] = q.pop(); for (const [dx, dz] of DIRS) if (sideOf(cx, cz) === sideOf(cx + dx, cz + dz)) seed(cx + dx, cz + dz); }
+  const reach = (cx, cz) => seen.has(cellKey(cx, cz));
+  // The square in front of something: inside, it must be an inside square you can reach; out on a terrace it can be the
+  // street beyond the terrace
+  const frontOk = it => {
+    const [dx, dz] = DIRS[it.rot & 3], fx = it.cx + dx, fz = it.cz + dz, z = cellZone(fx, fz);
+    if (sideOf(it.cx, it.cz) === 'in') return z === 'inside' && reach(fx, fz);
+    if (!z) return true; // facing the street
+    return z !== 'inside' && reach(fx, fz);
+  };
+  if (!reach(...INNER_DOOR_CELL)) return 'That would block the door to the back room.';
+  for (const it of items) {
+    if (it.kind === 'machine' && !frontOk(it)) return `You couldn't get to the front of the ${it.name.toLowerCase()}.`;
+    if (it.kind === 'counter' && !frontOk(it)) return 'Customers couldn\u2019t get to the front of that counter.';
+    if (it.kind === 'till' && !frontOk(it)) return 'Customers couldn\u2019t get to the till.';
+  }
+  return null;
+}
+// Can this go on that square (facing that way)? ignore: the thing being moved
+export function shopPlaceProblem(s, kind, cx, cz, rot = 0, ignore = null, extra = {}) {
+  const zone = cellZone(cx, cz);
+  if (!zone) return 'Not part of the shop.';
+  if (!cellOwned(s, cx, cz)) return `Buy the ${EXPANSIONS[zone].name.toLowerCase()} first.`;
+  if (RESERVED.has(cellKey(cx, cz))) return cellKey(cx, cz) === cellKey(...TILL_CELL) ? 'The till is there.' : 'That square is a doorway.';
+  const items = shopItems(s, ignore);
+  if (items.some(it => it.cx === cx && it.cz === cz)) return 'Something is already there.';
+  return shopLayoutProblem(s, [...items, { kind, cx, cz, rot, name: extra.name || kind, solid: extra.solid ?? true }]);
+}
+// The way something on this square most naturally faces: away from the wall it's against
+export function naturalRot(cx, cz) {
+  if (cz === 0) return 0; if (cx === 0) return 1; if (cx === 8) return 3; if (cz === 8) return 2;
+  if (cz === 9 || cz === 10) return 0; if (cx === 9 || cx === 10) return 1;
+  return 0;
+}
+const NAT_ORDER = rot => [rot, (rot + 1) & 3, (rot + 3) & 3, (rot + 2) & 3];
+// A facing that works on this square (the natural one first), or -1
+export function bestRot(s, kind, cx, cz, ignore = null, extra = {}) {
+  for (const r of NAT_ORDER(kind === 'counter' ? 0 : naturalRot(cx, cz))) if (!shopPlaceProblem(s, kind, cx, cz, r, ignore, extra)) return r;
+  return -1;
+}
+export function backBestRot(s, bx, bz, ignore = null, name = '') {
+  const { cols, rows } = backBounds(backExt(s));
+  const nat = bz === 0 ? 0 : bx === 0 ? 1 : bx === cols - 1 ? 3 : bz === rows - 1 ? 2 : 0;
+  for (const r of NAT_ORDER(nat)) if (!backPlaceProblem(s, 'machine', bx, bz, r, ignore, name)) return r;
+  return -1;
+}
+// Somewhere free for a new machine or counter: along the walls first (machines) or by the till (counters)
+export function autoSpot(s, kind, extra = {}) {
+  let cells;
+  if (kind === 'counter') cells = [...DEFAULT_COUNTERS, ...allCells('inside')];
+  else {
+    const edge = ([cx, cz]) => Math.min(cx, cz, 8 - cx, 8 - cz);
+    cells = allCells('inside').sort((a, b) => edge(a) - edge(b) || a[1] - b[1] || a[0] - b[0]);
+    cells.push(...allCells('front'), ...allCells('side'));
+  }
+  for (const [cx, cz] of cells) { const rot = bestRot(s, kind, cx, cz, null, extra); if (rot >= 0) return { cx, cz, rot }; }
+  return null;
+}
+export function backAutoSpot(s, name = '') {
+  const { cols, rows } = backBounds(backExt(s)), cells = [];
+  for (let bz = 0; bz < rows; bz++) for (let bx = 0; bx < cols; bx++) cells.push([bx, bz]);
+  const edge = ([bx, bz]) => Math.min(bz, bx, cols - 1 - bx, rows - 1 - bz);
+  cells.sort((a, b) => edge(a) - edge(b) || a[1] - b[1] || a[0] - b[0]);
+  for (const [bx, bz] of cells) { const rot = backBestRot(s, bx, bz, null, name); if (rot >= 0) return { bx, bz, rot }; }
+  return null;
+}
+// Where an old fixed spot was, as a square and a facing (older saves, and the machines a new game starts with)
+const ryRot = ry => ((Math.round(ry / (Math.PI / 2)) % 4) + 4) % 4;
+export function cellFromSpot(i) {
+  const p = SPOTS[i]; if (!p) return null;
+  const cx = p.x <= 4.5 ? Math.floor(p.x + 4.5) : 9 + Math.min(1, Math.floor(p.x - 4.75));
+  const cz = p.z <= 4.5 ? Math.floor(p.z + 4.5) : 9 + Math.min(1, Math.floor(p.z - 4.75));
+  return { cx: Math.max(0, Math.min(10, cx)), cz: Math.max(0, Math.min(10, cz)), rot: ryRot(p.ry) };
+}
+export function backCellFromSpot(i) {
+  const p = LAB_SPOTS[i]; if (!p) return null;
+  const [bx, bz] = backCellOfXZ(p.x, p.z);
+  return { bx, bz, rot: ryRot(p.ry) };
+}
+// How many machines a room has space for: the fixed spots its expansions used to open
+export const kitchenRoom = s => SPOTS.filter(p => !p.need || s.design.expansions[p.need]).length;
+export const labRoom = s => LAB_SPOTS.filter(p => !p.need || s.design.expansions[p.need]).length;
+// Make a shop's layout sound: give everything a square, and settle things one at a time (the till, then machines,
+// counters and decor in order): each keeps its square if it fits with what's already settled, otherwise it moves to the
+// first square that does. Decor that fits nowhere comes down with a refund. Used on load, after cancelling design
+// changes, and on older saves (whose machines stood on fixed spots).
+export function fixLayout(s) {
+  const d = s.design;
+  d.counterAt ||= [];
+  const n = d.counters ?? 2;
+  d.counterAt = d.counterAt.slice(0, n);
+  for (const m of s.machines || []) if (m.cx == null) Object.assign(m, cellFromSpot(m.spot) || { cx: -1, cz: -1, rot: 0 });
+  for (const m of s.lab || []) if (m.bx == null) Object.assign(m, backCellFromSpot(m.spot) || { bx: -1, bz: -1, rot: 0 });
+  for (let k = d.counterAt.length; k < n; k++) { const [cx, cz] = DEFAULT_COUNTERS[k] || [-1, -1]; d.counterAt.push({ cx, cz, rot: 0 }); }
+  // The shop
+  const settled = [{ kind: 'till', cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0, name: 'till' }];
+  const free = (cx, cz) => cellZone(cx, cz) && cellOwned(s, cx, cz) && !RESERVED.has(cellKey(cx, cz)) && !settled.some(it => it.cx === cx && it.cz === cz);
+  const fits = it => free(it.cx, it.cz) && !shopLayoutProblem(s, [...settled, it]);
+  const cellsFor = kind => kind === 'counter' ? [...DEFAULT_COUNTERS, ...allCells('inside'), ...allCells('front'), ...allCells('side')]
+    : [...allCells('inside').sort((a, b) => Math.min(a[0], a[1], 8 - a[0], 8 - a[1]) - Math.min(b[0], b[1], 8 - b[0], 8 - b[1]) || a[1] - b[1] || a[0] - b[0]), ...allCells('front'), ...allCells('side')];
+  const settle = (obj, kind, extra) => {
+    const it = { kind, cx: obj.cx, cz: obj.cz, rot: obj.rot || 0, ...extra };
+    if (!fits(it)) {
+      let found = null;
+      for (const [cx, cz] of cellsFor(kind)) {
+        if (!free(cx, cz)) continue;
+        for (const r of NAT_ORDER(kind === 'counter' ? 0 : naturalRot(cx, cz))) { const c = { ...it, cx, cz, rot: r }; if (!shopLayoutProblem(s, [...settled, c])) { found = c; break; } }
+        if (found) break;
+      }
+      if (!found) return false;
+      Object.assign(it, found);
+      if (kind !== 'decor') obj.rot = it.rot;
+      obj.cx = it.cx; obj.cz = it.cz;
+    }
+    settled.push(it);
+    return true;
+  };
+  (s.machines || []).forEach(m => { if (!settle(m, 'machine', { name: MACHINES[m.type]?.name || 'machine' })) { m.cx = -1; m.cz = -1; } });
+  d.counterAt.forEach(c => { if (!settle(c, 'counter', { name: 'counter' })) { c.cx = -1; c.cz = -1; } });
+  d.decor = (d.decor || []).filter(it => {
+    if (it.cx === 8 && it.cz === 1 && s.upgrades?.catering) it.cx = -1;
+    if (settle(it, 'decor', { solid: solidDecor(it.type) })) return true;
+    if (DECOR[it.type] && typeof s.clean === 'number') s.clean += DECOR[it.type].price;
+    return false;
+  });
+  // The basement, the same way, from the foot of the stairs
+  if (s.lab?.length) {
+    const done = [];
+    const ex = backExt(s), { cols, rows } = backBounds(ex);
+    const bfree = (bx, bz) => bx >= 0 && bz >= 0 && bx < cols && bz < rows && !backFixed(bx, bz) && !backReserved(bx, bz) && !done.some(it => it.bx === bx && it.bz === bz);
+    const cells = []; for (let bz = 0; bz < rows; bz++) for (let bx = 0; bx < cols; bx++) cells.push([bx, bz]);
+    const edge = ([bx, bz]) => Math.min(bz, bx, cols - 1 - bx, rows - 1 - bz);
+    cells.sort((a, b) => edge(a) - edge(b) || a[1] - b[1] || a[0] - b[0]);
+    for (const m of s.lab) {
+      const it = { kind: 'machine', bx: m.bx, bz: m.bz, rot: m.rot || 0, name: LAB_MACHINES[m.type]?.name || 'machine' };
+      let ok = bfree(it.bx, it.bz) && !backLayoutProblem(s, [...done, it]);
+      if (!ok) for (const [bx, bz] of cells) {
+        if (!bfree(bx, bz)) continue;
+        for (const r of [0, 1, 3, 2]) { const c = { ...it, bx, bz, rot: r }; if (!backLayoutProblem(s, [...done, c])) { Object.assign(it, c); ok = true; break; } }
+        if (ok) break;
+      }
+      if (ok) { done.push(it); m.bx = it.bx; m.bz = it.bz; m.rot = it.rot; } else { m.bx = -1; m.bz = -1; }
+    }
+  }
+  tidyBack(s);
+  return s;
+}
 
 // Wall panels: back wall 'b0'..'b8' (along x), left wall 'l0'..'l8' (along z).
 export const PANELS = [...Array(9)].map((_, i) => 'b' + i).concat([...Array(9)].map((_, i) => 'l' + i));
@@ -418,7 +596,7 @@ export const artAllowed = key => !['b6', 'b7', 'b8', 'l7', 'l8'].includes(key);
 
 export function defaultDesign(base = {}) {
   return {
-    floor: {}, wall: {}, art: {}, base, counters: 2,
+    floor: {}, wall: {}, art: {}, base, counters: 2, counterAt: [{ cx: 6, cz: 5, rot: 0 }, { cx: 5, cz: 5, rot: 0 }],
     decor: [
       { type: 'plant', cx: 8, cz: 0, rot: 0 },
       { type: 'sacks', cx: 7, cz: 0, rot: 0 },
@@ -437,21 +615,12 @@ function ensureOne(s) {
   if (!s.design) s.design = defaultDesign();
   s.design.expansions ||= {};
   s.design.art ||= {};
-  // Decorations left on squares the kitchen now needs are moved to a free square (or sold back if there's none)
-  s.design.decor.forEach((it, idx) => {
-    if (cellZone(it.cx, it.cz) !== 'inside' || !keptClear(it.cx, it.cz)) return;
-    const spot = allCells('inside').find(([cx, cz]) => !keptClear(cx, cz) && decorAt(s, cx, cz) < 0);
-    if (spot) { it.cx = spot[0]; it.cz = spot[1]; } else it.gone = true;
-  });
-  s.design.decor = s.design.decor.filter(it => !it.gone);
-  // Older saves: rooms already holding machines get the expansions those spots now need, and back-room decor on
-  // squares that must now stay clear is taken down with a full refund
   // Older saves: as many counters as the old level-based menu allowed, so nothing comes off sale
   if (s.design.counters == null) s.design.counters = Math.min(7, Math.max(2, capAt(CAPS.menu, s.level || 1)));
   const ex = s.design.expansions;
   if (['bench', 'bench2', 'bench3', 'annex'].some(k => ex[k])) ex.storeroom = true;
-  if ((s.machines || []).some(m => SPOTS[m.spot]?.need === 'refit')) ex.refit = true;
-  tidyBack(s);
+  if ((s.machines || []).some(m => m.cx == null && SPOTS[m.spot]?.need === 'refit')) ex.refit = true;
+  fixLayout(s);
   return s;
 }
 // Back-room decor that stands where a machine now goes, or cuts someone off from a machine or a door, is taken
@@ -462,13 +631,8 @@ export function tidyBack(s) {
   const ext = backExt(s), before = b.decor.length;
   const refund = it => { if (BACK_DECOR[it.type] && typeof s.dirty === 'number') s.dirty += BACK_DECOR[it.type].price; };
   b.decor = b.decor.filter(it => { if (!backCellBlocked(it.bx, it.bz, ext)) return true; refund(it); return false; });
-  // Then take pieces down, one at a time, until everyone can get everywhere: first whichever one alone fixes it,
-  // otherwise the one nearest the middle of the trouble (the newest placed)
-  while (b.decor.length && !backPathsOk(s, b.decor)) {
-    let k = b.decor.length - 1, best = Infinity;
-    b.decor.forEach((_, i) => { const n = backCutOff(s, b.decor.filter((__, j) => j !== i)); if (n < best) { best = n; k = i; } });
-    refund(b.decor[k]); b.decor.splice(k, 1);
-  }
+  // Then take pieces down, newest first, until everyone can get everywhere
+  while (b.decor.length && backLayoutProblem(s)) { refund(b.decor.at(-1)); b.decor.pop(); }
   return before - b.decor.length;
 }
 
@@ -487,15 +651,11 @@ export const decorAt = (s, cx, cz, ignore = -1) => s.design.decor.findIndex((d, 
 export function canPlace(s, type, cx, cz, ignore = -1) {
   const zone = cellZone(cx, cz);
   if (!zone) return 'Not part of the shop.';
-  if (!cellOwned(s, cx, cz)) return `Buy the ${EXPANSIONS[zone].name.toLowerCase()} first.`;
-  if (zone === 'inside' && keptClear(cx, cz)) return 'That square has to stay clear for the kitchen, counter or customers.';
   if (cx === 8 && cz === 1 && s.upgrades?.catering) return 'The catering boxes are there.';
-  if (decorAt(s, cx, cz, ignore) >= 0) return 'Something is already there.';
-  if ((s.machines || []).some(m => SPOTS[m.spot]?.cell && SPOTS[m.spot].cell[0] === cx && SPOTS[m.spot].cell[1] === cz)) return 'A machine stands there.';
   const d = DECOR[type];
   if (d?.outdoor && zone === 'inside') return `${d.name} only goes outside, on a terrace.`;
   if (d?.indoor && zone !== 'inside') return `${d.name} only goes inside.`;
-  return null;
+  return shopPlaceProblem(s, 'decor', cx, cz, 0, ignore >= 0 ? { kind: 'decor', idx: ignore } : null, { solid: solidDecor(type) });
 }
 
 const round2 = v => Math.round(v * 100) / 100;
@@ -516,7 +676,9 @@ export function checkoutCart(s) {
 }
 export function cancelCart(s) {
   if (!cart) return;
-  s.design = JSON.parse(cart.snap); cart = null;
+  const keep = { counters: s.design.counters, counterAt: s.design.counterAt, cabinets: s.design.cabinets };
+  s.design = { ...JSON.parse(cart.snap), ...keep }; cart = null;
+  fixLayout(s);
 }
 function pay(s, cost) {
   if (cart) {

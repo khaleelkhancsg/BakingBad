@@ -918,23 +918,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const neonSign = mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshBasicMaterial({ map: neonTex, transparent: true }), 3.3, 2.65, -4.465, false);
   neonSign.visible = false; scene.add(neonSign);
 
-  // Display case and till
-  statics.add(box(5.1, 0.95, 0.9, '#9c5f3b', 0, 0, 0.95));
-  statics.add(box(5.14, 0.08, 0.94, '#5c3520', 0, 0, 0.95));
-  statics.add(box(5.0, 0.6, 0.02, '#b67a52', 0, 0.2, 1.41));
-  statics.add(box(5.14, 0.04, 0.94, '#efe6d8', 0, 0.95, 0.95));
-  // Seven counter sections, the first nearest the till. Each holds one product. Tap one to see how much is left,
-  // or tap a bare one to buy it.
+  // Display counters: each a glass cabinet standing on its own square, facing its customers (built in syncCounters).
+  // Tap one to see how much is left.
   const glass = smat({ color: '#cfefff', transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false });
-  const trays = [], counterGroup = new THREE.Group(); scene.add(counterGroup);
+  let trays = [];
+  const counterGroup = new THREE.Group(); scene.add(counterGroup);
   const hitM = new THREE.MeshBasicMaterial({ visible: false });
-  for (let k = 0; k < 7; k++) {
-    const x = 2.22 - k * 0.74;
-    const tg = new THREE.Group(); tg.position.set(x, 1.02, 0.95); scene.add(tg);
-    const hit = mesh(new THREE.BoxGeometry(0.72, 0.6, 0.92), hitM, x, 1.25, 0.95, false); hit.userData = { act: 'counter', id: String(k) };
-    scene.add(hit); pickables.push(hit);
-    trays.push({ x, group: tg, sig: '' });
-  }
+  const counterHits = [];
   const seasonGroup = new THREE.Group(); scene.add(seasonGroup);
   let seasonSig = null;
   function syncSeason(s) {
@@ -978,35 +968,40 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     }
     seasonGroup.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   }
-  let counterSig = '';
+  let counterSig = '', traySig = '';
   const starM = smat({ color: '#ffd447', emissive: '#ffb400', emissiveIntensity: 0.6, roughness: 0.4 });
   function syncCounters(s) {
-    const n = G.countersOf(s.design), menu = G.counterList(s), spk = menu.indexOf(s.design.special);
-    const sig = `${n}|${spk}|${(s.design.cabinets || []).map(Boolean).join('')}`;
+    const cells = D.counterCells(s).slice(0, G.countersOf(s.design)), menu = G.counterList(s), spk = menu.indexOf(s.design.special);
+    const sig = JSON.stringify([cells, spk, (s.design.cabinets || []).map(Boolean)]);
     if (sig === counterSig) return;
     counterSig = sig;
-    for (const o of counterGroup.children) if (o.isMesh && !o.userData.keep) o.geometry.dispose(); // merged shapes are its own
+    for (const o of counterGroup.children) o.traverse(m => { if (m.isMesh && !m.userData.keep) m.geometry.dispose(); });
     counterGroup.clear();
-    const trayM = mat('#f6f1e6'), capM = mat('#efe6d8'), postM = mat('#5c3520'), bareM = mat('#d9c8ae'), tagM = mat('#2f6b4f');
-    for (let k = 0; k < 7; k++) {
-      const x = 2.22 - k * 0.74;
-      if (k < n) {
-        counterGroup.add(box(0.7, 0.03, 0.8, trayM, x, 0.99, 0.95, false));
-        counterGroup.add(box(0.72, 0.55, 0.9, glass, x, 0.99, 0.95, false));
-        // A glass top in a slim frame, so you can see the food from above
-        for (const dz of [-0.45, 0.45]) counterGroup.add(box(0.74, 0.04, 0.04, capM, x, 1.54, 0.95 + dz));
-        for (const dx of [-0.36, 0.36]) counterGroup.add(box(0.03, 0.55, 0.9, postM, x + dx, 0.99, 0.95, false));
-        if (G.cabinetOn(s, k)) { const ch = mat('#d9dde3', { metalness: 0.7, roughness: 0.25 }); counterGroup.add(box(0.74, 0.05, 0.05, ch, x, 0.96, 1.42, false), box(0.74, 0.05, 0.05, ch, x, 1.5, 1.42, false)); }
-        if (k === spk) { const st = mesh(geo('star', () => new THREE.OctahedronGeometry(0.07, 0)), starM, x, 1.72, 0.95, false); st.userData.spin = true; st.userData.keep = true; counterGroup.add(st); }
-      } else {
-        // Bare: just the wooden top, with a little green "for sale" card standing on it
-        counterGroup.add(box(0.72, 0.02, 0.9, bareM, x, 0.99, 0.95, false));
-        const card = box(0.2, 0.13, 0.02, tagM, x, 1.01, 1.2, false); card.rotation.x = -0.25; counterGroup.add(card);
-        counterGroup.add(box(0.14, 0.02, 0.025, mat('#ffffff'), x, 1.07, 1.215, false));
-        counterGroup.add(box(0.025, 0.08, 0.025, mat('#ffffff'), x, 1.04, 1.215, false));
-      }
-    }
+    for (const t of trays) { scene.remove(t.group); }
+    for (const h of counterHits) { scene.remove(h); const i = pickables.indexOf(h); if (i >= 0) pickables.splice(i, 1); }
+    counterHits.length = 0;
+    trays = [];
+    traySig = '';
+    const woodM = mat('#9c5f3b'), darkM = mat('#5c3520'), panelM = mat('#b67a52'), trayM = mat('#f6f1e6'), capM = mat('#efe6d8'), postM = mat('#5c3520');
+    cells.forEach((c, k) => {
+      const { x, z } = D.cellCenter(c.cx, c.cz), rot = c.rot || 0, ry = D.rotY(rot), [dx, dz] = D.DIRS[rot];
+      const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry;
+      // the wooden base, a panel on the customers' side, and the glass case on top (local +z faces the customers)
+      g.add(box(0.9, 0.95, 0.84, woodM, 0, 0, 0), box(0.94, 0.08, 0.88, darkM, 0, 0, 0), box(0.86, 0.6, 0.02, panelM, 0, 0.2, 0.43), box(0.94, 0.04, 0.88, capM, 0, 0.95, 0));
+      g.add(box(0.82, 0.03, 0.76, trayM, 0, 0.99, 0, false), box(0.84, 0.55, 0.84, glass, 0, 0.99, 0, false));
+      for (const ez of [-0.42, 0.42]) g.add(box(0.86, 0.04, 0.04, capM, 0, 1.54, ez));
+      for (const ex of [-0.42, 0.42]) g.add(box(0.03, 0.55, 0.84, postM, ex, 0.99, 0, false));
+      if (G.cabinetOn(s, k)) { const ch = mat('#d9dde3', { metalness: 0.7, roughness: 0.25 }); g.add(box(0.86, 0.05, 0.05, ch, 0, 0.96, 0.44, false), box(0.86, 0.05, 0.05, ch, 0, 1.5, 0.44, false)); }
+      if (k === spk) { const st = mesh(geo('star', () => new THREE.OctahedronGeometry(0.07, 0)), starM, 0, 1.72, 0, false); st.userData.spin = true; st.userData.keep = true; g.add(st); }
+      counterGroup.add(g);
+      // the food sits in its own group on the tray
+      const tg = new THREE.Group(); tg.position.set(x, 1.02, z); tg.rotation.y = ry; scene.add(tg);
+      const hit = mesh(new THREE.BoxGeometry(0.9, 0.7, 0.9), hitM, x, 1.2, z, false); hit.userData = { act: 'counter', id: String(k) };
+      scene.add(hit); pickables.push(hit); counterHits.push(hit);
+      trays.push({ x, z, ry, dx, dz, group: tg, sig: '' });
+    });
     mergeStatic(counterGroup);
+    invalidateNav(); // counters stand in the way
   }
   statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
   statics.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
@@ -1850,8 +1845,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     disposeMaps(expGroup); expGroup.clear();
     const add = m => { m.traverse?.(x => { if (x.isMesh) x.receiveShadow = true; }); expGroup.add(m); return m; };
     const plank = mat('#b88452'), steel = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
-    if (ex.island) { add(box(2.6, 0.05, 1.0, plank, -1.5, 0, -1.15)); add(box(2.6, 0.5, 0.06, '#8a5a32', -1.5, 0, -1.6)); }
-    if (ex.island2) add(box(2.6, 0.05, 1.0, plank, -1.5, 0, -2.0));
     // Carts and stalls: low and neat (no tall frames to hide the machines), skirted in the shop's canopy stripes
     // or its paint; their parasols and the stalls' lean-to roof are part of the zoomed-out building
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy];
@@ -1872,15 +1865,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       g.add(box(1.34, 0.03, 1.14, topM, 0, 0.08, 0));
       g.position.set(x, 0, z); g.rotation.y = PI / 2; add(g);
     };
-    if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) cart(x, 6.05);
-    if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) stall(6.05, z);
     rebuildBasement(ex);
     invalidateNav();
-    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, BY, -1.7));
-    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, BY, -0.65));
-    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, BX - 0.5, BY, -1.7)); add(box(0.08, 1.9, 0.9, '#c9ccd3', BX + 0.15, BY, -1.7)); }
-    if (ex.annex) add(box(1.0, 0.02, 4.8, '#6b6f78', BX + 3.95, BY + 0.004, -1.7));
-    if (ex.storeroom) add(box(1.2, 0.02, 1.0, '#3a3530', BX + 1.6, BY + 0.004, -3.95));
   }
 
   // Design overlay for the back room: green where decor can go
@@ -1890,8 +1876,20 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   ovBackMesh.rotation.x = -PI / 2; ovBackMesh.visible = false; scene.add(ovBackMesh);
   function ovMatB(t) { return new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }); }
   let ovBackSig = '';
-  function paintBackOverlay(s) {
+  function paintBackOverlay(s, dv) {
     const c = ovBack.ctx, b = s.design.back || { decor: [] };
+    if (dv?.cat === 'bmachines') {
+      c.clearRect(0, 0, BCOLS * TS, BROWS * TS);
+      const bb = D.backBounds(D.backExt(s)), mv = dv.moving, name = mv ? LAB_MACHINES[s.lab[mv.idx]?.type]?.name : LAB_MACHINES[dv.item]?.name;
+      for (let bz = 0; bz < bb.rows; bz++) for (let bx = 0; bx < bb.cols; bx++) {
+        const want = mv || dv.item;
+        const ok = want && D.backBestRot(s, bx, bz, mv ? { kind: 'machine', idx: mv.idx } : null, name) >= 0;
+        c.fillStyle = !want ? 'rgba(255,255,255,0.08)' : ok ? 'rgba(121,201,154,.28)' : 'rgba(229,122,131,.15)';
+        c.fillRect(bx * TS + 2, bz * TS + 2, TS - 4, TS - 4);
+      }
+      ovBack.tex.needsUpdate = true;
+      return;
+    }
     c.clearRect(0, 0, BCOLS * TS, BROWS * TS);
     const ext = D.backExt(s), off = 0, bb = D.backBounds(ext);
     for (let bz = 0; bz < bb.rows; bz++) for (let bx = 0; bx < bb.cols; bx++) {
@@ -1939,14 +1937,22 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   scene.add(pickFront, pickSide);
 
   function paintOverlay(s, dv) {
-    const floorMode = dv.cat === 'floor' || dv.cat === 'decor';
+    const floorMode = dv.cat === 'floor' || dv.cat === 'decor' || dv.cat === 'kitchen';
     const wallMode = dv.cat === 'wall' || dv.cat === 'art';
     const tint = (ctx, x, y, cx, cz) => {
       const owned = D.cellOwned(s, cx, cz);
       if (!owned) { ctx.fillStyle = 'rgba(40,30,60,0.35)'; ctx.fillRect(x, y, TS, TS); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.setLineDash([4, 4]); ctx.strokeRect(x + 2, y + 2, TS - 4, TS - 4); ctx.setLineDash([]); return; }
+      if (dv.cat === 'kitchen') {
+        const mv = dv.moving, kind = mv ? mv.kind : dv.item === 'counter' ? 'counter' : dv.item ? 'machine' : null;
+        if (kind) {
+          const name = mv?.kind === 'machine' ? MACHINES[s.machines[mv.idx]?.type]?.name : dv.item?.startsWith('m:') ? MACHINES[dv.item.slice(2)]?.name : 'counter';
+          const ok = D.bestRot(s, kind, cx, cz, mv ? { kind: mv.kind, idx: mv.idx } : null, { name }) >= 0;
+          ctx.fillStyle = ok ? 'rgba(95,211,141,0.28)' : 'rgba(255,93,108,0.18)'; ctx.fillRect(x + 1, y + 1, TS - 2, TS - 2);
+        }
+      }
       if (dv.cat === 'decor') {
         const type = dv.moving != null ? s.design.decor[dv.moving]?.type : dv.item;
-        const ok = type ? !D.canPlace(s, type, cx, cz, dv.moving ?? -1) : !D.keptClear(cx, cz) || D.cellZone(cx, cz) !== 'inside';
+        const ok = type ? !D.canPlace(s, type, cx, cz, dv.moving ?? -1) : !D.shopItems(s).some(it => it.cx === cx && it.cz === cz);
         ctx.fillStyle = ok ? 'rgba(95,211,141,0.28)' : 'rgba(255,93,108,0.18)'; ctx.fillRect(x + 1, y + 1, TS - 2, TS - 2);
       }
       ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.75, y + 0.75, TS - 1.5, TS - 1.5);
@@ -1974,11 +1980,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (!d) return;
     syncBack(s); syncOutside(s); syncExpansions(s);
     const bdv = view.design?.back ? view.design : null;
-    ovBackMesh.visible = !!bdv && bdv.cat === 'bdecor';
+    ovBackMesh.visible = !!bdv && (bdv.cat === 'bdecor' || bdv.cat === 'bmachines');
     if (bdv) {
-      const sig = JSON.stringify([d.back?.decor, bdv.cat, d.expansions]);
-      if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s); }
-      const sel = bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
+      const sig = JSON.stringify([d.back?.decor, bdv.cat, bdv.item, bdv.moving, d.expansions, s.lab.map(m => [m.bx, m.bz, m.rot])]);
+      if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s, bdv); }
+      const sel = bdv.cat === 'bmachines' ? (bdv.pick ? s.lab[bdv.pick.idx] : null) : bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
       selRing.visible = !!sel;
       if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(BX + x, BY + 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
       overlay.visible = false;
@@ -1995,9 +2001,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const dv = view.design;
     overlay.visible = !!dv;
     if (dv) {
-      const os = JSON.stringify([dv.cat, dv.item, dv.moving, d.decor, d.expansions, !!s.upgrades.catering]);
+      const os = JSON.stringify([dv.cat, dv.item, dv.moving, d.decor, d.expansions, !!s.upgrades.catering, d.counterAt, s.machines.map(m => [m.cx, m.cz, m.rot])]);
       if (os !== overlaySig) { overlaySig = os; paintOverlay(s, dv); }
-      const sel = dv.sel != null ? d.decor[dv.sel] : null;
+      const pk = dv.cat === 'kitchen' ? dv.pick : null;
+      const sel = pk ? (pk.kind === 'machine' ? s.machines[pk.idx] : D.counterCells(s)[pk.idx]) : dv.sel != null ? d.decor[dv.sel] : null;
       selRing.visible = !!sel;
       if (sel) { const { x, z } = D.cellCenter(sel.cx, sel.cz); selRing.position.set(x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
     } else { selRing.visible = false; overlaySig = ''; }
@@ -2008,9 +2015,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   function designPick(x, y) {
     dRay.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
     if (view.design.back) {
-      const hits = dRay.intersectObjects([backDecorGroup, ...basementFloors], true);
+      const labSt = stations.filter(st => st.kind === 'night').map(st => st.group);
+      const hits = dRay.intersectObjects([backDecorGroup, ...labSt, ...basementFloors], true);
       for (const h of hits) {
         let o = h.object;
+        { let q = o; while (q && q.userData?.act !== 'machine' && q.parent) q = q.parent; if (q?.userData?.act === 'machine') { onPick({ act: 'design', kind: 'labmachine', idx: q.userData.idx }); return; } }
         while (o && o.userData?.kind !== 'bdecor' && o.parent) o = o.parent;
         if (o?.userData?.kind === 'bdecor') { onPick({ ...o.userData }); return; }
         if (basementFloors.includes(h.object)) {
@@ -2032,9 +2041,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
       return;
     }
-    const hits = dRay.intersectObjects([decorGroup, shopFloor, pickFront, pickSide], true);
+    const daySt = stations.filter(st => st.kind === 'day').map(st => st.group);
+    const hits = dRay.intersectObjects([decorGroup, ...daySt, ...counterHits, shopFloor, pickFront, pickSide], true);
     for (const h of hits) {
       let o = h.object;
+      if (o.userData?.act === 'counter') { onPick({ act: 'design', kind: 'counter', idx: Number(o.userData.id) }); return; }
+      { let q = o; while (q && q.userData?.act !== 'machine' && q.parent) q = q.parent; if (q?.userData?.act === 'machine') { onPick({ act: 'design', kind: 'machine', idx: q.userData.idx }); return; } }
       while (o && o.userData?.kind !== 'decor' && o.parent) o = o.parent;
       if (o?.userData?.kind === 'decor') { onPick({ ...o.userData }); return; }
       const p = h.point;
@@ -2075,7 +2087,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     stations = [];
     const add = (m, idx, kind) => {
       const M = kind === 'day' ? MACHINES[m.type] : LAB_MACHINES[m.type];
-      const pl = kind === 'day' ? SPOTS[m.spot] : LAB_SPOTS[m.spot] && { ...LAB_SPOTS[m.spot], x: BX + LAB_SPOTS[m.spot].x };
+      // its square and which way it faces
+      let pl = null;
+      if (kind === 'day' && m.cx >= 0) pl = { ...D.cellCenter(m.cx, m.cz), ry: D.rotY(m.rot || 0) };
+      if (kind === 'night' && m.bx >= 0) { const c = D.backCellCenter(m.bx, m.bz); pl = { x: BX + c.x, z: c.z, ry: D.rotY(m.rot || 0) }; }
       if (!M || !pl) return;
       const st = (BUILDERS[M.model] || buildOven)(M.tint);
       const tier = m.tier || 0;
@@ -2091,6 +2106,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
       st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       mergeStation(st, kind, m.type);
+      st.group.scale.setScalar(kind === 'night' ? 0.85 : 0.9); // a little smaller than a square, so neighbours don't touch
+      if (kind === 'day' && m.cz >= 9 || kind === 'day' && m.cx >= 9) { // out on a terrace: a low wooden deck under it, like a market stall
+        const deck = new THREE.Group(); deck.add(box(1.05, 0.06, 1.05, '#a8703f', 0, 0, 0), box(1.09, 0.03, 1.09, '#efe6d8', 0, 0.06, 0));
+        deck.scale.setScalar(1 / 0.9); st.group.add(deck);
+      }
       st.group.position.set(pl.x, kind === 'night' ? BY : 0, pl.z);
       st.group.rotation.y = pl.ry;
       st.group.userData = { act: 'machine', kind, idx };
@@ -2170,11 +2190,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   for (const n of [SNAV, BNAV]) { n.w = Math.ceil((n.x1 - n.x0) / n.c); n.h = Math.ceil((n.z1 - n.z0) / n.c); }
   let NAV = SNAV, NW = SNAV.w, NH = SNAV.h, navGrid = null;
   const useNav = n => { NAV = n; NW = n.w; NH = n.h; navGrid = n.grid; };
-  function invalidateNav() { SNAV.grid = null; BNAV.grid = null; navGrid = null; }
+  function invalidateNav() { SNAV.grid = null; BNAV.grid = null; navGrid = null; navGen++; }
   // Floor you can stand on: the shop, the back room, the door between them, the shop door and the terraces
   const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-7.45, -4.85, 1.75, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
     [4.85, 6.9, -4.4, 6.9], [-4.4, 6.9, 4.85, 6.9]];
-  const FIXED = [[-2.6, 3.5, 0.45, 1.45], [-5.5, -4.9, 3.9, 4.4]];
+  const FIXED = [[2.55, 3.65, 0.5, 1.45], [-5.5, -4.9, 3.9, 4.4]]; // the till, and the crate by the back door
   // The basement: its stairs, the tables and the kit boxes
   const bp = D.BACK_PROPS;
   const BFIXED = [[BX + D.STAIRS.x0, BX + D.STAIRS.x1, D.STAIRS.z0, D.STAIRS.z1 + 0.2], [BX + bp.bagTable[0] - 0.45, BX + bp.bagTable[0] + 0.45, bp.bagTable[1] - 0.3, bp.bagTable[1] + 0.3],
@@ -2191,12 +2211,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     // Decor (not rugs) stands in the way, in the shop and the basement
     if (st0?.design) {
       if (!under) for (const it of st0.design.decor || []) { if (/rug|mat/.test(it.type)) continue; const { x, z } = D.cellCenter(it.cx, it.cz); rects.push([x - 0.32, x + 0.32, z - 0.32, z + 0.32]); }
+      if (!under) for (const c of D.counterCells(st0).slice(0, G.countersOf(st0.design))) { const { x, z } = D.cellCenter(c.cx, c.cz); rects.push([x - 0.45 - pad, x + 0.45 + pad, z - 0.45 - pad, z + 0.45 + pad]); }
       if (under) for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([BX + x - 0.36, BX + x + 0.36, z - 0.36, z + 0.36]); }
     }
     for (const st of stations) {
       if ((st.kind === 'night') !== under) continue; // each floor's own machines
       const p = st.group.position, side = Math.abs(Math.sin(st.group.rotation.y)) > 0.5;
-      const hx = (side ? 0.42 : 0.55) + pad, hz = (side ? 0.55 : 0.42) + pad;
+      const hx = (side ? 0.4 : 0.48) + pad, hz = (side ? 0.48 : 0.4) + pad;
       rects.push([p.x - hx, p.x + hx, p.z - hz, p.z + hz]);
     }
     navGrid = NAV.grid = new Uint8Array(NW * NH);
@@ -2263,6 +2284,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (end === goal) pts.push(to.clone().setY(0)); // the exact spot only when we really got there
     return pts;
   }
+  // Head somewhere, working out a route only when the destination changes (or the room changed)
+  let navGen = 0;
+  function go(agent, dest) {
+    if (agent.goal && agent.goalGen === navGen && Math.hypot(agent.goal.x - dest.x, agent.goal.z - dest.z) < 0.05) return;
+    agent.goal = dest.clone(); agent.goalGen = navGen; walkTo(agent, dest);
+  }
+  const atGoal = (agent, r = 0.15) => !agent.path?.length && agent.goal && Math.hypot(agent.group.position.x - agent.goal.x, agent.group.position.z - agent.goal.z) < r;
   // Walk somewhere, around machines and through doorways
   function walkTo(agent, dest) {
     const path = findPath(agent.group.position, dest);
@@ -2314,7 +2342,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
     } else {
       const ti = Math.min(trays.length - 1, Math.max(0, G.counterList(s).indexOf(collected)));
-      for (let k = 0; k < 3; k++) launch(itemModel(collected), from, V3(trays[ti].x, 1.08, 0.95), { delay: k * 0.09 });
+      if (trays[ti]) for (let k = 0; k < 3; k++) launch(itemModel(collected), from, V3(trays[ti].x, 1.08, trays[ti].z), { delay: k * 0.09 });
     }
   }
   function sold(id) {
@@ -2363,12 +2391,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (!e) { e = { agent: new Agent(scene, c.look, 'customer', streetIn().clone()), shown: false, inside: false, leaving: false, c }; customers.set(c.id, e); }
       if (age > WALK + BROWSE) e.leaving = true;
       if (!e.leaving) {
-        if (!e.inside) { e.agent.target.copy(doorIn()); e.agent.face = null; if (e.agent.group.position.distanceTo(doorIn()) < 0.15) e.inside = true; }
-        else {
-          const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want)));
-          const k = lines.get(ti)?.indexOf(c.id) ?? 0;
-          e.agent.target.set(trays[ti].x + (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), 0, 1.95 + k * 0.6);
-          e.agent.face = PI;
+        if (!e.inside) { e.agent.target.copy(doorIn()); e.agent.face = null; if (e.agent.group.position.distanceTo(doorIn()) < 0.15) { e.inside = true; e.agent.goal = null; } }
+        else if (trays.length) {
+          const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want))), t = trays[ti];
+          const k = lines.get(ti)?.indexOf(c.id) ?? 0, side = (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), out = 0.95 + k * 0.6;
+          go(e.agent, V3(t.x + t.dx * out - t.dz * side, 0, t.z + t.dz * out + t.dx * side));
+          e.agent.face = atGoal(e.agent) ? t.ry + PI : null;
         }
       }
       if (age >= WALK && !e.shown) {
@@ -2383,7 +2411,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (!live.has(id)) e.leaving = true;
       if (e.leaving) {
         e.agent.face = null;
-        if (e.inside) { e.agent.target.copy(doorOut()); if (e.agent.group.position.distanceTo(doorOut()) < 0.15) e.inside = false; }
+        if (e.inside) { go(e.agent, doorOut()); if (e.agent.group.position.distanceTo(doorOut()) < 0.15) { e.inside = false; e.agent.path = null; } }
         else e.agent.target.copy(streetOut());
       }
       const arrived = e.agent.update(dt);
@@ -2391,7 +2419,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     }
 
     // Browsers: visual only. More of them when the shop is busier.
-    if (view.zone === 'shop' && !view.design && browsers.length < 4 && Math.random() < dt * Math.min(0.25, G.customersPerHour(s, s.clock) / 3600 * 6)) {
+    if (view.zone === 'shop' && !view.design && trays.length && browsers.length < 4 && Math.random() < dt * Math.min(0.25, G.customersPerHour(s, s.clock) / 3600 * 6)) {
       const look = { skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 };
       const tray = trays[Math.floor(Math.random() * trays.length)];
       browsers.push({ agent: new Agent(scene, look, 'customer', streetIn().clone()), stage: 0, tray, until: 0, id: 'w' + (browserId++) });
@@ -2399,10 +2427,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (let i = browsers.length - 1; i >= 0; i--) {
       const w = browsers[i], a = w.agent;
       if (w.stage === 0) { a.target.copy(doorIn()); a.face = null; if (a.group.position.distanceTo(doorIn()) < 0.15) w.stage = 1; }
-      else if (w.stage === 1) { a.target.set(w.tray.x + (Math.random() - 0.5) * 0.2, 0, 2.6 + Math.random() * 0.5); a.face = PI; w.stage = 2; }
-      else if (w.stage === 2 && a.group.position.distanceTo(a.target) < 0.1) { w.stage = 3; w.until = now + 3 + Math.random() * 4; if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 2, id: 'r' + w.id }); }
+      else if (w.stage === 1) { const t = w.tray, out = 1.55 + Math.random() * 0.5, side = (Math.random() - 0.5) * 0.2; go(a, V3(t.x + t.dx * out - t.dz * side, 0, t.z + t.dz * out + t.dx * side)); a.face = null; w.stage = 2; }
+      else if (w.stage === 2 && atGoal(a)) { a.face = w.tray.ry + PI; w.stage = 3; w.until = now + 3 + Math.random() * 4; if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 2, id: 'r' + w.id }); }
       else if (w.stage === 3 && now > w.until) { w.stage = 4; a.face = null; }
-      else if (w.stage === 4) { a.target.copy(doorOut()); if (a.group.position.distanceTo(doorOut()) < 0.15) w.stage = 5; }
+      else if (w.stage === 4) { go(a, doorOut()); if (a.group.position.distanceTo(doorOut()) < 0.15) { w.stage = 5; a.path = null; } }
       else if (w.stage === 5) a.target.copy(streetOut());
       const arrived = a.update(dt);
       if ((w.stage === 5 && arrived) || (view.zone !== 'shop' && w.stage < 2)) { scene.remove(a.group); browsers.splice(i, 1); }
@@ -2491,7 +2519,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (view.zone === 'shop') G.counterList(s).forEach((id, k) => {
         const { have, cap } = G.counterStock(s, k);
         if (have >= cap * 0.25) return;
-        want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k].x, 1.85, 0.95) });
+        want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k]?.x ?? 0, 1.85, trays[k]?.z ?? 0) });
       });
       // In the basement: kits running low, nothing bagged to sell
       if (view.zone === 'back' && s.labUnlocked) {
@@ -2541,11 +2569,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   }
 
   // ---------- Per-frame state sync ----------
-  let traySig = '', bagTint = null;
+  let bagTint = null;
   function syncState(s, dt, now) {
     navState = s;
     syncDesign(s, now);
-    const sig = JSON.stringify([s.machines.map(m => [m.type, m.spot, m.tier || 0]), s.lab.map(m => [m.type, m.spot, m.tier || 0]), !!s.design.expansions?.storeroom]);
+    const sig = JSON.stringify([s.machines.map(m => [m.type, m.cx, m.cz, m.rot, m.tier || 0]), s.lab.map(m => [m.type, m.bx, m.bz, m.rot, m.tier || 0]), !!s.design.expansions?.storeroom]);
     if (sig !== stationSig) { stationSig = sig; rebuildStations(s); }
     for (const st of stations) {
       const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];
