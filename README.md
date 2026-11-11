@@ -76,7 +76,7 @@ whatever you've put down; customers queue in front of the counter they want, whe
 
 **The street.** Customers walk into town from its faded edges along the pavements (along the front, down the side
 street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
-into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars brake for anyone on the zebra crossing. Cars (`cars.js`) are lofted through cross-sections from real cars' measurements at half scale, after the BMW 3 Series, Audi A4 and A4 Avant, Alfa Romeo Giulia and Porsche 911, with their kinds of grille and lamps, alloys, mirrors, door lines and window trim, and no badges; the taxi is the A4 shape in yellow. The town around the shop is 84 m across: a taller street behind, blocks to either side and low shops across the main road. Up to nine
+into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars brake for anyone on the zebra crossing. The cars are ready-made low-poly models (a GT-R, a Charger, a Rolls-Royce, a Camaro, a hatchback, an SUV and a sports car; see Credits) in random colours, with spinning wheels, brake lights and lamps that glow at night; until they load, code-built stand-ins (`cars.js`) take their place. The town around the shop is 84 m across: a taller street behind, blocks to either side and low shops across the main road. Up to nine
 customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
 Everything solid in the scene carries a simple generated prototype texture (`three-helpers.js`): wood grain, floorboards,
 bark, brushed steel, chequer plate, card, fabric, velvet, fur, leaves, stone, concrete, plaster, tiles, rubber, epoxy,
@@ -481,7 +481,7 @@ serve the back door, every upgrade moves the number it names, and so on (78 chec
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
-- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). All models are built from simple shapes in code.
+- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). Almost everything is built from simple shapes in code; the cars are ready-made models (`www/models/cars/`, loaded by `www/js/carModels.js`, see Credits), with code-built stand-ins (`www/js/cars.js`) until they load.
 - `www/js/design.js` holds the design catalogue and rules (squares, charm, expansions); `www/js/world.js` the neighbourhood.
 - `www/js/data.js` holds the numbers and content, `www/js/game.js` the rules on the real clock (no DOM), and `www/js/ui.js` the screens and input.
 - `tools/sim.mjs` is the balance simulator.
@@ -510,3 +510,20 @@ sideloaded: copy it to the phone and open it (allow installs from that app when 
 the phone plugged in, `adb install -r android\app\build\outputs\apk\debug\app-debug.apk` (adb is in the SDK's
 `platform-tools` folder). Installing again over the top keeps the save. `npm run android:sync` only copies `www/` across
 (run it after changing the game); `npm run android:open` opens the project in Android Studio.
+
+## Credits
+
+The cars in town are low-poly models from [Poly Pizza](https://poly.pizza), turned, scaled and recoloured in
+`www/js/carModels.js`:
+
+| File | Model | Author | Licence |
+|---|---|---|---|
+| `gtr.glb` | Nissan GTR | David Sirera | CC-BY |
+| `charger.glb` | Dodge Charger | David Sirera | CC-BY |
+| `rolls.glb` | Rolls Royce | David Sirera | CC-BY |
+| `camaro.glb` | Camaro ZL1 2017 | Kris Tong | CC-BY |
+| `hatchback.glb` | Car Hatchback | Kay Lousberg | CC0 |
+| `suv.glb` | SUV | Quaternius | CC0 |
+| `sports.glb` | Sports Car | Quaternius | CC0 |
+
+The same credits are in the game under Menu → Settings. Three.js (and its glTF loader in `www/vendor/`) is MIT licensed.

@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
 import { makeCar } from './cars.js';
+import { loadCarModels, buildCar } from './carModels.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
 const GX = -45, GZ = -40, GSIZE = 84, GPX = 2560 / GSIZE;
@@ -346,34 +347,58 @@ export function buildWorld(scene) {
   root.add(cyl(0.2, 0.2, 1.05, '#c8323c', -9.5, -0.09, 11.9, 14)); root.add(sphere(0.2, '#c8323c', -9.5, 0.96, 11.9));
 
   // ---------- Cars ----------
-  // Real-looking saloons and sports cars (cars.js); parked along the kerb and now and then driving past
+  // Ready-made car models (carModels.js), parked along the kerb and now and then driving past. Until they've loaded
+  // (or if one can't be), each car is a stand-in built in code (cars.js).
   const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
   const tailM = night(smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
   const CAR_COLOURS = ['#b3122a', '#1f4f9a', '#e8e6e0', '#2b2d36', '#8a9aa6', '#2f5a45', '#d9822b', '#4a2b5a', '#c9b48a', '#14161c', '#6b7f8f', '#a8282a'];
   const signM = night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5);
-  function car(color, parent = root, own = false, type = 'three') {
-    const c = makeCar(type, color, { own, headM, tailM, signM });
-    parent.add(c.group);
-    return c;
+  const STAND_IN = { rolls: 'four', charger: 'three', hatchback: 'giulia', gtr: 'nine', suv: 'avant', camaro: 'nine', sports: 'nine' };
+  const cars = [];
+  // A car: an outer group that stays put (and moves, for traffic), with its body inside it, swapped for the model later
+  function car(color, parent, own, key) {
+    const c = makeCar(STAND_IN[key] || 'three', color, { own, headM, tailM, signM });
+    const outer = new THREE.Group(); c.group.userData.body = true; outer.add(c.group); parent.add(outer);
+    const h = { group: outer, wheels: c.wheels, paint: c.paint, tail: c.tail, len: c.len, key, color, own };
+    cars.push(h);
+    return h;
   }
-  const PARKED_TYPES = ['three', 'four', 'avant', 'giulia', 'nine', 'three'];
+  // Parked cars stand in the scene itself (not the merged street), so their bodies can be swapped
+  const PARKED = ['rolls', 'charger', 'hatchback', 'gtr', 'suv', 'camaro'];
   for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.6, 7.5, PI, 1], [-2.6, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
-    const c = car(CAR_COLOURS[k], root, false, PARKED_TYPES[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
+    const c = car(CAR_COLOURS[k], scene, false, PARKED[k]); c.group.position.set(shiftX(x), -0.09, shiftZ(z)); c.group.rotation.y = ry;
   }
   // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night. They stop
   // for anyone on the zebra crossing.
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
   const LANES = [{ lane: 8.45 + ROAD_SHIFT, dir: 1 }, { lane: 9.85 + ROAD_SHIFT, dir: -1 }];
   const CROSS = { x0: 2.0, x1: 5.0 }; // the zebra (x 2.3 to 4.7) and a little room either side
-  const movers = ['three', 'taxi', 'four', 'giulia', 'nine', 'avant'].map((type, i) => {
-    const m = { ...LANES[i % 2], x: 0, v: 0, speed: 3.2, active: false, wait: 6 + i * 9, type };
-    const c = car(type === 'taxi' ? '#f2c94c' : CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true, type);
+  const movers = ['gtr', 'charger', 'rolls', 'camaro', 'hatchback', 'suv', 'sports'].map((type, i) => {
+    const m = { ...LANES[i % 2], x: 0, v: 0, speed: 3.2, active: false, wait: 6 + i * 8, type };
+    const c = car(CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true, type);
     c.group.visible = false;
     c.group.position.set(m.x, -0.09, m.lane); c.group.rotation.y = m.dir > 0 ? 0 : PI;
     const beamM = new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
     const beam = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.3), beamM);
     beam.rotation.x = -PI / 2; beam.position.set(c.len / 2 + 0.9, 0.1, 0); c.group.add(beam);
-    return { ...m, ...c, beamM };
+    return { ...m, h: c, group: c.group, beam, beamM };
+  });
+  // When the models arrive, each car's stand-in body is swapped for its model
+  loadCarModels().then(lib => {
+    const glowing = new Set();
+    for (const h of cars) {
+      const model = lib[h.key];
+      if (!model) continue;
+      const b = buildCar(model, { color: h.color, own: h.own });
+      for (const ch of [...h.group.children]) if (ch.userData.body) h.group.remove(ch);
+      b.group.userData.body = true; h.group.add(b.group);
+      h.wheels = b.wheels; h.len = b.len;
+      h.paint = b.paint; h.tail = b.tail || smat({ color: '#7a0f14', emissive: '#ff2a2a', emissiveIntensity: 0 });
+      // lamps glow at night (the moving cars' own tail lamps are lit in update, with the brake lights)
+      if (b.head && !glowing.has(b.head)) { glowing.add(b.head); b.head.emissive = new THREE.Color('#fff2c0'); night(b.head, 1.2); }
+      if (!h.own && b.tail && !glowing.has(b.tail)) { glowing.add(b.tail); b.tail.emissive = new THREE.Color('#ff2a2a'); night(b.tail, 1.2); }
+    }
+    for (const m of movers) m.beam.position.x = m.h.len / 2 + 0.9;
   });
 
   for (const o of root.children) if (!o.userData.fixed) { o.position.x = shiftX(o.position.x); o.position.z = shiftZ(o.position.z); }
@@ -395,10 +420,10 @@ export function buildWorld(scene) {
           const speed = 2.8 + Math.random() * 1.2;
           Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -46 : 40, speed, v: speed });
           m.group.position.z = m.lane; m.group.rotation.y = m.dir > 0 ? 0 : PI;
-          if (m.type !== 'taxi') m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
+          if (m.h.paint) m.h.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
         }
         // Give way at the zebra: if someone's on it and the car hasn't reached it yet, ease to a stop short of it
-        const front = m.x + m.dir * m.len / 2, line = m.dir > 0 ? CROSS.x0 - 0.3 : CROSS.x1 + 0.3;
+        const front = m.x + m.dir * m.h.len / 2, line = m.dir > 0 ? CROSS.x0 - 0.3 : CROSS.x1 + 0.3;
         const toLine = (line - front) * m.dir; // metres left before the line (negative once past it)
         let want = m.speed;
         if (crossingBusy && toLine > -0.05) want = Math.max(0, Math.min(m.speed, toLine * 1.6));
@@ -408,9 +433,9 @@ export function buildWorld(scene) {
         if ((m.dir > 0 && m.x > 40) || (m.dir < 0 && m.x < -46)) { m.active = false; m.group.visible = false; m.wait = 10 + Math.random() * 25; continue; }
         m.group.position.x = m.x;
         m.group.visible = Math.abs(m.x - CENTER.x) < FADE_OUT - 1;
-        for (const w of m.wheels) w.rotation.z -= m.v * dt / 0.19;
+        for (const w of m.h.wheels) w.rotation.z -= m.v * dt / 0.19;
         m.beamM.opacity = nightK * 0.55;
-        m.tail.emissiveIntensity = Math.max(nightK * 1.6, m.v < m.speed - 0.2 ? 1.8 : 0); // brake lights
+        m.h.tail.emissiveIntensity = Math.max(nightK * 1.6, m.v < m.speed - 0.2 ? 1.8 : 0); // brake lights
       }
     },
   };

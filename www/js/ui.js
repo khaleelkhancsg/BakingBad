@@ -952,6 +952,7 @@ function settingsTab() {
     <div class="pbtns"><button class="small primary" data-act="backup-out">Back up</button><button class="small" data-act="backup-in">Load a backup</button></div>`, '', 'wide');
   cards += pcard(`<div class="ptop"><span class="em">🧭</span><div><b>First-day guide</b><small>${s.guide?.step < GUIDE.length ? `On step ${s.guide.step + 1} of ${GUIDE.length}` : 'Done'}</small></div></div>
     <div class="pbtns"><button class="small" data-act="guide-restart">Show it again</button></div>`);
+  cards += pcard(`<div class="ptop"><span class="em">🚗</span><div><b>Credits</b><small>Cars from Poly Pizza: Nissan GT-R, Dodge Charger and Rolls-Royce by David Sirera, Camaro ZL1 2017 by Kris Tong (both CC-BY); hatchback by Kay Lousberg, SUV and sports car by Quaternius (CC0). Three.js (MIT).</small></div></div>`, '', 'wide');
   cards += pcard(`<div class="ptop"><span class="em">🆕</span><div><b>New game</b><small>Start over from the stall. This bakery is lost (back it up first).</small></div></div>
     <div class="pbtns"><button class="small danger" data-act="restart">Start over</button></div>`);
   return { cards, hint: 'Settings stay the same through new games and prestige.' };
