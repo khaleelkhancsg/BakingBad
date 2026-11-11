@@ -778,7 +778,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const sun = new THREE.DirectionalLight('#ffe2b8', 2.4);
   sun.castShadow = true;
   sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
-  Object.assign(sun.shadow.camera, { left: -24, right: 24, top: 19, bottom: -19, near: 1, far: 90 });
+  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 24, bottom: -24, near: 1, far: 110 });
   sun.shadow.bias = -0.0005;
   sun.shadow.normalBias = 0.02;
   sun.target.position.set(-3.5, 0, 0);
@@ -2524,19 +2524,20 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const browsers = []; let browserId = 1;
   // ---- People on the street: they come and go from the faded edges of town along the pavements ----
   const seenCust = new Set(), walkers = [];
+  const EDGE_W = -39, EDGE_E = 33, EDGE_N = -34; // where the faded edge of town is, along each pavement
   const SIDE_X = 8.3, FRONT_Z = 8.2, FAR_Z = 13.3, FAR_SIDE_X = 12.95, CROSS_X = 3.5, CORNER = V3(7.4, 0, 3.7); // walking lines, clear of lamps, trees and café tables
   // Ways in from the edge of town to the corner by the shop door (walked backwards to leave)
   const ROUTES_IN = [
-    [V3(-26, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],                                                       // along the front pavement
-    [V3(SIDE_X, 0, -20.5), V3(SIDE_X, 0, 3.7), CORNER],                                                         // down the side street
-    [V3(-26, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],         // over the zebra crossing
-    [V3(20, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],
+    [V3(EDGE_W, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],                                                       // along the front pavement
+    [V3(SIDE_X, 0, EDGE_N), V3(SIDE_X, 0, 3.7), CORNER],                                                         // down the side street
+    [V3(EDGE_W, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],         // over the zebra crossing
+    [V3(EDGE_E, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],
   ];
   // Passers-by: edge to edge, never stopping
   const WALKS = [
-    [V3(-26, 0, FAR_Z), V3(20, 0, FAR_Z)],
-    [V3(-26, 0, FRONT_Z), V3(SIDE_X, 0, FRONT_Z), V3(SIDE_X, 0, -20.5)],
-    [V3(FAR_SIDE_X, 0, -20.5), V3(FAR_SIDE_X, 0, FAR_Z), V3(20, 0, FAR_Z)],
+    [V3(EDGE_W, 0, FAR_Z), V3(EDGE_E, 0, FAR_Z)],
+    [V3(EDGE_W, 0, FRONT_Z), V3(SIDE_X, 0, FRONT_Z), V3(SIDE_X, 0, EDGE_N)],
+    [V3(FAR_SIDE_X, 0, EDGE_N), V3(FAR_SIDE_X, 0, FAR_Z), V3(EDGE_E, 0, FAR_Z)],
   ];
   const randomLook = () => ({ skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 });
   const shifted = (pts, off) => pts.map(p => p.clone().add(off));
@@ -3058,7 +3059,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       cam.panR += (0 - cam.panR) * k; cam.panU += (0 - cam.panU) * k; cam.zoom += (1 - cam.zoom) * k;
       if (Math.abs(cam.panR) + Math.abs(cam.panU) + Math.abs(cam.zoom - 1) < 0.01) { cam.panR = 0; cam.panU = 0; cam.zoom = 1; camHome = false; }
     }
-    const lim = 4 + 5 / cam.zoom;
+    const lim = 4 + 7 / cam.zoom;
     cam.panR = Math.max(-lim, Math.min(lim, cam.panR));
     cam.panU = Math.max(-lim * 0.7, Math.min(lim * 0.7, cam.panU));
     camera.left = -W * unit / 2; camera.right = W * unit / 2;
@@ -3086,7 +3087,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   let drag = null, pinch = null;
   const ray = new THREE.Raycaster();
   const TAP_SLOP = 10; // pixels a finger can wander and still be a tap
-  const zoomTo = z => Math.max(0.4, Math.min(2.6, z));
+  const zoomTo = z => Math.max(0.3, Math.min(2.6, z));
   function pointerDown(e, onTap = null) {
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     cam.vR = 0; cam.vU = 0; camHome = false; // a touch stops a glide (and easing home)

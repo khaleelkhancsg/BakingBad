@@ -76,7 +76,7 @@ whatever you've put down; customers queue in front of the counter they want, whe
 
 **The street.** Customers walk into town from its faded edges along the pavements (along the front, down the side
 street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
-into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars (hatchbacks, saloons, vans, a taxi) brake for anyone on the zebra crossing. Up to nine
+into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars brake for anyone on the zebra crossing. Cars are extruded from smooth side profiles (sports saloon, rear-engined coupé, estate, SUV, grand tourer, hatchback and a taxi) with glass, arches, five-spoke alloys and light bars, and no badges. The town around the shop is 84 m across: a taller street behind, blocks to either side and low shops across the main road. Up to nine
 customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
 Everything solid in the scene carries a simple generated prototype texture (`three-helpers.js`): wood grain, floorboards,
 bark, brushed steel, chequer plate, card, fabric, velvet, fur, leaves, stone, concrete, plaster, tiles, rubber, epoxy,

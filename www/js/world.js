@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
-const GX = -31, GZ = -26, GSIZE = 56, GPX = 2048 / GSIZE;
-const CENTER = { x: -3, z: 2 }, FADE_IN = 18, FADE_OUT = 27.5;
+const GX = -45, GZ = -40, GSIZE = 84, GPX = 2560 / GSIZE;
+export const CENTER = { x: -3, z: 2 }, FADE_IN = 28, FADE_OUT = 41;
 
 // The roads sit far enough out that a shop with both terraces still has a wide pavement in front and down the side.
 // Everything beyond a road was laid out for roads 2.2 m closer in; shifted() moves a point out past them.
@@ -47,11 +47,11 @@ export function buildWorld(scene) {
   const night = (m, k = 1) => { nightMats.push({ m, k }); return m; };
 
   // ---------- Ground ----------
-  const groundTex = canvasTex(2048, 2048, (c, w, h) => {
+  const groundTex = canvasTex(2560, 2560, (c, w, h) => {
     const X = x => (x - GX) * GPX, Z = z => (z - GZ) * GPX;
     const rect = (x0, z0, x1, z1, col) => { c.fillStyle = col; c.fillRect(X(x0), Z(z0), (x1 - x0) * GPX, (z1 - z0) * GPX); };
     c.fillStyle = '#86b86a'; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 2600; i++) {
+    for (let i = 0; i < 5200; i++) {
       c.fillStyle = rand() < 0.5 ? 'rgba(55,105,45,0.07)' : 'rgba(200,225,120,0.08)';
       c.beginPath(); c.arc(rand() * w, rand() * h, 6 + rand() * 30, 0, 2 * PI); c.fill();
     }
@@ -79,7 +79,7 @@ export function buildWorld(scene) {
     rect(7.25 + R, 6.55 + R, 10.55 + R, 6.72 + R, paint);                                                 // stop line
     // Zig-zags either side of the crossing, along both kerbs
     c.strokeStyle = paint; c.lineWidth = 0.09 * GPX;
-    for (const [z0, z1] of [[FRONT_EDGE + 0.18, FRONT_EDGE + 0.42], [FRONT_EDGE + 3.38, FRONT_EDGE + 3.62]]) for (const [xa, xb] of [[-2.3, 2.0], [5.0, 8.6]]) {
+    for (const [z0, z1] of [[FRONT_EDGE + 0.18, FRONT_EDGE + 0.42], [FRONT_EDGE + 3.38, FRONT_EDGE + 3.62]]) for (const [xa, xb] of [[-0.7, 2.0], [5.0, 7.7]]) {
       c.beginPath(); let k = 0; for (let x = xa; x <= xb + 1e-6; x += 0.45, k++) { const zz = k % 2 ? z1 : z0; k ? c.lineTo(X(x), Z(zz)) : c.moveTo(X(x), Z(zz)); } c.stroke();
     }
     // Manholes and drains
@@ -157,6 +157,7 @@ export function buildWorld(scene) {
   }
   function building(x0, x1, z0, z1, h, color, seed, { shopfront = false, roof = '#6f6b78', props = true } = {}) {
     const w = x1 - x0, d = z1 - z0;
+    BUILT.push({ x0: shiftX(x0), x1: shiftX(x1), z0: shiftZ(z0), z1: shiftZ(z1) });
     const side = smat({ color, roughness: 0.9 });
     const mats = [facade(d, h, color, seed + 1, shopfront), side, mat(roof), side, facade(w, h, color, seed, shopfront), side];
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
@@ -201,6 +202,20 @@ export function buildWorld(scene) {
   building(0.8, 6.6, -11.5, -5.3, 5.1, '#72b09a', 41);
   building(12.4, 17.6, -11.5, -3.2, 3.6, '#e08a72', 53, { roof: '#6d5d61' });
   building(-26.4, -20.6, -11.5, -5.8, 4.4, '#a9a1cc', 67);
+  // The next street back: taller, all the way along
+  for (const [x0, x1, z0, z1, h, c, sd, roof] of [
+    [-31, -24, -22, -14, 7.5, '#c97b5d', 101, '#5e5864'], [-22.5, -16, -22, -13.5, 8.6, '#dcc9a3', 103, '#6f6b78'], [-15, -8.5, -21, -13, 6.8, '#8fa8b8', 107, '#5d6670'],
+    [-7.5, -1, -22, -13, 9.4, '#b5654f', 109, '#5e5864'], [0, 6.4, -21, -13, 7.2, '#e6d6b8', 113, '#6f6b78'], [12.4, 18, -22, -14, 8.0, '#7f9a86', 127, '#55605a'],
+    [19.2, 25, -20, -12, 6.4, '#d39a7a', 131, '#6d5d61'], [-42, -33, -24, -15, 6.6, '#a7a0c4', 137, '#5d5870'],
+  ]) building(x0, x1, z0, z1, h, c, sd, { roof });
+  // Further along to the left and right
+  building(-41, -34, -12, -4, 6.2, '#e0b28a', 139, { roof: '#6d5d61' });
+  building(-41, -35, -2, 4.4, 4.0, '#9bc2b0', 149, { roof: '#55605a' });
+  building(18.6, 24.5, -10, -2, 4.6, '#c4b5e0', 151, { roof: '#5d5870' });
+  building(18.6, 23.5, -0.5, 6.0, 3.2, '#f0d08a', 157, { shopfront: true, props: false, roof: '#8a6d4a' });
+  // Across the main road, beyond the verge: a row of low shops (low, so they never hide the street)
+  for (const [x0, x1, h, c, sd] of [[-36, -30, 2.8, '#d98b7a', 163], [-26, -20, 2.6, '#f2e2b8', 167], [-16, -10, 3.0, '#9fb8d0', 173], [-4, 2, 2.6, '#e8a4b8', 179], [8, 14, 2.8, '#b8d4a0', 181], [19, 25, 2.4, '#f2c46d', 191]])
+    building(x0, x1, 16.8, 21, h, c, sd, { shopfront: true, props: false, roof: '#7a6a5a' });
   // A little corner café across the side road, with a striped awning
   building(12.4, 16.6, -1.6, 6.2, 2.3, '#f2c46d', 79, { shopfront: true, props: false, roof: '#8a6d4a' });
   const stripes = canvasTex(64, 16, (c, w, h) => { for (let i = 0; i < 8; i++) { c.fillStyle = i % 2 ? '#ffffff' : '#e85d75'; c.fillRect(i * 8, 0, 8, h); } }, [6, 1]);
@@ -233,7 +248,9 @@ export function buildWorld(scene) {
   const TREES = [[-17, -3], [-24, -1.5], [-18.2, 6.2], [-25, 4.6], [-23, -4.6], [-15.8, 1.2],
     [-12, 12.25], [-20, 12.25], [14.5, 12.25], [19.5, 12.25], [-6.5, 12.25],
     // (street trees stand at the back of their pavements, clear of people walking along them)
-    [12.0, -14], [12.0, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
+    [12.0, -14], [12.0, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5],
+    [-31, -1], [-29, 3.5], [-33, -13], [-12, -26], [3, -25.5], [-24, -26], [16, -26], [27, -6], [26.5, 4], [28, 0],
+    [-38, 13.5], [-30.5, 14.2], [-21, 14.4], [-0.5, 14.6], [21, 14.4], [27.5, 14], [-40, -28], [30, -16], [-32, -8], [5, 23], [-12, 23.5], [-30, 23], [20, 23]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
   const at = t => ({ x: shiftX(t.x), z: shiftZ(t.z) });
   const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
@@ -264,7 +281,7 @@ export function buildWorld(scene) {
   instanced(geo('leaf', () => new THREE.ConeGeometry(0.06, 0.2, 4).translate(0, 0.1, 0)), mat('#4f8f48', { flatShading: true }), FLOWERS.map(f => ({ x: f.x + 0.03, z: f.z, y: -0.09, s: 1 })));
   // Grass tufts scattered on the lawns
   const TUFTS = [];
-  for (let i = 0; i < 900 && TUFTS.length < 330; i++) {
+  for (let i = 0; i < 2200 && TUFTS.length < 720; i++) {
     const x = GX + rand() * GSIZE, z = GZ + rand() * GSIZE;
     if (!isGrass(x, z)) continue;
     for (let k = 0; k < 3; k++) TUFTS.push({ x: x + (rand() - 0.5) * 0.14, z: z + (rand() - 0.5) * 0.14, y: -0.09, s: 0.7 + rand() * 0.7, ry: rand() * PI, c: rand() < 0.5 ? '#5f9e4f' : '#79b35f' });
@@ -286,6 +303,7 @@ export function buildWorld(scene) {
   }
   streetLamp(-8, 11.5, PI / 2); streetLamp(6.5, 11.5, PI / 2); streetLamp(18, 11.5, PI / 2);
   streetLamp(11.5, -7, PI); streetLamp(-19.5, -3.8, 0); streetLamp(-22.6, 6, 0);
+  streetLamp(-20, 11.5, PI / 2); streetLamp(-32, 11.5, PI / 2); streetLamp(29, 11.5, PI / 2); streetLamp(11.5, -18, PI); streetLamp(11.5, -29, PI);
   // Bus stop on the far pavement
   {
     const x = -2.5, z = 11.75;
@@ -327,50 +345,122 @@ export function buildWorld(scene) {
   root.add(cyl(0.2, 0.2, 1.05, '#c8323c', -9.5, -0.09, 11.9, 14)); root.add(sphere(0.2, '#c8323c', -9.5, 0.96, 11.9));
 
   // ---------- Cars ----------
+  // Each body is a smooth side profile, extruded across the car's width with rounded edges, then given glass, arches,
+  // alloy wheels and lights. The shapes borrow the proportions of European sports saloons, coupés, estates and SUVs;
+  // there are no badges or makers' grilles, just plain generic details.
   const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
-  const tailM = night(smat({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
-  const glassM = mat('#2b3444', { roughness: 0.15, metalness: 0.3 });
-  const tyreM = mat('#1e1e24'), hubM = mat('#c9ccd3', { roughness: 0.3, metalness: 0.5 }), trimCar = mat('#2b2d36'), plateM = mat('#f4f1e8'), plateBackM = mat('#f2c94c');
-  const wheelGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.16, 14).rotateX(PI / 2);
-  const hubGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.17, 10).rotateX(PI / 2);
-  const CAR_COLOURS = ['#e85d75', '#4f9de8', '#f0b44c', '#5fcf8a', '#efefef', '#3a3f55', '#9b6bff', '#ff8a5c', '#7a2f3a', '#9fb8c8'];
-  // Body types: length, body height, cabin (length, offset, height), wheelbase, and a few extras
+  const tailM = night(smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
+  const glassM = smat({ color: '#1f2735', roughness: 0.1, metalness: 0.4, side: THREE.DoubleSide });
+  const tyreM = mat('#1a1a1f'), rimM = mat('#d4d8de', { roughness: 0.25, metalness: 0.6 }), darkRimM = mat('#3a3d44', { roughness: 0.3, metalness: 0.5 });
+  const trimCar = mat('#16161b'), plateM = mat('#f4f1e8'), plateBackM = mat('#f2c94c'), archM = mat('#0e0e12');
+  const CAR_COLOURS = ['#b3122a', '#1f4f9a', '#e8e6e0', '#2b2d36', '#8a9aa6', '#2f5a45', '#d9822b', '#4a2b5a', '#c9b48a', '#14161c', '#6b7f8f', '#a8282a'];
+  // x runs rear (-1) to front (+1), scaled to half the car's length; y is height in metres
   const CAR_TYPES = {
-    hatch: { len: 1.85, h: 0.46, cab: [1.0, -0.2, 0.4], wb: 0.6 },
-    sedan: { len: 2.1, h: 0.44, cab: [1.0, -0.1, 0.38], wb: 0.68 },
-    mini: { len: 1.6, h: 0.5, cab: [0.95, -0.08, 0.42], wb: 0.52, round: true },
-    van: { len: 2.2, h: 0.62, cab: [1.6, -0.25, 0.55], wb: 0.72 },
-    taxi: { len: 2.1, h: 0.44, cab: [1.0, -0.1, 0.38], wb: 0.68, sign: true },
+    // a sporty four-door saloon: short tail, steeply raked screen, a long bonnet
+    saloon: { L: 2.1, W: 0.92, clr: 0.14, wheels: [-0.62, 0.64], r: 0.2,
+      body: [[-0.98, 0.14], [-1.0, 0.3], [-0.97, 0.47], [-0.8, 0.53], [-0.62, 0.56], [-0.4, 0.76], [0.0, 0.83], [0.18, 0.8], [0.46, 0.58], [0.8, 0.5], [0.98, 0.42], [1.0, 0.28], [0.97, 0.14]],
+      glass: [[-0.53, 0.59], [-0.37, 0.74], [0.0, 0.8], [0.17, 0.77], [0.41, 0.59]], screen: [[0.18, 0.8], [0.46, 0.58]], rear: [[-0.62, 0.56], [-0.4, 0.76]],
+      head: [0.97, 0.43], tail: [-0.99, 0.45] },
+    // a rear-engined sports coupé: round nose, a roof that falls in one curve to a rounded tail, a ducktail spoiler
+    coupe: { L: 1.95, W: 0.94, clr: 0.13, wheels: [-0.62, 0.62], r: 0.2, ducktail: true,
+      body: [[-0.97, 0.13], [-1.0, 0.3], [-0.97, 0.44], [-0.84, 0.54], [-0.56, 0.7], [-0.2, 0.8], [0.05, 0.8], [0.3, 0.62], [0.5, 0.5], [0.85, 0.44], [0.99, 0.34], [0.97, 0.13]],
+      glass: [[-0.5, 0.6], [-0.2, 0.76], [0.03, 0.76], [0.27, 0.6]], screen: [[0.05, 0.8], [0.3, 0.62]], rear: [[-0.56, 0.7], [-0.2, 0.8]],
+      head: [0.93, 0.42], tail: [-0.98, 0.43], tailBar: true },
+    // a long, low estate: the roof runs straight back to an upright tailgate, with roof rails
+    estate: { L: 2.15, W: 0.92, clr: 0.14, wheels: [-0.63, 0.64], r: 0.2, rails: true,
+      body: [[-0.98, 0.14], [-1.0, 0.32], [-0.99, 0.55], [-0.94, 0.76], [-0.72, 0.81], [0.0, 0.82], [0.18, 0.79], [0.46, 0.58], [0.8, 0.5], [0.98, 0.42], [1.0, 0.28], [0.97, 0.14]],
+      glass: [[-0.9, 0.6], [-0.87, 0.74], [0.0, 0.78], [0.16, 0.76], [0.41, 0.59]], screen: [[0.18, 0.79], [0.46, 0.58]], rear: [[-0.99, 0.55], [-0.94, 0.76]],
+      head: [0.97, 0.43], tail: [-0.995, 0.52], tailBar: true },
+    // a sporty SUV: high, short overhangs, dark cladding round the arches
+    suv: { L: 2.1, W: 0.96, clr: 0.2, wheels: [-0.63, 0.64], r: 0.24, rails: true, cladding: true,
+      body: [[-0.97, 0.2], [-1.0, 0.38], [-0.98, 0.66], [-0.9, 0.9], [-0.7, 0.95], [0.05, 0.96], [0.22, 0.92], [0.5, 0.7], [0.85, 0.64], [0.99, 0.56], [1.0, 0.36], [0.96, 0.2]],
+      glass: [[-0.86, 0.72], [-0.82, 0.88], [0.05, 0.92], [0.2, 0.89], [0.45, 0.71]], screen: [[0.22, 0.92], [0.5, 0.7]], rear: [[-0.98, 0.66], [-0.9, 0.9]],
+      head: [0.98, 0.58], tail: [-0.99, 0.62] },
+    // a grand tourer: a very long bonnet, the cabin set well back, a short fastback
+    gt: { L: 2.15, W: 0.93, clr: 0.13, wheels: [-0.64, 0.66], r: 0.2,
+      body: [[-0.98, 0.13], [-1.0, 0.3], [-0.96, 0.46], [-0.76, 0.52], [-0.5, 0.6], [-0.26, 0.76], [0.0, 0.78], [0.12, 0.76], [0.4, 0.55], [0.85, 0.47], [0.99, 0.38], [0.98, 0.13]],
+      glass: [[-0.46, 0.58], [-0.26, 0.73], [0.0, 0.75], [0.1, 0.73], [0.35, 0.56]], screen: [[0.12, 0.76], [0.4, 0.55]], rear: [[-0.5, 0.6], [-0.26, 0.76]],
+      head: [0.97, 0.39], tail: [-0.98, 0.45], tailBar: true },
+    // a compact sporty hatchback
+    hatch: { L: 1.85, W: 0.9, clr: 0.14, wheels: [-0.64, 0.66], r: 0.19,
+      body: [[-0.97, 0.14], [-1.0, 0.32], [-0.98, 0.56], [-0.88, 0.78], [-0.6, 0.83], [0.0, 0.83], [0.15, 0.8], [0.45, 0.6], [0.8, 0.53], [0.98, 0.44], [1.0, 0.3], [0.96, 0.14]],
+      glass: [[-0.83, 0.62], [-0.8, 0.76], [0.0, 0.79], [0.13, 0.77], [0.4, 0.61]], screen: [[0.15, 0.8], [0.45, 0.6]], rear: [[-0.98, 0.56], [-0.88, 0.78]],
+      head: [0.97, 0.45], tail: [-0.99, 0.52] },
   };
+  CAR_TYPES.taxi = { ...CAR_TYPES.saloon, sign: true };
+  const BEVEL = 0.045;
+  const carGeo = (type, part) => geo(`car-${type}-${part}`, () => {
+    const T = CAR_TYPES[type], sx = T.L / 2, pts = (part === 'body' ? T.body : T.glass).map(([x, y]) => new THREE.Vector2(x * sx, y));
+    const sh = new THREE.Shape();
+    if (part === 'body') { sh.moveTo(pts[0].x, pts[0].y); sh.splineThru(pts.slice(1)); sh.lineTo(pts[0].x, pts[0].y); }
+    else { sh.moveTo(pts[0].x, pts[0].y); for (const p of pts.slice(1)) sh.lineTo(p.x, p.y); sh.lineTo(pts[0].x, pts[0].y); }
+    const depth = part === 'body' ? T.W - 2 * BEVEL : T.W + 0.012;
+    const g = new THREE.ExtrudeGeometry(sh, part === 'body'
+      ? { depth, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: 0.035, bevelSegments: 3, curveSegments: 10 }
+      : { depth, bevelEnabled: false });
+    g.translate(0, 0, -depth / 2);
+    g.computeVertexNormals();
+    return g;
+  });
+  // A thin pane laid along one edge of the profile (the windscreen or the back window), standing just proud of the body
+  function pane(T, [a, b], m, wid) {
+    const sx = T.L / 2, ax = a[0] * sx, ay = a[1], bx = b[0] * sx, by = b[1];
+    const len = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
+    const p = new THREE.Mesh(geo(`pane${len.toFixed(3)}|${wid}`, () => new THREE.PlaneGeometry(len * 0.92, wid).rotateX(-PI / 2)), m);
+    p.rotation.z = ang;
+    p.position.set((ax + bx) / 2 - Math.sin(ang) * 0.042, (ay + by) / 2 + Math.cos(ang) * 0.042, 0);
+    return p;
+  }
   function car(color, parent = root, ownPaint = false, type = 'hatch') {
-    const T = CAR_TYPES[type] || CAR_TYPES.hatch, L = T.len, hw = 0.46;
-    const g = new THREE.Group();
-    const paint = ownPaint ? smat({ color, roughness: 0.3, metalness: 0.3 }) : mat(color, { roughness: 0.3, metalness: 0.3 });
-    const tail = ownPaint ? smat({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }) : tailM;
-    g.add(rbox(L, T.h, 0.92, paint, 0, 0.18, 0, T.round ? 0.2 : 0.12));
-    const [cl, co, ch] = T.cab, top = 0.18 + T.h;
-    g.add(rbox(cl, ch, 0.84, glassM, co, top - 0.04, 0, 0.12));
-    g.add(rbox(cl - 0.08, 0.07, 0.86, paint, co, top - 0.04 + ch, 0, 0.03)); // roof
-    for (const x of [co - cl / 2 + 0.06, co + cl / 2 - 0.06, co]) for (const z of [-0.415, 0.415]) g.add(box(0.07, ch, 0.03, paint, x, top - 0.04, z, false)); // pillars
-    // bumpers, grille, number plates, door seams, mirrors
-    for (const s of [1, -1]) g.add(rbox(0.12, 0.13, 0.94, trimCar, s * (L / 2 + 0.01), 0.15, 0, 0.04));
-    g.add(box(0.03, 0.12, 0.5, trimCar, L / 2 + 0.005, 0.32, 0, false));
-    g.add(box(0.02, 0.07, 0.24, plateM, L / 2 + 0.075, 0.18, 0, false)); g.add(box(0.02, 0.07, 0.24, plateBackM, -L / 2 - 0.075, 0.18, 0, false));
-    for (const z of [-hw - 0.005, hw + 0.005]) { g.add(box(0.015, T.h - 0.1, 0.01, trimCar, co + 0.1, 0.24, z, false)); g.add(box(0.12, 0.025, 0.012, trimCar, co + 0.25, top - 0.12, z, false)); }
-    for (const z of [-0.5, 0.5]) g.add(rbox(0.08, 0.06, 0.08, paint, co + cl / 2 + 0.02, top, z, 0.02));
-    if (T.sign) { g.add(rbox(0.32, 0.1, 0.18, mat('#2b2d36'), co, top - 0.04 + ch + 0.07, 0, 0.02)); g.add(box(0.3, 0.07, 0.16, night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5), co, top - 0.04 + ch + 0.09, 0, false)); }
-    if (type === 'van') g.add(box(0.02, 0.3, 0.9, trimCar, co - 0.3, 0.3, 0, false));
-    const wheels = [];
-    for (const [x, z] of [[T.wb, 0.42], [-T.wb, 0.42], [T.wb, -0.42], [-T.wb, -0.42]]) {
-      const w = mesh(wheelGeo, tyreM, x, 0.19, z); w.add(mesh(hubGeo, hubM, 0, 0, 0)); g.add(w); wheels.push(w);
+    const T = CAR_TYPES[type] || CAR_TYPES.hatch, sx = T.L / 2, hw = T.W / 2;
+    const g = new THREE.Group(); g.userData.noTex = true; // paint stays paint
+    const paint = ownPaint ? smat({ color, roughness: 0.22, metalness: 0.35 }) : mat(color, { roughness: 0.22, metalness: 0.35 });
+    const tail = ownPaint ? smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }) : tailM;
+    g.add(new THREE.Mesh(carGeo(type, 'body'), paint));
+    g.add(new THREE.Mesh(carGeo(type, 'glass'), glassM));
+    g.add(pane(T, T.screen, glassM, T.W - 0.1), pane(T, T.rear, glassM, T.W - 0.14));
+    // the pillar between the doors, and a thin dark seam for the doors
+    const gl = T.glass, bx = ((gl[1][0] + gl[gl.length - 2][0]) / 2) * sx, beltY = gl[0][1];
+    for (const z of [-hw - 0.008, hw + 0.008]) {
+      g.add(box(0.06, (gl[2][1] - beltY) * 0.95, 0.01, trimCar, bx, beltY, z, false));
+      g.add(box(0.012, beltY - T.clr - 0.12, 0.01, trimCar, bx, T.clr + 0.08, z, false));
+      g.add(box((gl[gl.length - 1][0] - gl[0][0]) * sx, 0.018, 0.012, mat('#c9ccd3', { metalness: 0.6, roughness: 0.3 }), (gl[0][0] + gl[gl.length - 1][0]) / 2 * sx, beltY - 0.03, z, false)); // a bright waistline trim
     }
-    for (const z of [-0.29, 0.29]) { g.add(box(0.04, 0.1, 0.2, headM, L / 2 + 0.04, 0.38, z, false)); g.add(box(0.04, 0.1, 0.18, tail, -L / 2 - 0.04, 0.38, z, false)); }
+    // mirrors at the foot of the windscreen
+    for (const z of [-hw - 0.05, hw + 0.05]) g.add(rbox(0.09, 0.06, 0.08, paint, gl[gl.length - 1][0] * sx - 0.02, beltY + 0.01, z, 0.02));
+    // lights: slim swept headlamps, tail lamps (or a full-width light bar), a plain grille and intake, number plates
+    const hx = T.head[0] * sx + BEVEL, tx = T.tail[0] * sx - BEVEL;
+    for (const s of [-1, 1]) { const h = box(0.05, 0.05, 0.22, headM, hx - 0.01, T.head[1] - 0.025, s * (hw - 0.17), false); h.rotation.y = s * 0.25; g.add(h); }
+    if (T.tailBar) g.add(box(0.04, 0.045, T.W * 0.86, tail, tx + 0.005, T.tail[1] - 0.02, 0, false));
+    else for (const s of [-1, 1]) g.add(box(0.04, 0.07, 0.2, tail, tx + 0.005, T.tail[1] - 0.035, s * (hw - 0.15), false));
+    g.add(rbox(0.05, 0.07, T.W * 0.42, trimCar, hx - 0.03, T.head[1] - 0.15, 0, 0.02));
+    g.add(rbox(0.05, 0.05, T.W * 0.7, trimCar, hx - 0.06, T.clr + 0.04, 0, 0.02));
+    g.add(box(0.02, 0.07, 0.24, plateM, hx - 0.01, T.clr + 0.11, 0, false));
+    g.add(box(0.02, 0.07, 0.24, plateBackM, tx + 0.01, T.tail[1] - 0.15, 0, false));
+    g.add(rbox(0.06, 0.05, T.W * 0.8, trimCar, tx + 0.02, T.clr + 0.03, 0, 0.02)); // diffuser
+    for (const s of [-1, 1]) { const ex = cyl(0.025, 0.025, 0.06, '#8d939c', 0, 0, 0, 8, false); ex.rotation.z = PI / 2; ex.position.set(tx, T.clr + 0.04, s * 0.25); g.add(ex); } // exhausts
+    if (T.ducktail) g.add(rbox(0.22, 0.04, T.W - 0.1, paint, -0.84 * sx, 0.55, 0, 0.015));
+    if (T.rails) for (const z of [-hw + 0.08, hw - 0.08]) g.add(rbox(T.L * 0.42, 0.035, 0.035, mat('#2b2d36'), (T.glass[2][0] - 0.25) * sx, T.body[5][1] + 0.03, z, 0.012));
+    if (T.cladding) for (const z of [-hw - 0.004, hw + 0.004]) g.add(box(T.L * 0.98, 0.1, 0.01, trimCar, 0, T.clr + 0.02, z, false));
+    if (T.sign) { g.add(rbox(0.3, 0.1, 0.17, mat('#2b2d36'), 0, T.body[6][1] + 0.03, 0, 0.02)); g.add(box(0.28, 0.07, 0.15, night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5), 0, T.body[6][1] + 0.05, 0, false)); }
+    // wheels: dark arches, tyres, five-spoke alloys
+    const wheels = [], tyreGeo = geo(`tyre${T.r}`, () => new THREE.CylinderGeometry(T.r, T.r, 0.2, 18).rotateX(PI / 2));
+    const rimGeo = geo(`rim${T.r}`, () => new THREE.CylinderGeometry(T.r * 0.66, T.r * 0.66, 0.205, 16).rotateX(PI / 2));
+    const archGeo = geo(`arch${T.r}`, () => new THREE.CircleGeometry(T.r + 0.05, 16, 0, PI));
+    for (const wx of T.wheels) for (const s of [-1, 1]) {
+      const arch = new THREE.Mesh(archGeo, archM); arch.position.set(wx * sx, T.r, s * (hw + 0.003)); if (s < 0) arch.rotation.y = PI; g.add(arch);
+      const w = mesh(tyreGeo, tyreM, wx * sx, T.r, s * (hw - 0.08)); // stands a touch proud of the body
+      w.add(new THREE.Mesh(rimGeo, rimM));
+      for (let k = 0; k < 5; k++) { const sp = new THREE.Mesh(geo('spoke' + T.r, () => new THREE.BoxGeometry(T.r * 0.55, 0.035, 0.02).translate(T.r * 0.28, 0, 0)), darkRimM); sp.position.set(0, 0, s * 0.105); sp.rotation.z = k * PI * 2 / 5; w.add(sp); }
+      w.add(mesh(geo('hubcap', () => new THREE.CylinderGeometry(0.035, 0.035, 0.215, 10).rotateX(PI / 2)), darkRimM, 0, 0, 0));
+      g.add(w); wheels.push(w);
+    }
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     parent.add(g);
-    return { group: g, wheels, paint, tail, len: L };
+    return { group: g, wheels, paint, tail, len: T.L };
   }
-  const PARKED_TYPES = ['hatch', 'sedan', 'van', 'mini', 'sedan', 'hatch'];
-  for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.4, 7.5, PI, 1], [0.3, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
+  const PARKED_TYPES = ['hatch', 'saloon', 'estate', 'coupe', 'suv', 'gt'];
+  for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.6, 7.5, PI, 1], [-2.6, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
     const c = car(CAR_COLOURS[k], root, false, PARKED_TYPES[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
   }
   // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night. They stop
@@ -378,7 +468,7 @@ export function buildWorld(scene) {
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
   const LANES = [{ lane: 8.45 + ROAD_SHIFT, dir: 1 }, { lane: 9.85 + ROAD_SHIFT, dir: -1 }];
   const CROSS = { x0: 2.0, x1: 5.0 }; // the zebra (x 2.3 to 4.7) and a little room either side
-  const movers = ['hatch', 'taxi', 'sedan', 'van'].map((type, i) => {
+  const movers = ['hatch', 'taxi', 'saloon', 'suv', 'coupe', 'estate', 'gt'].map((type, i) => {
     const m = { ...LANES[i % 2], x: 0, v: 0, speed: 3.2, active: false, wait: 6 + i * 9, type };
     const c = car(type === 'taxi' ? '#f2c94c' : CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true, type);
     c.group.visible = false;
@@ -406,7 +496,7 @@ export function buildWorld(scene) {
           const lane = LANES[Math.random() < 0.5 ? 0 : 1];
           if (movers.filter(o => o.active).length >= 2 || movers.some(o => o !== m && o.active && o.lane === lane.lane)) { m.wait = 3; continue; }
           const speed = 2.8 + Math.random() * 1.2;
-          Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -30 : 24, speed, v: speed });
+          Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -46 : 40, speed, v: speed });
           m.group.position.z = m.lane; m.group.rotation.y = m.dir > 0 ? 0 : PI;
           if (m.type !== 'taxi') m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
         }
@@ -418,7 +508,7 @@ export function buildWorld(scene) {
         m.v += Math.max(-7 * dt, Math.min(2.5 * dt, want - m.v));
         if (crossingBusy && toLine > -0.05) m.v = Math.min(m.v, Math.max(0, toLine) / Math.max(dt, 1e-3));
         m.x += m.dir * m.v * dt;
-        if ((m.dir > 0 && m.x > 24) || (m.dir < 0 && m.x < -30)) { m.active = false; m.group.visible = false; m.wait = 10 + Math.random() * 25; continue; }
+        if ((m.dir > 0 && m.x > 40) || (m.dir < 0 && m.x < -46)) { m.active = false; m.group.visible = false; m.wait = 10 + Math.random() * 25; continue; }
         m.group.position.x = m.x;
         m.group.visible = Math.abs(m.x - CENTER.x) < FADE_OUT - 1;
         for (const w of m.wheels) w.rotation.z -= m.v * dt / 0.19;
