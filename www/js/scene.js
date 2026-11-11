@@ -759,15 +759,16 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // Stone foundations, like the buildings along the street (the floor itself is painted by the design layer)
   statics.add(box(9.25, 0.45, 9.25, '#c7bfb2', 0, -0.45, 0, false));
   // The small back room upstairs: a floor around the stairwell, on its own foundation
-  { const f = mesh(new THREE.PlaneGeometry(3.0, 3.0), smat({ map: concreteTex, roughness: 0.95 }), -6.2, 0.001, 3.1, false); f.rotation.x = -PI / 2; f.receiveShadow = true; statics.add(f); }
-  statics.add(box(3.15, 0.45, 3.0, '#a79f95', -6.2, -0.45, 3.1, false));
+  { const f = mesh(new THREE.PlaneGeometry(3.0, 2.9), smat({ map: concreteTex, roughness: 0.95 }), -6.2, 0.001, 3.15, false); f.rotation.x = -PI / 2; f.receiveShadow = true; statics.add(f); }
+  statics.add(box(3.15, 0.45, 2.85, '#a79f95', -6.2, -0.45, 3.175, false));
   // The basement's floor, the same size as the shop; digging out adds more (basementShell)
   const backFloor = mesh(new THREE.PlaneGeometry(9.2, 9.2), smat({ map: concreteTex, roughness: 0.95 }), BX, 0.001, 0, false);
   backFloor.rotation.x = -PI / 2; backFloor.receiveShadow = true; backFloor.userData.keep = true; cellar.add(backFloor); // its own mesh so its style can change
   const backFloorOrig = backFloor.material, basementFloors = [backFloor];
   // The earth it's dug into: under the floor, and behind the back and left walls (in front, it's cut away so you can see in)
   const soilM = mat('#2d241e');
-  cellar.add(box(9.8, 0.5, 9.8, soilM, BX + 1.1, -0.5, 1.1, false), box(16, 3.45, 8, soilM, BX + 1, -0.5, -8.75, false), box(8, 3.45, 9.8, soilM, BX - 8.75, -0.5, 0, false));
+  cellar.add(box(44, 0.6, 44, soilM, BX + 4, -0.62, 6, false), box(16, 3.45, 8, soilM, BX + 1, -0.5, -8.75, false),
+    box(8, 3.45, 5.3, soilM, BX - 8.75, -0.5, -2.1, false), box(8, 3.45, 3.0, soilM, BX - 8.75, -0.5, 3.2, false));
 
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
@@ -807,13 +808,26 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const backDoor = box(0.08, 2.0, 1.15, '#55606b', 0, 0, 0.58); backDoorPivot.add(backDoor);
   backDoorPivot.add(box(0.1, 0.1, 0.1, '#c9ccd3', 0.05, 1.0, 1.02));
   scene.add(backDoorPivot);
-  // The stairwell along the back wall: steps going down into the dark, with a rail
-  const stepM = mat('#5a5048'), railM2 = mat('#2b2d36', { metalness: 0.4, roughness: 0.4 });
-  statics.add(box(2.6, 1.6, 1.15, '#141216', -6.2, -1.6, 1.0, false));
-  for (let k = 0; k < 7; k++) statics.add(box(0.32, 0.1, 1.0, stepM, -5.25 - k * 0.32, -0.16 - k * 0.2, 1.0, false));
+  // ---- The stairs: one flight from the small back room down to the basement under the shop ----
+  // The top step is at the far end of the stairwell (by the back door); it runs down towards the shop, under the
+  // shop's side wall, and its last steps come into the basement through an opening in the basement's left wall.
+  const stepM = mat('#5a5048'), railM2 = mat('#2b2d36', { metalness: 0.4, roughness: 0.4 }), noseM = mat('#8d939c', { metalness: 0.5, roughness: 0.4 });
+  const BY0 = -3.45, STEP_N = 12, STEP_RUN = 0.29, STEP_TOP_X = -7.1, STEP_RISE = 3.45 / STEP_N;
+  for (let k = 0; k < STEP_N - 1; k++) {
+    const top = -(k + 1) * STEP_RISE, x = STEP_TOP_X + (k + 0.5) * STEP_RUN;
+    statics.add(box(STEP_RUN, top - BY0, 1.0, stepM, x, BY0, 1.1));
+    statics.add(box(0.04, 0.03, 1.0, noseM, x + STEP_RUN / 2 - 0.02, top - 0.03, 1.1, false)); // a steel nosing on each step
+  }
+  // The stairwell's walls, down to the basement, and its end wall under the back door
+  const wellM = mat('#3a3d44');
+  statics.add(box(3.0, 3.45, 0.1, wellM, -6.1, BY0, 0.5), box(3.0, 3.45, 0.1, wellM, -6.1, BY0, 1.7), box(0.1, 3.45, 1.3, wellM, -7.65, BY0, 1.1));
+  // The landing at the top, by the back door
+  { const f = mesh(new THREE.PlaneGeometry(0.5, 1.1), smat({ map: concreteTex, roughness: 0.95 }), -7.35, 0.001, 1.1, false); f.rotation.x = -PI / 2; statics.add(f); }
+  statics.add(box(0.5, 0.45, 1.1, '#a79f95', -7.35, -0.45, 1.1, false), box(0.04, 0.03, 1.0, noseM, -7.12, -0.03, 1.1, false));
+  // A rail along the open side upstairs
   for (const x of [-7.3, -6.2, -5.1]) statics.add(box(0.05, 0.95, 0.05, railM2, x, 0, 1.62, false));
   statics.add(box(2.3, 0.05, 0.06, railM2, -6.2, 0.95, 1.62, false));
-  const stairwellHit = mesh(new THREE.BoxGeometry(2.4, 1.2, 1.2), new THREE.MeshBasicMaterial({ visible: false }), -6.2, 0.4, 1.0, false);
+  const stairwellHit = mesh(new THREE.BoxGeometry(2.4, 1.2, 1.2), new THREE.MeshBasicMaterial({ visible: false }), -6.2, 0.4, 1.1, false);
   stairwellHit.userData = { act: 'room' }; scene.add(stairwellHit);
   statics.add(box(0.6, 0.45, 0.45, '#6b5540', -5.2, 0, 4.15)); // a crate by the door
 
@@ -824,13 +838,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
   // ---- The basement: under the shop, down the stairs ----
   wallX(BX - 4.5, BX + 4.6, -4.6, backWall, backWain, null, cellar);
-  wallZ(-4.7, 4.6, BX - 4.6, backWall, backWain, cellar);
+  wallZ(-4.7, 0.5, BX - 4.6, backWall, backWain, cellar); wallZ(1.7, 4.6, BX - 4.6, backWall, backWain, cellar);
+  cellar.add(box(0.2, 0.4, 1.2, backWall, BX - 4.6, 2.6, 1.1), box(0.26, 0.08, 1.24, trim, BX - 4.6, 2.55, 1.1)); // over the opening
   cellar.add(box(9.3, 0.12, 0.34, capM, BX + 0.05, 3.0, -4.6), box(0.34, 0.12, 9.3, capM, BX - 4.6, 3.0, -0.05));
-  // Stairs down the left wall: from the ceiling at the front to the floor
-  for (let k = 0; k < 10; k++) cellar.add(box(1.1, (10 - k) * 0.3, 0.3, stepM, BX - 3.9, 0, 4.25 - k * 0.3));
-  for (let k = 0; k <= 5; k++) cellar.add(box(0.05, 0.9, 0.05, railM2, BX - 3.32, (5 - k) * 0.6, 4.25 - k * 0.6, false));
-  { const r = box(0.05, 0.05, 3.3, railM2, BX - 3.32, 2.1, 2.7, false); r.rotation.x = Math.atan2(3.0, 3.0) * 0.98; cellar.add(r); }
-  const stairsHit = mesh(new THREE.BoxGeometry(1.2, 3.0, 3.2), new THREE.MeshBasicMaterial({ visible: false }), BX - 3.9, 1.5, 2.85, false);
+  // A rail beside the last steps, and a light over the opening
+  cellar.add(box(0.05, 0.9, 0.05, railM2, BX - 3.85, 0, 1.68, false), box(0.75, 0.05, 0.05, railM2, BX - 4.2, 0.9, 1.68, false));
+  const stairsHit = mesh(new THREE.BoxGeometry(1.0, 2.6, 1.2), new THREE.MeshBasicMaterial({ visible: false }), BX - 4.2, 1.3, 1.1, false);
   stairsHit.userData = { act: 'room', keep: true }; cellar.add(stairsHit);
   // Ceiling pipes along the back wall
   for (const [y, z, c] of [[2.7, -4.35, '#8d939c'], [2.5, -4.35, '#b8723a']]) { const pipe = cyl(0.05, 0.05, 9.0, mat(c, { metalness: 0.5, roughness: 0.4 }), BX, y, z, 8); pipe.rotation.z = PI / 2; pipe.position.set(BX, y, z); cellar.add(pipe); }
@@ -1783,17 +1796,24 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       for (const m of [].concat(o.material)) if (m && m.clippingPlanes !== clipCut && !m.isShaderMaterial) { m.clippingPlanes = clipCut; m.clipIntersection = true; m.needsUpdate = true; }
     });
   }
-  let underK = 0;
+  const fadeEl = document.createElement('div');
+  fadeEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at 50% 55%, rgba(14,10,20,.82) 0%, rgba(6,4,10,.98) 65%)';
+  document.body.appendChild(fadeEl);
+  let shownBack = false, transT = 1;
+  const TRANS = 0.75; // seconds, dark in the middle
   function updateUnder(dt) {
-    const want = view.zone === 'back' ? 1 : 0;
     if ((clipSweep -= dt) <= 0) { clipSweep = 1; sweepClip(); }
-    underK += (want - underK) * Math.min(1, dt * 3.2);
-    if (Math.abs(want - underK) < 0.002) underK = want;
-    const e = underK * underK * (3 - 2 * underK);
-    // the cut comes down from above the roof to just under the street; at rest upstairs it's far above everything
-    // (the planes stay set, so switching never rebuilds every material's shader)
-    clipCut[0].constant = underK > 0.001 ? 4.2 + (-0.3 - 4.2) * e : 1e4;
-    cellar.visible = backDecorGroup.visible = underK > 0.001;
+    const wantBack = view.zone === 'back';
+    if (transT >= 1 && wantBack !== shownBack) transT = 0; // set off
+    if (transT < 1) {
+      transT = Math.min(1, transT + dt / TRANS);
+      if (transT >= 0.5 && shownBack !== wantBack) { shownBack = wantBack; cam.target.copy(ZONES[view.zone].center); } // in the dark: swap, and be there
+      const e = Math.sin(PI * transT);
+      fadeEl.style.opacity = String(e * e * (3 - 2 * e));
+    } else fadeEl.style.opacity = '0';
+    // At rest upstairs the cut sits far above everything (the planes stay set, so no material is ever rebuilt)
+    clipCut[0].constant = shownBack ? -0.3 : 1e4;
+    cellar.visible = backDecorGroup.visible = shownBack;
   }
   // Zooming out past the normal view fades the building in; zooming back in shows the inside again
   function updateShell(s, dt) {
@@ -2127,10 +2147,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const doorIn = () => (revolving ? GAP_IN : GAP), doorOut = () => (revolving ? GAP_OUT : GAP);
   const streetIn = () => (revolving ? OUT_IN : OUTSIDE), streetOut = () => (revolving ? OUT_OUT : OUTSIDE);
   // The top of the stairs (from the back door), their foot, a step clear of them, and where buyers wait
-  const DOOR_OUT = V3(BX - 3.9, 0, 4.3), DOOR_IN = V3(BX - 3.9, 0, 0.9), LANDING = V3(BX - 2.9, 0, 1.1);
+  const DOOR_OUT = V3(BX - 7.35, 0, 1.1), DOOR_IN = V3(BX - 3.3, 0, 1.1), LANDING = V3(BX - 2.6, 0, 1.3);
   const BUYER_SPOTS = D.BUYER_SPOTS_LOCAL.map(([x, z]) => V3(BX + x, 0, z));
   // On the stairs people climb: height from where they are along them
-  const stairY = p => (p.x > BX + D.STAIRS.x0 && p.x < BX + D.STAIRS.x1 && p.z > D.STAIRS.z0 - 0.1 ? Math.max(0, Math.min(1, (p.z - D.STAIRS.z0) / (D.STAIRS.z1 - D.STAIRS.z0))) * 3.0 : 0);
+  // How high up the flight someone is (0 on the basement floor, 3.45 at the top): half a step under the nosing line, so feet sit on the treads
+  const stairY = p => { if (Math.abs(p.z - 1.1) > 0.7 || p.x > BX - 3.6) return 0; const u = (p.x - (BX + STEP_TOP_X)) / STEP_RUN; return u <= 0 ? 3.45 : Math.max(0, 3.45 - (u + 0.5) * STEP_RISE); };
   const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
   const TILL = V3(3.1, 1.3, 0.85);
   const customers = new Map(); // id -> { agent, shown, inside, leaving }
@@ -2430,7 +2451,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
   const bubbleEls = new Map();
   let bubbleScale = 1;
-  const DOOR_BUB = V3(-4.6, 1.6, 3.1), STAIRS_BUB = V3(BX - 3.9, BY + 3.4, 3.6);
+  const DOOR_BUB = V3(-4.6, 1.6, 3.1), STAIRS_BUB = V3(BX - 4.3, BY + 2.4, 1.1);
   const tmp = new THREE.Vector3();
   function toScreen(v) {
     tmp.copy(v).project(camera);
@@ -2622,7 +2643,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   }
 
   function updateCamera(dt) {
-    const z = ZONES[view.zone];
+    // until the screen is dark, stay framed on the floor that's still showing
+    const z = ZONES[(view.zone === 'back') !== shownBack ? (shownBack ? 'back' : 'shop') : view.zone];
     cam.target.lerp(z.center, 1 - Math.exp(-dt * 3.5));
     const bh = Math.max(140, H - view.top - view.bottom);
     const yc = view.top + bh / 2;

@@ -255,15 +255,16 @@ export const backExt = s => s.design?.expansions || {};
 export const backRowMin = () => 0;
 export const backBounds = ex => ({ cols: BACK_GRID.cols + (ex?.digside ? BACK_GRID.dig : 0), rows: BACK_GRID.rows + (ex?.digfront ? BACK_GRID.dig : 0) });
 export const backCellCenter = (bx, bz) => ({ x: BACK_GRID.x0 + bx * BACK_GRID.size, z: BACK_GRID.z0 + bz * BACK_GRID.size });
-// The stairs come down along the left wall; the bottom step is at the front of the stairs
-export const STAIRS = { x0: -4.45, x1: -3.35, z0: 1.4, z1: 4.4, bottom: [-3.9, 0.9] };
+// One flight of stairs runs from the small back room upstairs, under the shop's side wall, and comes into the basement
+// through an opening in its left wall; only its last steps are in the basement itself
+export const STAIRS = { x0: -4.6, x1: -3.7, z0: 0.55, z1: 1.65, bottom: [-3.1, 1.1] };
 // Where buyers stand, and the tables (cash, bags) and kit boxes
 export const BUYER_SPOTS_LOCAL = [[-2.1, 2.4], [-1.1, 2.4], [-0.1, 2.4], [-2.1, 3.4], [-1.1, 3.4], [-0.1, 3.4]];
 // Tables and kit boxes sit on whole squares: the bag table, the cash table (two squares), the kit boxes
 export const BACK_PROPS = { bagTable: [0.9, 3.9], cashTable: [2.4, 3.9], kits: [-3.1, 3.9] };
-const BACK_CLUTTER = [[0.9, 3.9], [1.9, 3.9], [2.9, 3.9], [-3.1, 3.9], [-4.1, 1.9], [-4.1, 2.9], [-4.1, 3.9]];
+const BACK_CLUTTER = [[0.9, 3.9], [1.9, 3.9], [2.9, 3.9], [-3.1, 3.9], [-4.1, 0.9]];
 // Squares that stay clear: machine spots, the stairs and the landing at their foot, where buyers stand, the tables
-const BACK_BLOCKS = [[-3.9, 0.9, 0.7], ...BUYER_SPOTS_LOCAL.map(([x, z]) => [x, z, 0.6]), ...BACK_CLUTTER.map(([x, z]) => [x, z, 0.6])];
+const BACK_BLOCKS = [[-3.1, 1.1, 0.7], ...BUYER_SPOTS_LOCAL.map(([x, z]) => [x, z, 0.6]), ...BACK_CLUTTER.map(([x, z]) => [x, z, 0.6])];
 export function backCellBlocked(bx, bz, ex = {}) {
   if (typeof ex !== 'object') ex = {};
   const { cols, rows } = backBounds(ex);
