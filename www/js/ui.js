@@ -15,7 +15,7 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 import * as SFX from './sound.js';
-import { LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
+import { BILLS, LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
 const SETTINGS_KEY = 'bakingbad.settings';
 const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
@@ -166,6 +166,11 @@ const pcard = (inner, info, cls = '', at = '') => `<div class="pcard ${cls}" ${a
 const lockTag = lvl => `<span class="lock">🔒 Lv ${lvl}</span>`;
 const line = (a, b, cls = '') => `<div class="line"><span>${a}</span><span class="${cls}">${b}</span></div>`;
 
+// "2 cooking · 1 ready": what a set of machines is doing
+const statusLine = (list, lab, words = ['cooking', 'ready', 'idle', 'broken']) => {
+  const states = list.map(m => machineState(m, lab));
+  return [['busy', words[0]], ['ready', words[1]], ['idle', words[2]], ['broken', words[3]]].map(([k, w]) => { const c = states.filter(x => x === k).length; return c ? `${c} ${w}` : ''; }).filter(Boolean).join(' · ');
+};
 function machineState(m, lab) {
   if (m.broken) return 'broken';
   const v = G.jobView(s, m, s.clock, lab);
@@ -281,7 +286,9 @@ function backTab() {
     const M = LAB_MACHINES[type];
     const list = s.lab.map((m, i) => [m, i]).filter(([m]) => m.type === type), block = G.machineBlock(s, type, true);
     const cash = G.machineCash(type, true), price = G.machinePrice(s, type, true);
-    cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>× ${list.length}${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}</small></div></div>
+    const prods = G.productsFor(type).filter(id => !PRODUCTS[id].rare), known = prods.filter(id => G.unlocked(s, PRODUCTS[id].level)).length;
+    const status = list.length ? statusLine(list.map(([m]) => m), true, ['cooking', 'ready to bag', 'idle', 'broken']) : '';
+    cards += pcard(`<div class="ptop"><span class="em">${M.emoji}</span><div><b>${M.name}</b><small>${G.unlocked(s, M.level) ? `× ${list.length} · ${known}/${prods.length} products${list.length ? ` · tier ${list.map(([m]) => m.tier || 0).join('/')}` : ''}${status ? `<br>${status}` : ''}` : 'not yet'}</small></div></div>
       <div class="pbtns col">${list.length ? `<button class="small violet" data-act="machine" data-kind="night" data-idx="${list[0][1]}">Open</button>` : ''}
       ${block ? `<div class="lockline">${block.text}</div>` : `<button class="small" data-act="buylab" data-id="${type}" ${s[cash] < price ? 'disabled' : ''}>+1 · ${cash === 'dirty' ? '💜' : '💷'} ${money(price)} · place it</button>`}</div>`,
       ibtn('labmachine', type), `wide night ${G.unlocked(s, M.level) ? '' : 'locked'}`);
@@ -502,14 +509,14 @@ function shopsTab() {
     const what = d.machines.map(t => MACHINES[t].emoji).join('');
     if (i >= 0) {
       const x = s.shops[i], ready = x.machines.filter(m => m.job && s.clock >= m.job.start + m.job.dur).length;
-      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.short}</b><small>${what} · ${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}<br>prices ×${d.priceMult} · rent ${money(d.rent)}/day${d.launder ? ` · fronts ${money(d.launder)}` : ''}</small></div></div>
+      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.short}</b><small>${what} · ${x.machines.length} machines${ready ? ` · ${ready} ready` : ''}<br>prices ×${d.priceMult} · rent ${i === 0 && G.eff(s, 'noRent') ? 'none (yours)' : `${money(d.rent * BILLS.everyDays)}/month`}${d.launder ? ` · fronts ${money(d.launder)}` : ''}</small></div></div>
         <small>👥 ${TASTES[id].who} like ${Object.entries(TASTES[id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}${TASTES[id].price > 1.05 ? ' · watch their money' : TASTES[id].price < 0.95 ? ' · don\'t mind prices' : ''}</small>
         <small>${x.manager ? `🧑‍💼 ${MANAGER.skills[x.manager.skill].name} manager · ${money(MANAGER.skills[x.manager.skill].wage)}/day` : G.unlocked(s, MANAGER.level) ? '🧑‍💼 No manager' : ''}</small>
         <div class="pbtns">${i === (s.cur || 0) ? '<span class="lock good">You\'re here</span>' : `<button class="small primary" data-act="shop-view" data-id="${i}">Go there</button>`}
           ${!G.unlocked(s, MANAGER.level) ? '' : x.manager ? `<button class="small" data-act="manager-fire" data-shop="${i}">Let the manager go</button>` : MANAGER.skills.map((M, k) => `<button class="small" data-act="manager-hire" data-shop="${i}" data-skill="${k}">${M.name} · ${money(M.wage)}/day</button>`).join('')}</div>`,
         ibtn('shop', id), `wide hired`);
     } else {
-      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.name}</b><small>${what} · prices ×${d.priceMult}<br>rent ${money(d.rent)}/day · launders ${money(d.launder)}/day</small></div></div>
+      cards += pcard(`<div class="ptop"><span class="em">${d.emoji}</span><div><b>${d.name}</b><small>${what} · prices ×${d.priceMult}<br>rent ${money(d.rent * BILLS.everyDays)}/month · launders ${money(d.launder)}/day</small></div></div>
         ${!open ? lockTag(d.level) : `<div class="pbtns"><button class="small primary" data-act="shop-buy" data-id="${id}" ${s.clean < G.shopPrice(s) ? 'disabled' : ''}>Open · ${money(G.shopPrice(s))}</button></div>`}`,
         ibtn('shop', id), `wide ${open ? '' : 'locked'}`);
     }
@@ -518,8 +525,8 @@ function shopsTab() {
     if (p.level > s.level + 20 && !s.property[id]) continue;
     const open = G.unlocked(s, p.level), owned = s.property[id];
     cards += pcard(`<div class="ptop"><span class="em">${p.emoji}</span><div><b>${p.name}</b><small>${p.desc}</small></div></div>
-      ${owned ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(p.level) : `<div class="pbtns"><button class="small primary" data-act="property" data-id="${id}" ${s.clean < p.price ? 'disabled' : ''}>${money(p.price)}</button></div>`}`,
-      ibtn('property', id), `wide ${open ? '' : 'locked'} ${owned ? 'hired' : ''}`);
+      ${owned ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(p.level) : p.afterDebt && !s.won ? `<div class="lockline">🏦 Clear the bank debt first (${money(s.balance)} to go) · then ${money(p.price)}</div>` : `<div class="pbtns"><button class="small primary" data-act="property" data-id="${id}" ${s.clean < p.price ? 'disabled' : ''}>${money(p.price)}</button></div>`}`,
+      ibtn('property', id), `wide ${open && !(p.afterDebt && !s.won) ? '' : 'locked'} ${owned ? 'hired' : ''}`);
   }
   if (G.unlocked(s, INVEST.level)) cards += pcard(`<div class="ptop"><span class="em">📈</span><div><b>Investment fund: ${money(s.invest || 0)}</b><small>Grows ${(INVEST.daily * 100).toFixed(1)}% a day${s.investEarned ? ` · earned ${money(s.investEarned)} so far` : ''}</small></div></div>
     <div class="pbtns"><button class="small" data-act="invest" data-share="0.1" ${s.clean < 10 ? 'disabled' : ''}>Put in 10%</button><button class="small" data-act="invest" data-share="0.5" ${s.clean < 10 ? 'disabled' : ''}>Put in half</button><button class="small" data-act="withdraw" ${s.invest ? '' : 'disabled'}>Take it all out</button></div>`, '', 'wide');
@@ -528,7 +535,7 @@ function shopsTab() {
     cards += pcard(`<div class="ptop"><span class="em">${L.emoji}</span><div><b>${L.name}</b><small>${L.desc}</small></div></div>
       ${own ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(L.level) : `<div class="pbtns"><button class="small primary" data-act="landmark" data-id="${id}" ${s.clean < L.price ? 'disabled' : ''}>${money(L.price)}</button></div>`}`, '', own ? 'hired' : '');
   }
-  return { cards, hint: `Each shop runs four machine types (up to three of each) front and back; every branch costs ${SHOP_GROW}× the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Rent: ${money(G.shopRent(s))} a day.` };
+  return { cards, hint: `Each shop runs four machine types (up to three of each) front and back; every branch costs ${SHOP_GROW}× the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Bills: ${money(G.monthlyBills(s).total)} a month (rent, rates, council tax, utilities; see 🏦 Bank & tax).` };
 }
 
 function marketingTab() {
@@ -572,6 +579,12 @@ function bankTab() {
     cards += pcard(`<div class="ptop"><span class="em">📑</span><div><b>Restructure</b><small>stop the visits</small></div></div>
       ${G.restructureReady(s) ? `<div class="pbtns"><button class="small" data-act="restructure">Fold in · ${money(s.arrears * CFG.restructureFee)} fee</button></div>`
         : `<div class="lockline">${s.behind < 2 ? 'Available two payments behind' : 'Once a month'}</div>`}`, ibtn('bank', 'restructure'), 'wide');
+  }
+  {
+    const b = G.monthlyBills(s), days = Math.max(0, Math.ceil((s.billsNext - s.clock) / (24 * 3600e3)));
+    cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>Monthly bills: ${money(b.total)}</b><small>due ${dateStr(s.billsNext)} 6am (${days ? `in ${days} day${days === 1 ? '' : 's'}` : 'tomorrow'})</small></div></div>
+      ${line('Rent', b.rent ? money(b.rent) : 'none: the stall is yours')}${b.rates ? line('Business rates', money(b.rates)) : ''}${line('Council tax (the flat)', money(b.council))}${line('Utilities', money(b.utilities))}
+      <small>Utilities grow with every machine${s.labUnlocked ? ' (back-room ones run hot)' : ''}.${s.lastBills ? ` Last month: ${money(s.lastBills.total)}.` : ''}</small>`, '', 'wide');
   }
   for (const [id, I] of Object.entries(INSURANCE)) {
     if (typeof I !== 'object') continue;
@@ -801,7 +814,7 @@ function infoFor(kind, id) {
   if (kind === 'shop') {
     const d = SHOPS[id], owned = s.shops.some(x => x.id === id);
     return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the stall's`)
-      + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent)} a day`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
+      + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent * BILLS.everyDays)} a month`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
       + (owned ? '' : line('Opening costs', `${money(G.shopPrice(s))} (each branch costs ${SHOP_GROW}× the last)`)) + line('Unlocks at', `level ${d.level}`)
       + line('Back room', d.lab.map(k => `${LAB_MACHINES[k].emoji} ${LAB_MACHINES[k].name}`).join(', '))
       + '<p class="mute">Each shop has its own machines, case, menu and design, and its own back room and back door, and they all trade at once. Your crew work every shop; bags and kits are shared.</p>');
@@ -1101,7 +1114,9 @@ function machineModal(m) {
           ${open ? `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${(s.cut[id] || 'none') === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>` : ''}</div><div class="mright">${right}</div></div>`;
     }).join('');
   }
-  return `<h2>${M.emoji} ${M.name}${many ? ` ${nth}` : ''}</h2>${status}<div class="mlist">${tierRow}${rows}</div>
+  const from = ui.tab && TABS[ui.tab] ? TABS[ui.tab] : null;
+  return `<div class="modal-head">${from ? `<button class="small" data-act="close" aria-label="Back to ${from.label}">‹ ${from.label}</button>` : '<span></span>'}
+      <h2>${M.emoji} ${M.name}${many ? ` ${nth}` : ''}</h2><button class="small" data-act="close" aria-label="Close">✕</button></div>${status}<div class="mlist">${tierRow}${rows}</div>
     <button class="big" data-act="close" style="margin-top:10px">Close</button>`;
 }
 
@@ -1139,7 +1154,7 @@ function reportModal(m) {
     <div class="card">${line('Takings', money(t.sales), 'good')}${line('Customers served / missed', `${t.served} / ${t.missed}`)}
       ${t.pricedOut ? line('Put off by prices', t.pricedOut, 'meh') : ''}${line('Batches', t.batches)}${t.burnt ? line('Spoiled in a machine', t.burnt, 'bad') : ''}
       ${line('Ingredients bought', '-' + money(t.ingSpent))}${t.upgradesSpent ? line('Spent on the business', '-' + money(t.upgradesSpent)) : ''}
-      ${line('Rent, rates and wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
+      ${t.bills ? line('Monthly bills (rent, rates, council tax, utilities)', '-' + money(t.bills)) : ''}${line(t.rent ? 'Insurance and wages' : 'Wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
       ${t.income ? line('Property income', money(t.income), 'good') : ''}${t.laundered || t.washed ? line('Laundered', money(t.laundered + (t.washed || 0))) : ''}
       ${t.interest ? line('Interest on arrears', '-' + money(t.interest), 'bad') : ''}${line('XP earned', `+${Math.round(t.xp)}`, 'good')}</div>
     ${night}${t.events.slice(-12).map(e => `<div class="card ${e.kind === 'bad' ? 'alert' : ''}">${e.text}</div>`).join('')}
@@ -1562,7 +1577,7 @@ function confirmText(a, d) {
   if (a === 'landmark') return `Buy ${LANDMARKS[id].name} for ${money(LANDMARKS[id].price)}?`;
   if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? Cooked food fills it by itself.` : null) : null; }
   if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
-  if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
+  if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent * BILLS.everyDays)} a month.`;
   if (a === 'front-buy') return `Buy the ${FRONTS[id].name.toLowerCase()} for ${money(FRONTS[id].price)}?`;
   if (a === 'van-buy') return `Buy another van for ${money(VANS.price * (1 + s.vans.count))}?`;
   if (a === 'van-up') return id === 'level' ? `Bigger vans for ${money(VANS.capacityCost[s.vans.level + 1])}?` : `Better hidden compartments for 💜 ${money(VANS.hideCost[s.vans.hide + 1])}?`;
@@ -1707,8 +1722,8 @@ function act(el) {
     case 'learn': G.buyRecipe(s, id); break;
     case 'collectlab': { let n = 0; s.lab.forEach((m, i) => { const item = m.job?.item; if (m.job && t >= m.job.start + m.job.dur && G.collectLab(s, i, t, { quiet: true })) { n++; world.poke(s, 'night', i, item); } }); showToast(n ? `Bagged ${n} cook${n === 1 ? '' : 's'}.` : 'Nothing ready.', n ? 'good' : 'bad'); break; }
     case 'restartlab': { let n = 0; s.lab.forEach((m, i) => { if (!m.job && m.last && !m.broken && G.startLab(s, i, m.last, t, { quiet: true })) n++; }); showToast(n ? `Started ${n} cook${n === 1 ? '' : 's'}.` : 'Couldn\'t start anything: check kits.', n ? 'good' : 'bad'); break; }
-    case 'buymachine': ui.tab = null; ui.panel = null; ui.room = 'shop'; ui.design = { cat: 'kitchen', item: 'm:' + id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
-    case 'buylab': ui.tab = null; ui.panel = null; ui.room = 'back'; ui.design = { back: true, cat: 'bmachines', item: id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${LAB_MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
+    case 'buymachine': ui.returnTab = ui.tab; ui.tab = null; ui.panel = null; ui.room = 'shop'; ui.design = { cat: 'kitchen', item: 'm:' + id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
+    case 'buylab': ui.returnTab = ui.tab; ui.tab = null; ui.panel = null; ui.room = 'back'; ui.design = { back: true, cat: 'bmachines', item: id, sel: null, moving: null, pick: null }; showToast(`Tap a green square to put the ${LAB_MACHINES[id].name.toLowerCase()} there.`, 'info'); break;
     case 'repair': G.repairMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
     case 'price': G.setPriceLevel(s, id, el.dataset.lvl); break;
     case 'basket': { const n = Math.max(0, (ui.basket[id] || 0) + Number(el.dataset.n)); if (n) ui.basket[id] = n; else delete ui.basket[id]; break; }
@@ -1811,7 +1826,7 @@ function act(el) {
     case 'k-move': if (ui.design.pick) ui.design.moving = ui.design.moving ? null : { ...ui.design.pick }; break;
     case 'k-turn': if (ui.design.pick) { const pk = ui.design.pick, lab = !!ui.design.back; const r = pk.kind === 'counter' ? G.turnCounter(s, pk.idx) : pk.kind === 'till' ? G.turnTill(s) : G.turnMachine(s, pk.idx, lab); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); } break;
     case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
-    case 'd-done': D.checkoutCart(s); ui.design = null; break;
+    case 'd-done': D.checkoutCart(s); ui.design = null; backToSection(); break;
     case 'o-set': case 'o-extra': {
       if (Number(el.dataset.level || 1) > s.level) { showToast(`Unlocks at level ${el.dataset.level}.`, 'bad'); return; }
       D.startCart(s); const r = a === 'o-set' ? D.setOutside(s, el.dataset.part, id) : D.toggleExtra(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break;
@@ -1824,7 +1839,7 @@ function act(el) {
     case 'b-rotate': if (ui.design.sel != null) { D.startCart(s); D.rotateBackDecor(s, ui.design.sel); } break;
     case 'b-sell': if (ui.design.sel != null) { D.startCart(s); const r = D.sellBackDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
     case 'd-checkout': { const r = D.checkoutCart(s); if (r.msg) showToast(r.msg, 'good'); ui.design = null; break; }
-    case 'd-cancel': D.cancelCart(s); showToast('Changes undone.', 'info'); ui.design = null; break;
+    case 'd-cancel': D.cancelCart(s); showToast('Changes undone.', 'info'); ui.design = null; backToSection(); break;
     case 'restart':
       if (!confirm('Start a new game? This bakery will be lost.')) return;
       s = G.newGame(Date.now()); vt = Date.now(); ui.modal = null; ui.design = null; ui.room = 'shop'; ui.tab = null; ui.panel = null;
@@ -1986,6 +2001,11 @@ async function scheduleNotes() {
 }
 async function clearNotes() { try { const p = await Notes?.getPending(); if (p?.notifications?.length) await Notes.cancel({ notifications: p.notifications.map(x => ({ id: x.id })) }); } catch { /* ignore */ } }
 // Back (the phone's back button, or Esc on a keyboard): close whatever's on top, one thing at a time
+// After placing something you went to buy from a section, back to that section
+function backToSection() {
+  const t = ui.returnTab; ui.returnTab = null;
+  if (t && TABS[t] && (!TABS[t].night || s.labUnlocked)) { ui.tab = t; ui.panel = null; ui.room = TABS[t].night ? 'back' : 'shop'; }
+}
 function goBack() {
   if (ui.confirm) { act({ dataset: { act: 'confirm-no' } }); return true; }
   if (ui.modal) { act({ dataset: { act: 'close' } }); return true; }

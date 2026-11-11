@@ -33,7 +33,22 @@ There's no in-game day. The clock in the corner is your clock.
 - **Design**: tiles, wallpaper, decor and wall art show in the shop as you place them but are only paid for when you
   press Checkout; Cancel puts everything back.
 - **Big purchases** (machines, tiers, expansions, shops, vans, fronts, corners, property, upgrades and recipes) ask
-  you to confirm first.
+  you to confirm first. Buying a machine from 🍳 Kitchen or 🧪 Lab takes you to place it, then back to that section.
+- **Machines**: a machine's menu has a header that stays at the top while you scroll: ‹ back to the section you opened it
+  from, and ✕. The Lab's cards show, like the Kitchen's, how many of each machine you have, how many of its products
+  you've unlocked, and what each one is doing.
+
+## Bills
+
+Wages come out every morning; everything else is a monthly bill, paid at 6am every 30 days (the first a month after you
+take over), itemised in 🏦 Bank & tax with the date it's due:
+- **Rent**: each shop's (the stall's is £1,200 a month), plus business rates on the branches.
+- **Council tax** on the flat upstairs: £140.
+- **Utilities**: power, gas and water, £90 a shop plus £18 for every kitchen machine and £45 for every back-room one
+  (grow lights and burners run hot).
+
+Whatever you can't cover goes on what you owe the bank. **Buying back Rosa's stall** (🏪 Shops & property, £40,000)
+ends its rent, but the bank holds the deeds until the debt is cleared.
 
 ## The kitchen
 
@@ -418,7 +433,7 @@ Nothing ends the game. Trouble costs you instead:
 - **Busted** (heat hits 100, or a raid finds product): fines, every bag and kit seized, police tape on the back room for 3 days, Jay charged, other night crew may quit, and a scandal in the papers. Popularity drops, and customers stay away for a few days.
 - **Behind with the bank**: whatever you can't pay rolls over with 5% on top, then 0.5% a day interest. While you're behind, Grimshaw Recovery's heavies may visit. They smash decorations, crack tiles, tear wallpaper, wreck a machine or empty the till. Big Ron helps. Once you're two payments behind you can restructure the debt to call them off.
 - **Cash never goes below zero.** If you're broke with nothing to bake, the market traders' association chips in so you can always start again.
-- **Clearing the debt** is a milestone, not an ending. After that there's property to buy, from the stall's pitch to the whole market.
+- **Clearing the debt** is a milestone, not an ending. After that there's property to buy, from Rosa's stall itself to the whole market.
 
 ## Popularity and marketing
 

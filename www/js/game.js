@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty, shopPlaceProblem, backPlaceProblem, autoSpot, backAutoSpot, kitchenRoom, labRoom, cellFromSpot, backCellFromSpot, bestRot, backBestRot, fixLayout } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -87,6 +87,13 @@ export function buyShop(s, id) {
 export function viewShop(s, i) { if (s.shops[i]) s.cur = i; }
 export const shopRent = s => s.shops.reduce((a, x, i) => a + (i === 0 && eff(s, 'noRent') ? 0 : SHOPS[x.id].rent), 0);
 export const businessRates = s => Math.round(s.shops.reduce((a, x, i) => a + (i === 0 ? 0 : SHOPS[x.id].rent * TAX.ratesShare), 0));
+// This month's bills, itemised: rent (30 days of each shop's), business rates, council tax on the flat, and utilities
+export function monthlyBills(s) {
+  const days = BILLS.everyDays;
+  const rent = shopRent(s) * days, rates = businessRates(s) * days, council = BILLS.councilTax;
+  const utilities = s.shops.reduce((a, x) => a + BILLS.utilBase + BILLS.utilMachine * (x.machines?.length || 0) + BILLS.utilLab * (x.lab?.length || 0), 0);
+  return { rent, rates, council, utilities, total: rent + rates + council + utilities };
+}
 
 // ---------- Prestige ----------
 export const perk = (s, id) => s.prestige?.perks?.[id] || 0;
@@ -1036,6 +1043,7 @@ export function buyProperty(s, id) {
   const p = PROPERTY[id];
   if (!p || s.property[id]) return;
   if (!unlocked(s, p.level)) return say(`${p.name} unlocks at level ${p.level}.`, 'bad');
+  if (p.afterDebt && !s.won) return say('The bank holds the deeds until the debt is cleared.', 'bad');
   if (s.clean < p.price) return say('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - p.price);
   s.property[id] = true;
@@ -1531,7 +1539,7 @@ export function taxEstimate(s, extraDay = true) {
 function addDayToTaxWeek(w, td) {
   w.served = (w.served || 0) + td.served; w.missed = (w.missed || 0) + td.missed; w.bags = (w.bags || 0) + td.bagsSold;
   w.sales += td.sales; w.vatSales += td.vatSales; w.laundered += td.laundered; w.income += td.income;
-  w.costs += td.ingSpent + td.upgradesSpent + td.capex + td.rent + td.wages; w.wages += td.wages;
+  w.costs += td.ingSpent + td.upgradesSpent + td.capex + td.rent + (td.bills || 0) + td.wages; w.wages += td.wages;
 }
 const freshTaxWeek = () => ({ sales: 0, vatSales: 0, laundered: 0, income: 0, costs: 0, wages: 0, washTaxed: 0, washSuspect: 0 });
 export function setDeclare(s, k) { if (DECLARE[k]) s.declare = k; }
@@ -1785,6 +1793,7 @@ export function newGame(t = Date.now(), prestige = null) {
     kits: {}, bags: {}, purity: {}, cut: {}, street: CFG.streetStart, corners: {},
     taxWeek: freshTaxWeek(), wash: freshWash(), staff: {}, decisions: [], nextChoiceAt: null, case: { evidence: 0 }, contracts: {}, insurance: {}, rival: { open: false, share: 0 }, auction: null, goals: { daily: [], weekly: [], dayStart: 0 }, areaHeat: { vans: 0, streets: 0 }, challenge: 'none', packageUntil: 0, vans: { count: 0, level: 0, hide: 0, impounded: [] }, shipments: [], delivery: { on: false, riders: 0, out: 0 }, deliveries: [], declare: 'full', vatRegistered: false, hmrc: 0, orders: [], lastOrderAt: t, milestones: {}, review: null, criticAt: null,
     upgrades: {}, property: {}, crew: Object.fromEntries(Object.keys(CREW).map(r => [r, false])),
+    billsNext: dayStart(t) + BILLS.everyDays * DAY, lastBills: null,
     labUnlocked: false, offerAfter: t + 2 * HOUR, offerPending: false, nightsActive: 0, lastLab: 0,
     campaigns: [], lastCharity: 0, scandalUntil: 0, sealedUntil: 0, lastVisit: 0,
     holidayUsed: false, holidayNext: false, night: {},
@@ -1832,6 +1841,7 @@ export function migrate(s, t = Date.now()) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
+    s.billsNext ??= dayStart(t) + BILLS.everyDays * DAY; s.lastBills ??= null; // older saves: rent was daily; the first monthly bill is a month on
     s.prestige ??= { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
     s.staff ??= {}; s.decisions ??= []; s.case ??= { evidence: 0 }; s.contracts ??= {}; s.insurance ??= {}; s.rival ??= { open: false, share: 0 }; s.auction ??= null;
     s.goals ??= { daily: [], weekly: [], dayStart: 0 }; s.areaHeat ??= { vans: 0, streets: 0 }; s.challenge ??= 'none'; s.packageUntil ??= 0;
@@ -2069,7 +2079,7 @@ function rollover(s, t) {
   if (s.crew.accountant && s.dirty > 0) launder(s, Math.min(s.dirty, launderLeft(s)), true);
   if (s.labUnlocked) washMorning(s, t);
   // Bills
-  const rent = shopRent(s) + businessRates(s), dayWages = crewWages(s, 'day') + managerWages(s), income = eff(s, 'income');
+  const rent = 0, dayWages = crewWages(s, 'day') + managerWages(s), income = eff(s, 'income'); // rent is monthly now (below)
   td.rent = rent; td.wages = dayWages; td.income = income;
   s.clean = round2(s.clean + income);
   const bill = rent + dayWages;
@@ -2078,6 +2088,18 @@ function rollover(s, t) {
     let left = round2(bill - Math.max(0, s.clean)); s.clean = 0;
     for (const [r, c] of Object.entries(CREW)) if (left > 0 && s.crew[r] && c.shift === 'day') { s.crew[r] = false; left = round2(left - c.wage); note(s, `💸 You couldn't pay ${c.name}, so ${c.name} quit.`, 'bad', t); }
     if (left > 0) { s.arrears = round2(s.arrears + left); s.balance = round2(s.balance + left); s.behind = Math.max(1, s.behind); note(s, `💸 You couldn't cover the rent: £${Math.round(left)} goes on what you owe the bank.`, 'bad', t); }
+  }
+  // The monthly bills: rent, rates, council tax and utilities, all at once; what can't be paid goes on the bank's tab
+  if (t >= (s.billsNext || Infinity)) {
+    const b = monthlyBills(s);
+    s.billsNext += BILLS.everyDays * DAY;
+    s.lastBills = { ...b, at: t };
+    td.bills = b.total;
+    const paid = Math.min(b.total, Math.max(0, s.clean));
+    s.clean = round2(s.clean - paid);
+    const left = round2(b.total - paid);
+    if (left > 0) { s.arrears = round2(s.arrears + left); s.balance = round2(s.balance + left); s.behind = Math.max(1, s.behind); note(s, `🧾 Monthly bills: £${Math.round(b.total).toLocaleString('en-GB')}. You were £${Math.round(left).toLocaleString('en-GB')} short; it goes on what you owe the bank.`, 'bad', t); }
+    else note(s, `🧾 Monthly bills paid: £${Math.round(b.total).toLocaleString('en-GB')} (rent £${Math.round(b.rent + b.rates).toLocaleString('en-GB')}, council tax £${b.council}, utilities £${Math.round(b.utilities).toLocaleString('en-GB')}).`, 'info', t);
   }
   const nightWages = s.labUnlocked ? crewWages(s, 'night') + s.delivery.riders * DELIVERY.riderWage : 0;
   s.delivery.out = 0;

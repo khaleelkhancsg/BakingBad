@@ -819,9 +819,15 @@ export const CAMPAIGNS = {
   documentary:{ name: 'Documentary',         emoji: '🎬', level: 88, price: 40000,  hours: 240, pop: 2,   cust: 0.5, desc: 'A film crew follows you for a fortnight. (They never see the back room.)' },
 };
 
-// Property: big long-term purchases. eff: noRent, income (clean per real day), cust.
+// Monthly bills, paid at 6am every 30 days (the first a month after you take over). Rent is each shop's (SHOPS rent is
+// per day, so a month is 30 of them; owning the stall ends its rent) plus business rates on the branches; council tax
+// is on the flat upstairs; utilities are power, gas and water for each shop, more with every machine (the back room's
+// lights and burners run hot).
+export const BILLS = { everyDays: 30, councilTax: 140, utilBase: 90, utilMachine: 18, utilLab: 45 };
+
+// Property: big long-term purchases. eff: noRent, income (clean per real day), cust. afterDebt: only once the bank's paid.
 export const PROPERTY = {
-  pitch:   { name: 'Buy the stall\'s pitch',   emoji: '📜', level: 20, price: 30000,   eff: { noRent: 1 },   desc: 'Own the ground the stall stands on. No more rent.' },
+  pitch:   { name: 'Buy back Rosa\'s stall',  emoji: '🔑', level: 1,  price: 40000,   eff: { noRent: 1 },   afterDebt: true, desc: 'The bank holds the deeds until the debt is cleared. Then buy them back: no more rent on the stall.' },
   flat:    { name: 'Buy the flat upstairs',     emoji: '🏠', level: 35, price: 60000,   eff: { income: 200 }, desc: 'Let it out: +£200 a day.' },
   cafe:    { name: 'Buy the café next door',    emoji: '🏪', level: 50, price: 120000,  eff: { cust: 0.2 },   desc: 'Knock through: +20% customers.' },
   corner:  { name: 'Buy the street corner',     emoji: '🏘️', level: 70, price: 250000,  eff: { income: 800 }, desc: 'Three shops and four flats: +£800 a day.' },

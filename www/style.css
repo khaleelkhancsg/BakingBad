@@ -1212,3 +1212,10 @@ textarea.code {
 .pcard .pbtns.stepper { flex-wrap: nowrap; }
 .facts { min-width: 0; } .facts span { white-space: normal; }
 
+
+/* The header of a machine pop-up stays at the top while its list scrolls: back to the section you came from, and close */
+.modal-head { position: sticky; top: -14px; z-index: 2; display: flex; align-items: center; gap: 8px; margin: -14px -12px 8px; padding: 12px 12px 8px;
+  background: inherit; border-bottom: 1px solid var(--rule); }
+.modal-head h2 { flex: 1; margin: 0; text-align: center; font-size: 18px; }
+.modal-head > span, .modal-head > button { flex: 0 0 auto; min-width: 34px; }
+.modal.night .modal-head { border-bottom-color: var(--vrule); }
