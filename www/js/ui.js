@@ -1283,10 +1283,10 @@ function designScreen() {
     if (dv.moving) hint = 'Tap a green square to put it there. It keeps cooking.';
     else if (pk) hint = 'Move it, or turn it to face another way. The square in front has to stay reachable.';
     else if (dv.item) hint = `Tap a green square to put the <b>${dv.item === 'counter' ? 'counter' : MACHINES[dv.item.slice(2)].name.toLowerCase()}</b> there (you pay when it goes down). It faces away from the wall; turn it after.`;
-    else hint = 'Pick a machine or counter to buy, or tap one in the shop to move or turn it.';
+    else hint = 'Pick a machine or counter to buy, or tap a machine, counter or the till in the shop to move or turn it.';
     hint += ` <span class="mute">(${s.machines.length} machines, room for ${G.roomLeft(s)} more · ${G.countersOf(s.design)} counters)</span>`;
     if (pk) {
-      const label = pm ? `${MACHINES[pm.type].emoji} <b>${MACHINES[pm.type].name}</b>` : `🧁 <b>Counter ${pk.idx + 1}</b>`;
+      const label = pm ? `${MACHINES[pm.type].emoji} <b>${MACHINES[pm.type].name}</b>` : pk.kind === 'till' ? '💷 <b>The till</b>' : `🧁 <b>Counter ${pk.idx + 1}</b>`;
       sel = `<div class="dsel">${label}
         <button class="small" data-act="k-move">${dv.moving ? 'Moving…' : 'Move'}</button>
         <button class="small" data-act="k-turn">Turn</button>
@@ -1442,13 +1442,14 @@ function designTap(info) {
     save(); render();
     return;
   }
-  if (info.kind === 'machine' || info.kind === 'counter' || (!dv.back && dv.cat === 'kitchen' && info.kind === 'cell')) {
+  if (info.kind === 'machine' || info.kind === 'counter' || info.kind === 'till' || (!dv.back && dv.cat === 'kitchen' && info.kind === 'cell')) {
     if (info.kind !== 'cell') { Object.assign(dv, { cat: 'kitchen', pick: { kind: info.kind, idx: info.idx }, item: null, moving: null, sel: null }); }
     else if (dv.moving) {
-      const mv = dv.moving, name = mv.kind === 'machine' ? MACHINES[s.machines[mv.idx].type].name : 'counter';
+      const mv = dv.moving, name = mv.kind === 'machine' ? MACHINES[s.machines[mv.idx].type].name : mv.kind;
       const rot = D.bestRot(s, mv.kind, info.cx, info.cz, mv, { name });
+      const to = { cx: info.cx, cz: info.cz, rot };
       if (rot < 0) r = { msg: D.shopPlaceProblem(s, mv.kind, info.cx, info.cz, 0, mv, { name }) };
-      else r = mv.kind === 'machine' ? G.moveMachine(s, mv.idx, false, { cx: info.cx, cz: info.cz, rot }) : G.moveCounter(s, mv.idx, { cx: info.cx, cz: info.cz, rot });
+      else r = mv.kind === 'machine' ? G.moveMachine(s, mv.idx, false, to) : mv.kind === 'till' ? G.moveTill(s, to) : G.moveCounter(s, mv.idx, to);
       if (r.ok) dv.moving = null;
     } else if (dv.item === 'counter') {
       const rot = D.bestRot(s, 'counter', info.cx, info.cz);
@@ -1459,8 +1460,8 @@ function designTap(info) {
       if (f.why) r = { msg: f.why };
       else if (G.buyMachine(s, type, false, { cx: info.cx, cz: info.cz, rot: f.rot })) { dv.pick = { kind: 'machine', idx: s.machines.length - 1 }; dv.item = null; }
     } else {
-      const mi = s.machines.findIndex(m => m.cx === info.cx && m.cz === info.cz), ci = D.counterCells(s).findIndex(c => c.cx === info.cx && c.cz === info.cz);
-      dv.pick = mi >= 0 ? { kind: 'machine', idx: mi } : ci >= 0 ? { kind: 'counter', idx: ci } : null;
+      const mi = s.machines.findIndex(m => m.cx === info.cx && m.cz === info.cz), ci = D.counterCells(s).findIndex(c => c.cx === info.cx && c.cz === info.cz), t = D.tillCell(s);
+      dv.pick = mi >= 0 ? { kind: 'machine', idx: mi } : ci >= 0 ? { kind: 'counter', idx: ci } : t.cx === info.cx && t.cz === info.cz ? { kind: 'till', idx: 0 } : null;
     }
     if (r?.msg) showToast(r.msg, r.ok ? 'good' : 'bad');
     save(); render();
@@ -1801,7 +1802,7 @@ function act(el) {
     case 'd-sell': if (ui.design.sel != null) { D.startCart(s); const r = D.sellDecor(s, ui.design.sel); if (r.msg) showToast(r.msg, 'good'); ui.design.sel = null; ui.design.moving = null; } break;
     case 'd-deselect': ui.design.sel = null; ui.design.moving = null; ui.design.pick = null; break;
     case 'k-move': if (ui.design.pick) ui.design.moving = ui.design.moving ? null : { ...ui.design.pick }; break;
-    case 'k-turn': if (ui.design.pick) { const pk = ui.design.pick, lab = !!ui.design.back; const r = pk.kind === 'counter' ? G.turnCounter(s, pk.idx) : G.turnMachine(s, pk.idx, lab); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); } break;
+    case 'k-turn': if (ui.design.pick) { const pk = ui.design.pick, lab = !!ui.design.back; const r = pk.kind === 'counter' ? G.turnCounter(s, pk.idx) : pk.kind === 'till' ? G.turnTill(s) : G.turnMachine(s, pk.idx, lab); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); } break;
     case 'd-buyexp': { const r = D.buyExpansionNow(s, id); if (r.msg) showToast(r.msg, r.ok ? 'good' : 'bad'); break; }
     case 'd-done': D.checkoutCart(s); ui.design = null; break;
     case 'o-set': case 'o-extra': {
@@ -1826,12 +1827,13 @@ function act(el) {
   render(true);
 }
 
-// Bubbles over the 3D scene move every frame, so they react on pointerdown.
+// Bubbles over the 3D scene: a press on one starts a gesture like any other, so swiping across a machine pans the
+// view; only a tap (the finger barely moved) acts on the bubble.
 document.getElementById('overlay').addEventListener('pointerdown', e => {
   const el = e.target.closest('[data-act]');
   if (!el || ui.modal || ui.design) return;
   e.preventDefault();
-  act(el);
+  world.pointerDown(e, () => { if (!ui.modal && !ui.design) act(el); });
 });
 let pointerDown = false, lastPointer = 0, touching = false;
 // The browser cancels a touch once it starts scrolling, so touches and scrolling are tracked separately

@@ -970,6 +970,18 @@ export function moveCounter(s, k, to) {
   Object.assign(c, { cx: to.cx, cz: to.cz, rot: to.rot });
   return { ok: true };
 }
+// The till: moved and turned like a counter
+export function moveTill(s, to) {
+  const why = shopPlaceProblem(s, 'till', to.cx, to.cz, to.rot, { kind: 'till' }, { name: 'till' });
+  if (why) return { msg: why };
+  s.design.tillAt = { cx: to.cx, cz: to.cz, rot: to.rot };
+  return { ok: true };
+}
+export function turnTill(s) {
+  const t = s.design.tillAt || { cx: 7, cz: 5, rot: 0 };
+  for (let d = 1; d <= 3; d++) { const r = moveTill(s, { cx: t.cx, cz: t.cz, rot: ((t.rot || 0) + d) & 3 }); if (r.ok) return r; }
+  return { msg: 'It can only face this way here.' };
+}
 export function turnCounter(s, k) {
   const c = s.design.counterAt?.[k];
   if (!c) return { msg: 'Nothing selected.' };

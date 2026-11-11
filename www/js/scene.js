@@ -716,7 +716,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     back: { center: V3(BX, BY + 0.5, 0.5), needW: 11.8, needH: 10.2 },
   };
   const view = { zone: 'shop', light: 'day', top: 70, bottom: 90 };
-  const cam = { target: ZONES.shop.center.clone(), zoom: 1, panR: 0, panU: 0 };
+  const cam = { target: ZONES.shop.center.clone(), zoom: 1, panR: 0, panU: 0, vR: 0, vU: 0 };
+  let baseUnit = 0.02, camYC = 0; // world units per pixel at zoom 1, and the middle of the play area on screen
   let W = 1, H = 1, unit = 0.03;
 
   // Lights
@@ -1003,17 +1004,26 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     mergeStatic(counterGroup);
     invalidateNav(); // counters stand in the way
   }
-  statics.add(box(1.0, 0.95, 0.9, '#8a5235', 3.1, 0, 0.95));
-  statics.add(box(1.04, 0.05, 0.94, '#efe6d8', 3.1, 0.95, 0.95));
-  statics.add(box(0.5, 0.22, 0.4, '#2e2f36', 3.1, 1.0, 0.9));
+  // The till: a cabinet with the register on top, its screen facing the staff side (customers stand at local +z).
+  // It stands wherever it's been put; tap it in Design to move it.
   const screenM = smat({ color: '#0a2a1a', emissive: '#5fd38d', emissiveIntensity: 0.8 });
-  { const scr = box(0.36, 0.22, 0.03, screenM, 3.1, 1.22, 0.78); scr.rotation.x = -0.4; statics.add(scr); }
-  for (const x of [-1.6, 0, 1.6]) {
-    statics.add(cyl(0.01, 0.01, 0.6, '#222', x, 2.4, 1.0, 6, false));
-    const shade = mesh(geo('shade', () => new THREE.ConeGeometry(0.22, 0.2, 14, 1, true)), mat('#2f2a3a', { side: THREE.DoubleSide }), x, 2.35, 1.0);
-    statics.add(shade);
-    const bm = smat({ color: '#fff3d6', emissive: '#ffd59a', emissiveIntensity: 0.6 });
-    glowMats.push(bm); statics.add(sphere(0.07, bm, x, 2.27, 1.0, false));
+  const tillGroup = new THREE.Group();
+  tillGroup.add(box(0.9, 0.95, 0.84, '#8a5235', 0, 0, 0), box(0.94, 0.05, 0.88, '#efe6d8', 0, 0.95, 0), box(0.5, 0.22, 0.4, '#2e2f36', 0, 1.0, -0.05));
+  { const scr = box(0.36, 0.22, 0.03, screenM, 0, 1.22, -0.17); scr.rotation.x = -0.4; tillGroup.add(scr); }
+  mergeStatic(tillGroup);
+  const tillHit = mesh(new THREE.BoxGeometry(0.9, 1.3, 0.9), hitM, 0, 0.65, 0, false); tillHit.userData = { act: 'till' };
+  tillGroup.add(tillHit);
+  scene.add(tillGroup);
+  let tillSig = '';
+  const TILL = V3(3.1, 1.3, 0.85); // where coins pop out (follows the till)
+  function syncTill(s) {
+    const t = D.tillCell(s), sig = `${t.cx},${t.cz},${t.rot}`;
+    if (sig === tillSig) return;
+    tillSig = sig;
+    const { x, z } = D.cellCenter(t.cx, t.cz);
+    tillGroup.position.set(x, 0, z); tillGroup.rotation.y = D.rotY(t.rot || 0);
+    TILL.set(x, 1.3, z);
+    invalidateNav();
   }
   // Decor: plants, rug, flour sacks, crates
   function plant(x, z, s = 1) {
@@ -1109,11 +1119,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     ab.position.set(5.5, -0.09, 4.95); ab.rotation.y = PI / 4; statics.add(ab);
   }
   // The shop's street lamp, by the kerb next to the doorway
-  statics.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 6.95, -0.09, 2.95, 10));
-  statics.add(box(0.5, 0.06, 0.06, '#2b2d36', 6.73, 2.76, 2.95));
+  statics.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 9.15, -0.09, 2.95, 10));
+  statics.add(box(0.5, 0.06, 0.06, '#2b2d36', 8.93, 2.76, 2.95));
   const lampM = smat({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0.4 });
   lampGlows.push(lampM);
-  statics.add(sphere(0.13, lampM, 6.5, 2.65, 2.95, false));
+  statics.add(sphere(0.13, lampM, 8.7, 2.65, 2.95, false));
   // String lights along the top of the shop's back wall
   for (let k = 0; k < 13; k++) {
     const x = -4.2 + k * 0.7;
@@ -1945,7 +1955,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (dv.cat === 'kitchen') {
         const mv = dv.moving, kind = mv ? mv.kind : dv.item === 'counter' ? 'counter' : dv.item ? 'machine' : null;
         if (kind) {
-          const name = mv?.kind === 'machine' ? MACHINES[s.machines[mv.idx]?.type]?.name : dv.item?.startsWith('m:') ? MACHINES[dv.item.slice(2)]?.name : 'counter';
+          const name = mv?.kind === 'machine' ? MACHINES[s.machines[mv.idx]?.type]?.name : mv?.kind === 'till' ? 'till' : dv.item?.startsWith('m:') ? MACHINES[dv.item.slice(2)]?.name : 'counter';
           const ok = D.bestRot(s, kind, cx, cz, mv ? { kind: mv.kind, idx: mv.idx } : null, { name }) >= 0;
           ctx.fillStyle = ok ? 'rgba(95,211,141,0.28)' : 'rgba(255,93,108,0.18)'; ctx.fillRect(x + 1, y + 1, TS - 2, TS - 2);
         }
@@ -2001,10 +2011,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const dv = view.design;
     overlay.visible = !!dv;
     if (dv) {
-      const os = JSON.stringify([dv.cat, dv.item, dv.moving, d.decor, d.expansions, !!s.upgrades.catering, d.counterAt, s.machines.map(m => [m.cx, m.cz, m.rot])]);
+      const os = JSON.stringify([dv.cat, dv.item, dv.moving, d.decor, d.expansions, !!s.upgrades.catering, d.counterAt, d.tillAt, s.machines.map(m => [m.cx, m.cz, m.rot])]);
       if (os !== overlaySig) { overlaySig = os; paintOverlay(s, dv); }
       const pk = dv.cat === 'kitchen' ? dv.pick : null;
-      const sel = pk ? (pk.kind === 'machine' ? s.machines[pk.idx] : D.counterCells(s)[pk.idx]) : dv.sel != null ? d.decor[dv.sel] : null;
+      const sel = pk ? (pk.kind === 'machine' ? s.machines[pk.idx] : pk.kind === 'till' ? D.tillCell(s) : D.counterCells(s)[pk.idx]) : dv.sel != null ? d.decor[dv.sel] : null;
       selRing.visible = !!sel;
       if (sel) { const { x, z } = D.cellCenter(sel.cx, sel.cz); selRing.position.set(x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
     } else { selRing.visible = false; overlaySig = ''; }
@@ -2042,9 +2052,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       return;
     }
     const daySt = stations.filter(st => st.kind === 'day').map(st => st.group);
-    const hits = dRay.intersectObjects([decorGroup, ...daySt, ...counterHits, shopFloor, pickFront, pickSide], true);
+    const hits = dRay.intersectObjects([decorGroup, ...daySt, ...counterHits, tillHit, shopFloor, pickFront, pickSide], true);
     for (const h of hits) {
       let o = h.object;
+      if (o === tillHit) { onPick({ act: 'design', kind: 'till', idx: 0 }); return; }
       if (o.userData?.act === 'counter') { onPick({ act: 'design', kind: 'counter', idx: Number(o.userData.id) }); return; }
       { let q = o; while (q && q.userData?.act !== 'machine' && q.parent) q = q.parent; if (q?.userData?.act === 'machine') { onPick({ act: 'design', kind: 'machine', idx: q.userData.idx }); return; } }
       while (o && o.userData?.kind !== 'decor' && o.parent) o = o.parent;
@@ -2173,7 +2184,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // How high up the flight someone is (0 on the basement floor, 3.45 at the top): half a step under the nosing line, so feet sit on the treads
   const stairY = p => { if (Math.abs(p.z - 1.1) > 0.7 || p.x > BX - 3.6) return 0; const u = (p.x - (BX + STEP_TOP_X)) / STEP_RUN; return u <= 0 ? 3.45 : Math.max(0, 3.45 - (u + 0.5) * STEP_RISE); };
   const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
-  const TILL = V3(3.1, 1.3, 0.85);
   const customers = new Map(); // id -> { agent, shown, inside, leaving }
   const buyers = new Map();
   const reactions = []; // { agent, text, kind, until, id }
@@ -2194,7 +2204,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // Floor you can stand on: the shop, the back room, the door between them, the shop door and the terraces
   const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-7.45, -4.85, 1.75, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
     [4.85, 6.9, -4.4, 6.9], [-4.4, 6.9, 4.85, 6.9]];
-  const FIXED = [[2.55, 3.65, 0.5, 1.45], [-5.5, -4.9, 3.9, 4.4]]; // the till, and the crate by the back door
+  const FIXED = [[-5.5, -4.9, 3.9, 4.4]]; // the crate by the back door (the till goes in with the counters)
   // The basement: its stairs, the tables and the kit boxes
   const bp = D.BACK_PROPS;
   const BFIXED = [[BX + D.STAIRS.x0, BX + D.STAIRS.x1, D.STAIRS.z0, D.STAIRS.z1 + 0.2], [BX + bp.bagTable[0] - 0.45, BX + bp.bagTable[0] + 0.45, bp.bagTable[1] - 0.3, bp.bagTable[1] + 0.3],
@@ -2211,7 +2221,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     // Decor (not rugs) stands in the way, in the shop and the basement
     if (st0?.design) {
       if (!under) for (const it of st0.design.decor || []) { if (/rug|mat/.test(it.type)) continue; const { x, z } = D.cellCenter(it.cx, it.cz); rects.push([x - 0.32, x + 0.32, z - 0.32, z + 0.32]); }
-      if (!under) for (const c of D.counterCells(st0).slice(0, G.countersOf(st0.design))) { const { x, z } = D.cellCenter(c.cx, c.cz); rects.push([x - 0.45 - pad, x + 0.45 + pad, z - 0.45 - pad, z + 0.45 + pad]); }
+      if (!under) for (const c of [...D.counterCells(st0).slice(0, G.countersOf(st0.design)), D.tillCell(st0)]) { const { x, z } = D.cellCenter(c.cx, c.cz); rects.push([x - 0.45 - pad, x + 0.45 + pad, z - 0.45 - pad, z + 0.45 + pad]); }
       if (under) for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([BX + x - 0.36, BX + x + 0.36, z - 0.36, z + 0.36]); }
     }
     for (const st of stations) {
@@ -2597,7 +2607,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
     }
     // Display case
-    syncCounters(s); syncOpenSign(s);
+    syncCounters(s); syncTill(s); syncOpenSign(s);
     for (const o of counterGroup.children) if (o.userData.spin) o.rotation.y += dt * 1.5;
     for (const t of trays) for (const o of t.group.children) if (o.userData.spin) o.rotation.y += dt * 2;
     syncSeason(s);
@@ -2676,7 +2686,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     cam.target.lerp(z.center, 1 - Math.exp(-dt * 3.5));
     const bh = Math.max(140, H - view.top - view.bottom);
     const yc = view.top + bh / 2;
-    unit = Math.max(z.needW / W, z.needH / bh) / cam.zoom;
+    baseUnit = Math.max(z.needW / W, z.needH / bh); camYC = yc;
+    unit = baseUnit / cam.zoom;
+    // the glide after a quick swipe
+    if (cam.vR || cam.vU) {
+      cam.panR += cam.vR * dt; cam.panU += cam.vU * dt;
+      const k = Math.exp(-dt * 6); cam.vR *= k; cam.vU *= k;
+      if (Math.hypot(cam.vR, cam.vU) < 0.05) { cam.vR = 0; cam.vU = 0; }
+    }
     const lim = 4 + 5 / cam.zoom;
     cam.panR = Math.max(-lim, Math.min(lim, cam.panR));
     cam.panU = Math.max(-lim * 0.7, Math.min(lim * 0.7, cam.panU));
@@ -2697,47 +2714,80 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   window.addEventListener('resize', resize);
   resize();
 
-  // ---------- Input: tap to pick, drag to pan, pinch / wheel to zoom ----------
+  // ---------- Input: tap to pick, drag to pan (with a little glide), pinch to zoom round your fingers, wheel to zoom ----------
+  // A gesture can start on the canvas or on a bubble over a machine (the UI passes those in with what a tap would do):
+  // it's only a tap if the finger barely moved; otherwise it pans like any other drag.
   const ptrs = new Map();
   let drag = null, pinch = null;
   const ray = new THREE.Raycaster();
-  canvas.addEventListener('pointerdown', e => {
-    try { canvas.setPointerCapture(e.pointerId); } catch { /* not a live pointer (e.g. synthetic) */ }
+  const TAP_SLOP = 10; // pixels a finger can wander and still be a tap
+  const zoomTo = z => Math.max(0.4, Math.min(2.6, z));
+  function pointerDown(e, onTap = null) {
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    cam.vR = 0; cam.vU = 0; // a touch stops a glide
     if (ptrs.size === 1) {
-      drag = { x: e.clientX, y: e.clientY, r: cam.panR, u: cam.panU, moved: false };
+      const now = performance.now();
+      drag = { x: e.clientX, y: e.clientY, r: cam.panR, u: cam.panU, moved: false, onTap, vx: 0, vy: 0, lx: e.clientX, ly: e.clientY, lt: now };
       const d0 = drag;
       d0.hold = setTimeout(() => { if (drag === d0 && !d0.moved && ptrs.size === 1 && !view.design) { d0.long = true; pick(d0.x, d0.y, true); } }, 550);
     }
     if (ptrs.size === 2) {
       const [a, b] = [...ptrs.values()];
-      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.zoom };
-      if (drag) drag.moved = true;
+      pinch = { d: Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), z: cam.zoom, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, r: cam.panR, u: cam.panU };
+      if (drag) { drag.moved = true; clearTimeout(drag.hold); }
     }
-  });
-  canvas.addEventListener('pointermove', e => {
+  }
+  function pointerMove(e) {
     if (!ptrs.has(e.pointerId)) return;
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && ptrs.size >= 2) {
+      // Zoom about the point between your fingers, and pan as they move together
       const [a, b] = [...ptrs.values()];
-      cam.zoom = Math.max(0.4, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+      const z = zoomTo(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
+      const u0 = baseUnit / pinch.z, u1 = baseUnit / z, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      cam.zoom = z;
+      cam.panR = pinch.r + (pinch.mx - W / 2) * u0 - (mx - W / 2) * u1;
+      cam.panU = pinch.u - (pinch.my - camYC) * u0 + (my - camYC) * u1;
     } else if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      if (Math.hypot(dx, dy) > 8) { drag.moved = true; clearTimeout(drag.hold); }
-      if (drag.moved) { cam.panR = drag.r - dx * unit; cam.panU = drag.u + dy * unit; }
+      if (!drag.moved && Math.hypot(dx, dy) > TAP_SLOP) { drag.moved = true; clearTimeout(drag.hold); drag.x = e.clientX; drag.y = e.clientY; drag.r = cam.panR; drag.u = cam.panU; }
+      if (drag.moved) {
+        cam.panR = drag.r - (e.clientX - drag.x) * unit; cam.panU = drag.u + (e.clientY - drag.y) * unit;
+        // how fast the finger is going, for the glide after it lets go (pixels per ms, smoothed)
+        const now = performance.now(), dt = Math.max(1, now - drag.lt);
+        drag.vx = drag.vx * 0.6 + ((e.clientX - drag.lx) / dt) * 0.4; drag.vy = drag.vy * 0.6 + ((e.clientY - drag.ly) / dt) * 0.4;
+        drag.lx = e.clientX; drag.ly = e.clientY; drag.lt = now;
+      }
     }
-  });
-  const end = e => {
+  }
+  function pointerEnd(e) {
+    if (!ptrs.has(e.pointerId)) return;
     if (drag) clearTimeout(drag.hold);
     const wasTap = drag && !drag.moved && !drag.long && ptrs.size === 1;
     ptrs.delete(e.pointerId);
-    if (ptrs.size < 2) pinch = null;
-    if (wasTap && e.type === 'pointerup') pick(e.clientX, e.clientY);
+    if (pinch && ptrs.size < 2) {
+      pinch = null;
+      // one finger left: carry on panning from where it is, without a jump
+      if (ptrs.size === 1) { const [p] = [...ptrs.values()]; drag = { x: p.x, y: p.y, r: cam.panR, u: cam.panU, moved: true, vx: 0, vy: 0, lx: p.x, ly: p.y, lt: performance.now() }; }
+    }
+    if (wasTap && e.type === 'pointerup') { if (drag.onTap) drag.onTap(); else pick(e.clientX, e.clientY); }
+    else if (drag?.moved && ptrs.size === 0 && e.type === 'pointerup' && performance.now() - drag.lt < 90 && Math.hypot(drag.vx, drag.vy) > 0.25) {
+      // world units a second: a gentle glide, never more than a couple of metres
+      const k = Math.min(1, 10 / (Math.hypot(drag.vx, drag.vy) * unit * 600 || 1));
+      cam.vR = -drag.vx * unit * 600 * k; cam.vU = drag.vy * unit * 600 * k;
+    }
     if (ptrs.size === 0) drag = null;
-  };
-  canvas.addEventListener('pointerup', end);
-  canvas.addEventListener('pointercancel', end);
-  canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(0.4, Math.min(2.6, cam.zoom * Math.exp(-e.deltaY * 0.0015))); }, { passive: false });
+  }
+  canvas.addEventListener('pointerdown', e => pointerDown(e));
+  window.addEventListener('pointermove', pointerMove);
+  window.addEventListener('pointerup', pointerEnd);
+  window.addEventListener('pointercancel', pointerEnd);
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    // zoom about the mouse pointer
+    const z0 = cam.zoom, z = zoomTo(z0 * Math.exp(-e.deltaY * 0.0015)), u0 = baseUnit / z0, u1 = baseUnit / z;
+    cam.zoom = z; cam.panR += (e.clientX - W / 2) * (u0 - u1); cam.panU -= (e.clientY - camYC) * (u0 - u1);
+  }, { passive: false });
 
   function pick(x, y, long = false) {
     if (view.design) { if (!long) designPick(x, y); return; }
@@ -2755,6 +2805,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
   let last = performance.now() / 1000, simClock = 0;
   return {
+    // a finger or mouse went down on a bubble: it pans like the canvas, and onTap runs only if it was a tap
+    pointerDown(e, onTap) { pointerDown(e, onTap); },
     setView(v) {
       if (v.zone && v.zone !== view.zone) { cam.panR = 0; cam.panU = 0; cam.zoom = 1; }
       Object.assign(view, v);

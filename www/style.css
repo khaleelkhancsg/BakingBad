@@ -146,6 +146,9 @@ input[type=range] { width: 100%; accent-color: var(--violet); margin: 10px 0 4px
 html, body { overflow: hidden; height: 100%; }
 #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; z-index: 0; touch-action: none; }
 #overlay { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+/* bubbles take part in the scene's gestures (pan, pinch), so the browser mustn't treat a swipe on one as a scroll */
+#overlay [data-act] { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#scene { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 #app { position: fixed; inset: 0; z-index: 3; padding: 0; max-width: none; pointer-events: none; }
 #app .hud, #app .shiftbar, #app .dock, #app .sheet, #app .modal-bg, #app .actions, #app .warn-line { pointer-events: auto; }
 #app .hud { position: absolute; top: 0; left: 0; right: 0; margin: 0; }

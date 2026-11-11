@@ -55,6 +55,7 @@ function randomActions(s, t) {
     () => { if (s.machines.length) G.turnMachine(s, Math.floor(rnd() * s.machines.length), false); },
     () => { const n = D.counterCells(s).length; if (n) G.moveCounter(s, Math.floor(rnd() * n), { cx: Math.floor(rnd() * 9), cz: Math.floor(rnd() * 9), rot: Math.floor(rnd() * 4) }); },
     () => { const n = D.counterCells(s).length; if (n) G.turnCounter(s, Math.floor(rnd() * n)); },
+    () => { if (rnd() < 0.5) G.moveTill(s, { cx: Math.floor(rnd() * 9), cz: Math.floor(rnd() * 9), rot: Math.floor(rnd() * 4) }); else G.turnTill(s); },
     () => { if (s.lab.length) G.moveMachine(s, Math.floor(rnd() * s.lab.length), true, { bx: Math.floor(rnd() * 11), bz: Math.floor(rnd() * 11), rot: Math.floor(rnd() * 4) }); },
     () => { const t2 = pick(Object.keys(MACHINES)); G.buyMachine(s, t2, false, { cx: Math.floor(rnd() * 11), cz: Math.floor(rnd() * 11), rot: Math.floor(rnd() * 4) }); },
     () => { D.startCart(s); D.placeDecor(s, pick(Object.keys(D.DECOR)), Math.floor(rnd() * 11), Math.floor(rnd() * 11)); if (rnd() < 0.3) D.cancelCart(s); else D.checkoutCart(s); },

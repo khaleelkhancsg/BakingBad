@@ -9,22 +9,26 @@ import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeS
 const GX = -31, GZ = -26, GSIZE = 56, GPX = 2048 / GSIZE;
 const CENTER = { x: -3, z: 2 }, FADE_IN = 18, FADE_OUT = 27.5;
 
+// The roads sit far enough out that a shop with both terraces still has a wide pavement in front and down the side.
+// Everything beyond a road was laid out for roads 2.2 m closer in; shifted() moves a point out past them.
+export const ROAD_SHIFT = 2.2;
+const FRONT_EDGE = 7.0 + ROAD_SHIFT, SIDE_EDGE = 7.2 + ROAD_SHIFT; // the kerbs on the bakery's side of each road
+const shiftX = x => (x >= 7.15 ? x + ROAD_SHIFT : x), shiftZ = z => (z >= 6.95 ? z + ROAD_SHIFT : z);
 // Areas used both for painting and for keeping grass and flowers off the roads.
 const ROADS = [
-  { x0: GX, x1: GX + GSIZE, z0: 7.0, z1: 10.8 },   // main road in front of the bakery
-  { x0: 7.2, x1: 10.6, z0: GZ, z1: 7.0 },          // side road
+  { x0: GX, x1: GX + GSIZE, z0: FRONT_EDGE, z1: FRONT_EDGE + 3.8 },   // main road in front of the bakery
+  { x0: SIDE_EDGE, x1: SIDE_EDGE + 3.4, z0: GZ, z1: FRONT_EDGE },     // side road
 ];
 const PAVEMENTS = [
-  { x0: GX, x1: 7.2, z0: 4.8, z1: 7.0 },
-  { x0: GX, x1: GX + GSIZE, z0: 10.8, z1: 12.4 },
-  { x0: 6.7, x1: 7.2, z0: GZ, z1: 7.0 },
-  { x0: 10.6, x1: 12.2, z0: GZ, z1: 10.8 },
-  { x0: 4.75, x1: 7.2, z0: -4.75, z1: 4.8 },     // down the side of the bakery
+  { x0: GX, x1: SIDE_EDGE, z0: 4.8, z1: FRONT_EDGE },                 // in front of the bakery, round the corner
+  { x0: GX, x1: GX + GSIZE, z0: FRONT_EDGE + 3.8, z1: FRONT_EDGE + 5.4 },
+  { x0: 4.75, x1: SIDE_EDGE, z0: GZ, z1: FRONT_EDGE },                // down the side of the bakery
+  { x0: SIDE_EDGE + 3.4, x1: SIDE_EDGE + 5.0, z0: GZ, z1: FRONT_EDGE + 3.8 },
   { x0: -14.2, x1: -11.8, z0: -4.75, z1: 4.8 },  // the back alley
 ];
 const BUILT = [ // footprints of the bakery, back room, alley and buildings: no grass here
   { x0: -14.2, x1: 6.8, z0: -12, z1: 4.8 },
-  { x0: 12.2, x1: 18, z0: -12, z1: 6.4 },
+  { x0: shiftX(12.2), x1: shiftX(18), z0: -12, z1: 6.4 },
   { x0: -26.5, x1: -20.5, z0: -12, z1: -5.6 },
 ];
 const POND = { x: -20.5, z: 1.2, rx: 2.8, rz: 1.9 };
@@ -64,18 +68,19 @@ export function buildWorld(scene) {
       for (let i = 0; i < 900; i++) { c.fillStyle = `rgba(255,255,255,${rand() * 0.04})`; c.fillRect(X(r.x0 + rand() * (r.x1 - r.x0)), Z(r.z0 + rand() * (r.z1 - r.z0)), 3, 3); }
     }
     const paint = '#efece2';
-    for (let x = GX; x < GX + GSIZE; x += 2.4) if (x + 1.3 < 6.9 || x > 10.9) rect(x, 8.85, x + 1.3, 9.0, paint);
-    for (let z = GZ; z < 6.2; z += 2.4) rect(8.83, z, 8.98, z + 1.3, paint);
-    for (let x = GX + 1; x < 7; x += 2.6) rect(x, 7.0, x + 0.08, 7.75, 'rgba(239,236,226,0.7)'); // parking bays
-    for (let z = 7.2; z < 10.7; z += 0.7) rect(2.3, z, 4.7, z + 0.38, paint);                    // zebra crossing
-    rect(7.25, 6.55, 10.55, 6.72, paint);                                                         // stop line
+    const R = ROAD_SHIFT;
+    for (let x = GX; x < GX + GSIZE; x += 2.4) if (x + 1.3 < 6.9 + R || x > 10.9 + R) rect(x, 8.85 + R, x + 1.3, 9.0 + R, paint);
+    for (let z = GZ; z < 6.2 + R; z += 2.4) rect(8.83 + R, z, 8.98 + R, z + 1.3, paint);
+    for (let x = GX + 1; x < 7 + R; x += 2.6) rect(x, 7.0 + R, x + 0.08, 7.75 + R, 'rgba(239,236,226,0.7)'); // parking bays
+    for (let z = 7.2 + R; z < 10.7 + R; z += 0.7) rect(2.3, z, 4.7, z + 0.38, paint);                    // zebra crossing
+    rect(7.25 + R, 6.55 + R, 10.55 + R, 6.72 + R, paint);                                                 // stop line
     // Park: path, pond, flower beds
     c.strokeStyle = '#d9c69c'; c.lineWidth = 1.3 * GPX; c.lineCap = 'round';
     c.beginPath(); c.moveTo(X(-14.4), Z(4.4)); c.bezierCurveTo(X(-17), Z(4.4), X(-17.2), Z(-1.5), X(-20.5), Z(-2.4)); c.bezierCurveTo(X(-23.5), Z(-3.2), X(-25), Z(-1), X(-27), Z(0.5)); c.stroke();
     c.beginPath(); c.moveTo(X(-17.1), Z(3.0)); c.bezierCurveTo(X(-19), Z(5.6), X(-23), Z(5.6), X(-26), Z(4.2)); c.stroke();
     c.fillStyle = '#d9c69c'; c.beginPath(); c.ellipse(X(POND.x), Z(POND.z), (POND.rx + 0.45) * GPX, (POND.rz + 0.45) * GPX, 0, 0, 2 * PI); c.fill();
     c.fillStyle = '#3d7fa8'; c.beginPath(); c.ellipse(X(POND.x), Z(POND.z), POND.rx * GPX, POND.rz * GPX, 0, 0, 2 * PI); c.fill();
-    for (const b of FLOWER_BEDS) { c.fillStyle = '#7a5a40'; c.beginPath(); c.ellipse(X(b.x), Z(b.z), b.rx * GPX, b.rz * GPX, 0, 0, 2 * PI); c.fill(); }
+    for (const b of FLOWER_BEDS) { c.fillStyle = '#7a5a40'; c.beginPath(); c.ellipse(X(shiftX(b.x)), Z(shiftZ(b.z)), b.rx * GPX, b.rz * GPX, 0, 0, 2 * PI); c.fill(); }
     // Fade the whole ground out towards the edge
     c.globalCompositeOperation = 'destination-in';
     const g = c.createRadialGradient(X(CENTER.x), Z(CENTER.z), FADE_IN * GPX, X(CENTER.x), Z(CENTER.z), FADE_OUT * GPX);
@@ -91,10 +96,9 @@ export function buildWorld(scene) {
   scene.add(ground);
   // Kerbs along the roads near the bakery, so the road edge has a little height
   const kerb = mat('#8f8b98');
-  root.add(box(21.5, 0.09, 0.12, kerb, -3.6, -0.09, 7.0, false));
-  root.add(box(30, 0.09, 0.12, kerb, -3, -0.09, 10.8, false));
-  root.add(box(0.12, 0.09, 19, kerb, 7.2, -0.09, -2.5, false));
-  root.add(box(0.12, 0.09, 22, kerb, 10.6, -0.09, -0.2, false));
+  const kerbs = [box(21.5 + ROAD_SHIFT, 0.09, 0.12, kerb, -3.6 + ROAD_SHIFT / 2, -0.09, FRONT_EDGE, false), box(30, 0.09, 0.12, kerb, -3, -0.09, FRONT_EDGE + 3.8, false),
+    box(0.12, 0.09, 19 + ROAD_SHIFT, kerb, SIDE_EDGE, -0.09, -2.5 + ROAD_SHIFT / 2, false), box(0.12, 0.09, 22 + ROAD_SHIFT, kerb, SIDE_EDGE + 3.4, -0.09, -0.2 + ROAD_SHIFT / 2, false)];
+  for (const k of kerbs) { k.userData.fixed = true; root.add(k); }
   // Pond water and lily pads
   const water = smat({ color: '#4f9fd0', roughness: 0.12, metalness: 0.25, transparent: true, opacity: 0.9 });
   const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 28), water);
@@ -188,10 +192,10 @@ export function buildWorld(scene) {
   // ---------- Instanced nature ----------
   const dummy = new THREE.Object3D();
   const col = new THREE.Color();
-  function instanced(geometry, material, list, { shadow = false, colors } = {}) {
+  function instanced(geometry, material, list, { shadow = false, colors, raw = false } = {}) {
     const im = new THREE.InstancedMesh(geometry, material, list.length);
     list.forEach((t, i) => {
-      dummy.position.set(t.x, t.y || 0, t.z);
+      dummy.position.set(raw ? t.x : shiftX(t.x), t.y || 0, raw ? t.z : shiftZ(t.z));
       dummy.rotation.set(0, t.ry || 0, 0);
       dummy.scale.set(t.sx || t.s || 1, t.sy || t.s || 1, t.sz || t.s || 1);
       dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix);
@@ -206,9 +210,10 @@ export function buildWorld(scene) {
     [-12, 11.7], [-20, 11.7], [14.5, 11.7], [19.5, 11.7], [-6.5, 11.7],
     [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
+  const at = t => ({ x: shiftX(t.x), z: shiftZ(t.z) });
   const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
   // Street trees on the pavement get a tree pit and a grate
-  for (const t of TREES) if (PAVEMENTS.some(p => inside(p, t.x, t.z))) { root.add(box(0.9, 0.02, 0.9, '#5a4632', t.x, -0.085, t.z, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z + 0.45, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z - 0.45, false)); }
+  for (const t of TREES) if (PAVEMENTS.some(p => inside(p, at(t).x, at(t).z))) { root.add(box(0.9, 0.02, 0.9, '#5a4632', t.x, -0.085, t.z, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z + 0.45, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z - 0.45, false)); }
   instanced(geo('trunk', () => new THREE.CylinderGeometry(0.1, 0.15, 1.3, 6).translate(0, 0.65, 0)), mat('#7a5534'), TREES.map(t => ({ ...t, y: -0.09 })), { shadow: true });
   const canopyGeo = geo('canopy', () => new THREE.IcosahedronGeometry(0.85, 0));
   const greens = ['#5f9e4f', '#4f8f48', '#6aab57', '#7bb661', '#4b8a52'];
@@ -239,7 +244,7 @@ export function buildWorld(scene) {
     if (!isGrass(x, z)) continue;
     for (let k = 0; k < 3; k++) TUFTS.push({ x: x + (rand() - 0.5) * 0.14, z: z + (rand() - 0.5) * 0.14, y: -0.09, s: 0.7 + rand() * 0.7, ry: rand() * PI, c: rand() < 0.5 ? '#5f9e4f' : '#79b35f' });
   }
-  instanced(geo('tuft', () => new THREE.ConeGeometry(0.045, 0.24, 3).translate(0, 0.12, 0)), smat({ color: '#ffffff', roughness: 0.9, flatShading: true }), TUFTS, { colors: ['#5f9e4f'] });
+  instanced(geo('tuft', () => new THREE.ConeGeometry(0.045, 0.24, 3).translate(0, 0.12, 0)), smat({ color: '#ffffff', roughness: 0.9, flatShading: true }), TUFTS, { colors: ['#5f9e4f'], raw: true });
   // Picket fence between the alley and the park
   const PICKETS = [];
   for (let z = -4.4; z < 4.6; z += 0.26) PICKETS.push({ x: -14.25, z, y: -0.09 });
@@ -303,7 +308,7 @@ export function buildWorld(scene) {
   }
   // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
-  const LANES = [{ lane: 8.45, dir: 1 }, { lane: 9.85, dir: -1 }];
+  const LANES = [{ lane: 8.45 + ROAD_SHIFT, dir: 1 }, { lane: 9.85 + ROAD_SHIFT, dir: -1 }];
   const movers = [6, 22].map((wait, i) => {
     const m = { ...LANES[i], x: 0, speed: 3.2, active: false, wait };
     const c = car(CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true);
@@ -315,6 +320,7 @@ export function buildWorld(scene) {
     return { ...m, ...c, beamM };
   });
 
+  for (const o of root.children) if (!o.userData.fixed) { o.position.x = shiftX(o.position.x); o.position.z = shiftZ(o.position.z); }
   scene.add(mergeStatic(root));
 
   let nightK = 0;

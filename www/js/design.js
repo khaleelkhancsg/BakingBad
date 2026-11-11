@@ -411,14 +411,16 @@ export function cellOwned(s, cx, cz) {
 export const DIRS = [[0, 1], [1, 0], [0, -1], [-1, 0]];
 export const rotY = rot => [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot & 3];
 export const TILL_CELL = [7, 5], SHOP_DOOR_CELL = [8, 8], INNER_DOOR_CELL = [0, 7];
-const RESERVED = new Set([TILL_CELL, SHOP_DOOR_CELL, INNER_DOOR_CELL].map(c => cellKey(...c)));
+const RESERVED = new Set([SHOP_DOOR_CELL, INNER_DOOR_CELL].map(c => cellKey(...c)));
+// Where the till stands (it moves like a counter)
+export const tillCell = s => s.design.tillAt || { cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0 };
 export const solidDecor = type => !/rug|mat/.test(type);
 // Where the counters stand (one entry per counter you own)
 export const DEFAULT_COUNTERS = [[6, 5], [5, 5], [4, 5], [3, 5], [2, 5], [1, 5], [6, 4]];
 export const counterCells = s => s.design.counterAt || [];
 // Everything standing on the shop floor, leaving one thing out if asked (when it's the one being moved)
 export function shopItems(s, ignore = null) {
-  const out = [{ kind: 'till', cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0, name: 'till' }];
+  const t = tillCell(s), out = ignore?.kind === 'till' ? [] : [{ kind: 'till', cx: t.cx, cz: t.cz, rot: t.rot || 0, name: 'till' }];
   (s.machines || []).forEach((m, i) => { if (!(ignore?.kind === 'machine' && ignore.idx === i)) out.push({ kind: 'machine', idx: i, cx: m.cx, cz: m.cz, rot: m.rot || 0, name: MACHINES[m.type]?.name || 'machine' }); });
   counterCells(s).forEach((c, k) => { if (!(ignore?.kind === 'counter' && ignore.idx === k)) out.push({ kind: 'counter', idx: k, cx: c.cx, cz: c.cz, rot: c.rot || 0, name: 'counter' }); });
   (s.design.decor || []).forEach((d, i) => { if (!(ignore?.kind === 'decor' && ignore.idx === i)) out.push({ kind: 'decor', idx: i, cx: d.cx, cz: d.cz, solid: solidDecor(d.type) }); });
@@ -464,7 +466,7 @@ export function shopPlaceProblem(s, kind, cx, cz, rot = 0, ignore = null, extra 
   const zone = cellZone(cx, cz);
   if (!zone) return 'Not part of the shop.';
   if (!cellOwned(s, cx, cz)) return `Buy the ${EXPANSIONS[zone].name.toLowerCase()} first.`;
-  if (RESERVED.has(cellKey(cx, cz))) return cellKey(cx, cz) === cellKey(...TILL_CELL) ? 'The till is there.' : 'That square is a doorway.';
+  if (RESERVED.has(cellKey(cx, cz))) return 'That square is a doorway.';
   const items = shopItems(s, ignore);
   if (items.some(it => it.cx === cx && it.cz === cz)) return 'Something is already there.';
   return shopLayoutProblem(s, [...items, { kind, cx, cz, rot, name: extra.name || kind, solid: extra.solid ?? true }]);
@@ -478,7 +480,7 @@ export function naturalRot(cx, cz) {
 const NAT_ORDER = rot => [rot, (rot + 1) & 3, (rot + 3) & 3, (rot + 2) & 3];
 // A facing that works on this square (the natural one first), or -1
 export function bestRot(s, kind, cx, cz, ignore = null, extra = {}) {
-  for (const r of NAT_ORDER(kind === 'counter' ? 0 : naturalRot(cx, cz))) if (!shopPlaceProblem(s, kind, cx, cz, r, ignore, extra)) return r;
+  for (const r of NAT_ORDER(kind === 'counter' || kind === 'till' ? 0 : naturalRot(cx, cz))) if (!shopPlaceProblem(s, kind, cx, cz, r, ignore, extra)) return r;
   return -1;
 }
 export function backBestRot(s, bx, bz, ignore = null, name = '') {
@@ -490,7 +492,7 @@ export function backBestRot(s, bx, bz, ignore = null, name = '') {
 // Somewhere free for a new machine or counter: along the walls first (machines) or by the till (counters)
 export function autoSpot(s, kind, extra = {}) {
   let cells;
-  if (kind === 'counter') cells = [...DEFAULT_COUNTERS, ...allCells('inside')];
+  if (kind === 'counter' || kind === 'till') cells = [...(kind === 'till' ? [TILL_CELL] : DEFAULT_COUNTERS), ...allCells('inside')];
   else {
     const edge = ([cx, cz]) => Math.min(cx, cz, 8 - cx, 8 - cz);
     cells = allCells('inside').sort((a, b) => edge(a) - edge(b) || a[1] - b[1] || a[0] - b[0]);
@@ -536,10 +538,10 @@ export function fixLayout(s) {
   for (const m of s.lab || []) if (m.bx == null) Object.assign(m, backCellFromSpot(m.spot) || { bx: -1, bz: -1, rot: 0 });
   for (let k = d.counterAt.length; k < n; k++) { const [cx, cz] = DEFAULT_COUNTERS[k] || [-1, -1]; d.counterAt.push({ cx, cz, rot: 0 }); }
   // The shop
-  const settled = [{ kind: 'till', cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0, name: 'till' }];
+  const settled = [];
   const free = (cx, cz) => cellZone(cx, cz) && cellOwned(s, cx, cz) && !RESERVED.has(cellKey(cx, cz)) && !settled.some(it => it.cx === cx && it.cz === cz);
   const fits = it => free(it.cx, it.cz) && !shopLayoutProblem(s, [...settled, it]);
-  const cellsFor = kind => kind === 'counter' ? [...DEFAULT_COUNTERS, ...allCells('inside'), ...allCells('front'), ...allCells('side')]
+  const cellsFor = kind => kind === 'counter' || kind === 'till' ? [...(kind === 'till' ? [TILL_CELL] : DEFAULT_COUNTERS), ...allCells('inside'), ...allCells('front'), ...allCells('side')]
     : [...allCells('inside').sort((a, b) => Math.min(a[0], a[1], 8 - a[0], 8 - a[1]) - Math.min(b[0], b[1], 8 - b[0], 8 - b[1]) || a[1] - b[1] || a[0] - b[0]), ...allCells('front'), ...allCells('side')];
   const settle = (obj, kind, extra) => {
     const it = { kind, cx: obj.cx, cz: obj.cz, rot: obj.rot || 0, ...extra };
@@ -547,7 +549,7 @@ export function fixLayout(s) {
       let found = null;
       for (const [cx, cz] of cellsFor(kind)) {
         if (!free(cx, cz)) continue;
-        for (const r of NAT_ORDER(kind === 'counter' ? 0 : naturalRot(cx, cz))) { const c = { ...it, cx, cz, rot: r }; if (!shopLayoutProblem(s, [...settled, c])) { found = c; break; } }
+        for (const r of NAT_ORDER(kind === 'counter' || kind === 'till' ? 0 : naturalRot(cx, cz))) { const c = { ...it, cx, cz, rot: r }; if (!shopLayoutProblem(s, [...settled, c])) { found = c; break; } }
         if (found) break;
       }
       if (!found) return false;
@@ -558,6 +560,8 @@ export function fixLayout(s) {
     settled.push(it);
     return true;
   };
+  d.tillAt ||= { cx: TILL_CELL[0], cz: TILL_CELL[1], rot: 0 };
+  settle(d.tillAt, 'till', { name: 'till' });
   (s.machines || []).forEach(m => { if (!settle(m, 'machine', { name: MACHINES[m.type]?.name || 'machine' })) { m.cx = -1; m.cz = -1; } });
   d.counterAt.forEach(c => { if (!settle(c, 'counter', { name: 'counter' })) { c.cx = -1; c.cz = -1; } });
   d.decor = (d.decor || []).filter(it => {
@@ -676,7 +680,7 @@ export function checkoutCart(s) {
 }
 export function cancelCart(s) {
   if (!cart) return;
-  const keep = { counters: s.design.counters, counterAt: s.design.counterAt, cabinets: s.design.cabinets };
+  const keep = { counters: s.design.counters, counterAt: s.design.counterAt, cabinets: s.design.cabinets, tillAt: s.design.tillAt };
   s.design = { ...JSON.parse(cart.snap), ...keep }; cart = null;
   fixLayout(s);
 }

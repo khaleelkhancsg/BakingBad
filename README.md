@@ -7,9 +7,9 @@ The game never ends: like Clash of Clans, you just keep building the place up. L
 
 It's a 3D game: you look down into the shop at an angle. The bakery has ovens, mixers, fryers and more, and a glass case
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
-(or the bubble above it) to work it. Drag to look around, and pinch or scroll to zoom.
+(or the bubble above it) to work it. Drag to look around (a quick swipe glides on a little), and pinch or scroll to zoom: it zooms in on the point between your fingers (or under the mouse), and moving both fingers pans at the same time. A swipe that starts on a machine or its bubble just moves the view; only a tap opens it.
 
-A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Zoom right out to see the whole building from outside (walls, windows, the sign and awning, the roofs); zoom back in for the cut-away view. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: Kitchen, Supplies, Upgrades, Crew, Orders, Marketing, Shops & property,
+A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Zoom right out to see the whole building from outside (walls, windows, the sign and awning, the roofs, and a wide pavement all round that the terraces never swallow); zoom back in for the cut-away view. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: Kitchen, Supplies, Upgrades, Crew, Orders, Marketing, Shops & property,
 Bank & tax; in the back room only back-room sections: Lab, Supplies (kits, cutting, the auction), Upgrades, Crew,
 Deals (the back door, Dez's jobs, deliveries), Heat & police, Turf, Wash and Logistics), **🎨 Design** (in the back room: its benches, cellar and annex), and **🗺️ Map** to move between your shops and the back room.
 
@@ -66,9 +66,9 @@ limit the buy button says "Reach level N to unlock additional ovens".
 **Placing machines and counters.** Nothing has a fixed spot: you choose where every machine and counter stands. Buying a
 machine (☰ Menu → Kitchen, "+1 · place it") opens 🎨 Design → 🍳 Kitchen with it picked up: the floor turns green where it
 can go and red where it can't, and you pay when you tap a green square. Counters are bought the same way (the 🧁 Counter
-in the Kitchen tab). Tap any machine or counter in Design to **Move** it (it carries on cooking) or **Turn** it. Each faces
-away from the wall it's against to start with. The rules keep the room workable: nothing goes on the till, the shop door
-or the door to the back room; the square in front of every machine must stay reachable (that's where you work it), and
+in the Kitchen tab). Tap any machine, counter or the till in Design to **Move** it (it carries on cooking) or **Turn** it. Each faces
+away from the wall it's against to start with. The rules keep the room workable: nothing goes on the shop door
+or the door to the back room, or on top of anything else; the square in front of every machine must stay reachable (that's where you work it), and
 so must the front of every counter and the till (where customers stand). Machines out on a terrace stand on a low wooden
 deck. In the basement, 🎨 Design → 🧪 Machines does the same, with everything reachable from the foot of the stairs and
 the stairs' landing, the buyers' spots and the tables kept clear. You, Priya, customers and buyers all walk around
