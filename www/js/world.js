@@ -3,7 +3,7 @@
 // repeated things (trees, flowers, grass, bushes, pickets) drawn as instanced batches.
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
 const GX = -31, GZ = -26, GSIZE = 56, GPX = 2048 / GSIZE;
@@ -183,10 +183,10 @@ export function buildWorld(scene) {
   { const aw = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 7.4), smat({ map: stripes, roughness: 0.8 }));
     aw.position.set(12.05, 1.75, 2.3); aw.rotation.z = -0.35; aw.castShadow = true; root.add(aw); }
   for (const z of [0.2, 2.3, 4.4]) { // café tables on the pavement
-    root.add(cyl(0.32, 0.32, 0.04, '#f4f0e8', 11.45, 0.62, z, 14));
-    root.add(cyl(0.03, 0.05, 0.62, '#3a3d44', 11.45, 0, z, 6));
-    const umb = mesh(geo('umb', () => new THREE.ConeGeometry(0.75, 0.35, 8)), mat(z === 2.3 ? '#4f9de8' : '#e85d75'), 11.45, 1.85, z);
-    root.add(umb); root.add(cyl(0.02, 0.02, 1.2, '#dddddd', 11.45, 0.66, z, 4, false));
+    root.add(cyl(0.32, 0.32, 0.04, '#f4f0e8', 11.85, 0.62, z, 14));
+    root.add(cyl(0.03, 0.05, 0.62, '#3a3d44', 11.85, 0, z, 6));
+    const umb = mesh(geo('umb', () => new THREE.ConeGeometry(0.65, 0.35, 8)), mat(z === 2.3 ? '#4f9de8' : '#e85d75'), 11.85, 2.0, z);
+    root.add(umb); root.add(cyl(0.02, 0.02, 1.35, '#dddddd', 11.85, 0.66, z, 4, false));
   }
 
   // ---------- Instanced nature ----------
@@ -207,8 +207,9 @@ export function buildWorld(scene) {
   }
   // Trees: a trunk plus one or two low-poly canopy blobs
   const TREES = [[-17, -3], [-24, -1.5], [-18.2, 6.2], [-25, 4.6], [-23, -4.6], [-15.8, 1.2],
-    [-12, 11.7], [-20, 11.7], [14.5, 11.7], [19.5, 11.7], [-6.5, 11.7],
-    [11.4, -14], [11.4, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
+    [-12, 12.25], [-20, 12.25], [14.5, 12.25], [19.5, 12.25], [-6.5, 12.25],
+    // (street trees stand at the back of their pavements, clear of people walking along them)
+    [12.0, -14], [12.0, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
   const at = t => ({ x: shiftX(t.x), z: shiftZ(t.z) });
   const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
@@ -321,7 +322,7 @@ export function buildWorld(scene) {
   });
 
   for (const o of root.children) if (!o.userData.fixed) { o.position.x = shiftX(o.position.x); o.position.z = shiftZ(o.position.z); }
-  scene.add(mergeStatic(root));
+  scene.add(mergeStatic(texturize(root)));
 
   let nightK = 0;
   return {

@@ -74,6 +74,13 @@ deck. In the basement, 🎨 Design → 🧪 Machines does the same, with everyth
 the stairs' landing, the buyers' spots and the tables kept clear. You, Priya, customers and buyers all walk around
 whatever you've put down; customers queue in front of the counter they want, wherever it is.
 
+**The street.** Customers walk into town from its faded edges along the pavements (along the front, down the side
+street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
+into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. Up to nine
+customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
+Wood, metal and cardboard in the scene (counters, the till, machines, crates, decor, benches) carry simple
+generated prototype textures (wood grain, brushed steel, card), picked by each material's colour.
+
 **Display counters.** There's no menu to manage: anything you've learned (and is in season) can be cooked, and when
 it's collected it goes onto the glass counters by the till by itself. Each counter holds one product, 4 batches of it.
 A batch first tops up a counter already showing that product; if that would go over, it fills it to the top and the

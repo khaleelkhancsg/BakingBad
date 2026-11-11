@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, BASEMENT_X } from './data.js';
 import * as G from './game.js';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { buildWorld } from './world.js';
 import { foodModel } from './food.js';
@@ -888,7 +888,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     windows.push(m);
   }
   windowOn(3.0, -4.6, 1.7, 1.2, 1.2);
-  windowOn(-9.5, -4.6, 1.0, 0.5, 2.1);
   const menuTex = canvasTex(256, 192, (c, w, h) => {
     c.fillStyle = '#2b3a34'; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#a07a52'; c.lineWidth = 12; c.strokeRect(6, 6, w - 12, h - 12);
@@ -1001,7 +1000,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       scene.add(hit); pickables.push(hit); counterHits.push(hit);
       trays.push({ x, z, ry, dx, dz, group: tg, sig: '' });
     });
-    mergeStatic(counterGroup);
+    mergeStatic(texturize(counterGroup));
     invalidateNav(); // counters stand in the way
   }
   // The till: a cabinet with the register on top, its screen facing the staff side (customers stand at local +z).
@@ -1010,7 +1009,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const tillGroup = new THREE.Group();
   tillGroup.add(box(0.9, 0.95, 0.84, '#8a5235', 0, 0, 0), box(0.94, 0.05, 0.88, '#efe6d8', 0, 0.95, 0), box(0.5, 0.22, 0.4, '#2e2f36', 0, 1.0, -0.05));
   { const scr = box(0.36, 0.22, 0.03, screenM, 0, 1.22, -0.17); scr.rotation.x = -0.4; tillGroup.add(scr); }
-  mergeStatic(tillGroup);
+  mergeStatic(texturize(tillGroup));
   const tillHit = mesh(new THREE.BoxGeometry(0.9, 1.3, 0.9), hitM, 0, 0.65, 0, false); tillHit.userData = { act: 'till' };
   tillGroup.add(tillHit);
   scene.add(tillGroup);
@@ -1055,7 +1054,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const b = box(0.11, 0.14, 0.04, mat('#c79bff', { roughness: 0.3, transparent: true, opacity: 0.88 }), BX + bagX - 0.3 + (k % 6) * 0.12, 0.8 + Math.floor(k / 12) * 0.15, bagZ - 0.15 + Math.floor((k % 12) / 6) * 0.2);
     b.visible = false; b.userData.keep = true; cellar.add(b); bagPile.push(b);
   }
-  mergeStatic(cellar); // the basement's still parts, merged (floors, the stairs' tap area and the props that come and go stay apart)
+  mergeStatic(texturize(cellar)); // the basement's still parts, merged (floors, the stairs' tap area and the props that come and go stay apart)
   // Security camera upgrade
   const camGroup = new THREE.Group();
   camGroup.add(box(0.28, 0.14, 0.14, '#e6e6e6', 0, 0, 0)); camGroup.add(sphere(0.04, mat('#222'), 0.15, 0.07, 0, false));
@@ -1135,12 +1134,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   statics.add(box(1.0, 0.85, 1.45, '#3f6b4f', -13.2, 0, -2.5));
   statics.add(box(1.06, 0.08, 1.5, '#2f5240', -13.2, 0.85, -2.5));
   for (const [x, z, r] of [[-12.5, -1.4, 0.24], [-12.75, -1.15, 0.2], [-13.3, 0.4, 0.22]]) { const b = sphere(r, '#1c1c22', x, r * 0.8, z); b.scale.y = 0.85; statics.add(b); }
-  statics.add(box(0.12, 0.24, 0.2, '#2b2d36', -11.85, 2.45, 3.5));
+  statics.add(box(0.12, 0.24, 0.2, '#2b2d36', -7.9, 2.45, 2.95));
   const alleyM = smat({ color: '#ffe2b0', emissive: '#ffb05a', emissiveIntensity: 0.4 });
   lampGlows.push(alleyM);
-  statics.add(sphere(0.08, alleyM, -11.98, 2.45, 3.5, false));
+  statics.add(sphere(0.08, alleyM, -8.03, 2.45, 2.95, false));
 
-  scene.add(mergeStatic(statics));
+  scene.add(mergeStatic(texturize(statics)));
   const hood = buildWorld(scene);
 
   // ---------- Design: floor tiles, wallpaper, decorations, wall art, terraces ----------
@@ -1404,7 +1403,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     invalidateNav(); // decor is in the way of walking
     backDecorGroup.clear();
     b.decor.forEach((it, idx) => {
-      const m = decorModel(it.type), { x, z } = D.backCellCenter(it.bx, it.bz);
+      const m = texturize(decorModel(it.type)), { x, z } = D.backCellCenter(it.bx, it.bz);
       m.position.set(BX + x, 0, z); m.rotation.y = (it.rot || 0) * PI / 2;
       m.userData = { act: 'design', kind: 'bdecor', idx };
       m.traverse(o => { if (o.isMesh) o.castShadow = true; });
@@ -1914,7 +1913,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   function rebuildDecor(s) {
     decorGroup.clear(); artBack.clear(); artLeft.clear();
     s.design.decor.forEach((it, idx) => {
-      const m = decorModel(it.type);
+      const m = texturize(decorModel(it.type));
       const { x, z } = D.cellCenter(it.cx, it.cz);
       m.position.set(x, 0, z); m.rotation.y = (it.rot || 0) * PI / 2;
       m.userData = { act: 'design', kind: 'decor', idx, cx: it.cx, cz: it.cz };
@@ -2116,6 +2115,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         for (let k = 0; k < tier; k++) st.group.add(sphere(0.022, tier >= 4 ? gold : chrome, (bb.max.x + bb.min.x) / 2 - 0.12 + k * 0.06, 0.35, bb.max.z + 0.03, false));
       }
       st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      texturize(st.group);
       mergeStation(st, kind, m.type);
       st.group.scale.setScalar(kind === 'night' ? 0.85 : 0.9); // a little smaller than a square, so neighbours don't touch
       if (kind === 'day' && m.cz >= 9 || kind === 'day' && m.cx >= 9) { // out on a terrace: a low wooden deck under it, like a market stall
@@ -2188,6 +2188,72 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const buyers = new Map();
   const reactions = []; // { agent, text, kind, until, id }
   const browsers = []; let browserId = 1;
+  // ---- People on the street: they come and go from the faded edges of town along the pavements ----
+  const seenCust = new Set(), walkers = [];
+  const SIDE_X = 8.3, FRONT_Z = 8.2, FAR_Z = 13.3, FAR_SIDE_X = 12.95, CROSS_X = 3.5, CORNER = V3(7.4, 0, 3.7); // walking lines, clear of lamps, trees and café tables
+  // Ways in from the edge of town to the corner by the shop door (walked backwards to leave)
+  const ROUTES_IN = [
+    [V3(-26, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],                                                       // along the front pavement
+    [V3(SIDE_X, 0, -20.5), V3(SIDE_X, 0, 3.7), CORNER],                                                         // down the side street
+    [V3(-26, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],         // over the zebra crossing
+    [V3(20, 0, FAR_Z), V3(CROSS_X, 0, FAR_Z), V3(CROSS_X, 0, FRONT_Z), V3(7.4, 0, FRONT_Z), CORNER],
+  ];
+  // Passers-by: edge to edge, never stopping
+  const WALKS = [
+    [V3(-26, 0, FAR_Z), V3(20, 0, FAR_Z)],
+    [V3(-26, 0, FRONT_Z), V3(SIDE_X, 0, FRONT_Z), V3(SIDE_X, 0, -20.5)],
+    [V3(FAR_SIDE_X, 0, -20.5), V3(FAR_SIDE_X, 0, FAR_Z), V3(20, 0, FAR_Z)],
+  ];
+  const randomLook = () => ({ skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 });
+  const shifted = (pts, off) => pts.map(p => p.clone().add(off));
+  const laneOff = () => V3((Math.random() - 0.5) * 0.7, 0, (Math.random() - 0.5) * 0.7); // not everyone walks the same line
+  function walkRoute(agent, pts) { agent.goal = null; agent.target.copy(pts[0]); agent.path = pts.slice(1); }
+  function spawnShopper(c) {
+    const off = laneOff(), pts = shifted(ROUTES_IN[Math.floor(Math.random() * ROUTES_IN.length)], off);
+    const a = new Agent(scene, c ? c.look : randomLook(), 'customer', pts[0]);
+    a.speed = 1.7;
+    walkRoute(a, [...pts.slice(1), streetIn().clone()]);
+    const id = c ? c.id : 'w' + (browserId++);
+    customers.set(id, { agent: a, c, stage: 'arrive', shown: false, inside: false, wait: 0, off, tray: c ? null : trays[Math.floor(Math.random() * trays.length)] });
+  }
+  function spawnWalker() {
+    const r = WALKS[Math.floor(Math.random() * WALKS.length)], off = laneOff(), pts = shifted(Math.random() < 0.5 ? r : [...r].reverse(), off);
+    const a = new Agent(scene, randomLook(), 'customer', pts[0]);
+    a.speed = 1.2 + Math.random() * 0.4;
+    walkRoute(a, pts.slice(1));
+    walkers.push({ agent: a });
+  }
+  // One shopper's day out: walk in, through the door, queue, get served, out, and away into the distance
+  function stepShopper(id, e, dt, now, menu, lines) {
+    const a = e.agent, at = (p, r = 0.15) => flat(a.group.position, p) < r;
+    if (e.stage === 'arrive') { if (!a.path?.length && at(streetIn())) { e.stage = 'door'; a.target.copy(doorIn()); a.face = null; } }
+    else if (e.stage === 'door') { if (at(doorIn())) { e.stage = 'queue'; e.inside = true; a.goal = null; a.speed = 2.2; } }
+    else if (e.stage === 'queue') {
+      const t = e.c ? trays[Math.min(trays.length - 1, Math.max(0, menu.indexOf(e.c.want)))] : (trays.includes(e.tray) ? e.tray : trays[0]);
+      if (!t) e.stage = 'leave';
+      else {
+        const ti = trays.indexOf(t), k = e.c ? Math.max(0, lines.get(ti)?.indexOf(id) ?? 0) : 3;
+        const side = e.c ? (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0) : (e.off.x > 0 ? 0.3 : -0.3), out = e.c ? 0.95 + k * 0.6 : 1.7;
+        go(a, V3(t.x + t.dx * out - t.dz * side, 0, t.z + t.dz * out + t.dx * side));
+        if (atGoal(a)) { a.face = t.ry + PI; e.wait += dt; } else a.face = null;
+        if (e.wait > (e.c ? 1.0 : 3.5)) {
+          e.shown = true; e.stage = 'served'; e.wait = 0;
+          if (e.c) {
+            a.p.bag.visible = e.c.res.kind === 'good';
+            if (e.c.res.kind === 'good') coin(TILL);
+            const face = e.c.res.kind === 'good' ? '😊' : e.c.res.kind === 'bad' ? '😞' : '😒';
+            reactions.push({ agent: a, text: `${face} ${e.c.res.text}`, kind: e.c.res.kind, until: now + 2.2, id: 'r' + e.c.id });
+          } else if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 1.6, id: 'r' + id });
+        }
+      }
+    } else if (e.stage === 'served') { e.wait += dt; if (e.wait > 0.9) e.stage = 'leave'; }
+    else if (e.stage === 'leave') { a.face = null; go(a, doorOut()); if (at(doorOut())) { e.stage = 'out'; e.inside = false; a.path = null; a.goal = null; a.target.copy(streetOut()); } }
+    else if (e.stage === 'out') {
+      if (at(streetOut())) { e.stage = 'away'; a.speed = 1.7; walkRoute(a, shifted([...ROUTES_IN[Math.floor(Math.random() * ROUTES_IN.length)]].reverse(), e.off)); }
+    }
+    const arrived = a.update(dt);
+    if (e.stage === 'away' && arrived) { scene.remove(a.group); customers.delete(id); }
+  }
 
   // You: the baker. Walks to whatever you tap.
   const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(BX - 2.6, BY, 1.6) };
@@ -2382,69 +2448,22 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
     revolving = s.design.outside?.door === 'revolving';
     if (revolving) { drumBusy = false; for (const [, e] of customers) if (Math.hypot(e.agent.group.position.x - 4.9, e.agent.group.position.z - 3.7) < 0.8) drumBusy = true; for (const w of browsers) if (Math.hypot(w.agent.group.position.x - 4.9, w.agent.group.position.z - 3.7) < 0.8) drumBusy = true; }
-    // Customers: in through the doorway, queue at the tray they want, out again (all from the live engine)
-    const WALK = 3.2, BROWSE = 1.4;
+    // Shoppers: everyone the engine served gets someone walking in from the edge of town for it (only so many at once),
+    // and now and then a window-shopper; a few passers-by walk straight through town
     const nowMs = Date.now();
     G.live.customers = G.live.customers.filter(c => nowMs - c.at < 12000);
-    const menu = G.counterList(s), live = new Set(), lines = new Map();
-    const crowd = G.live.customers.slice(-14);
-    for (const c of crowd) {
-      if ((nowMs - c.at) / 1000 > WALK + BROWSE) continue;
-      const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want)));
-      if (!lines.has(ti)) lines.set(ti, []);
-      lines.get(ti).push(c.id);
+    for (const c of G.live.customers) {
+      if (seenCust.has(c.id)) continue;
+      seenCust.add(c.id);
+      if (customers.size < 9 && view.zone === 'shop' && !view.design) spawnShopper(c);
     }
-    for (const c of crowd) {
-      const age = (nowMs - c.at) / 1000;
-      live.add(c.id);
-      let e = customers.get(c.id);
-      if (!e) { e = { agent: new Agent(scene, c.look, 'customer', streetIn().clone()), shown: false, inside: false, leaving: false, c }; customers.set(c.id, e); }
-      if (age > WALK + BROWSE) e.leaving = true;
-      if (!e.leaving) {
-        if (!e.inside) { e.agent.target.copy(doorIn()); e.agent.face = null; if (e.agent.group.position.distanceTo(doorIn()) < 0.15) { e.inside = true; e.agent.goal = null; } }
-        else if (trays.length) {
-          const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(c.want))), t = trays[ti];
-          const k = lines.get(ti)?.indexOf(c.id) ?? 0, side = (k % 2 ? 0.16 : -0.16) * (k > 0 ? 1 : 0), out = 0.95 + k * 0.6;
-          go(e.agent, V3(t.x + t.dx * out - t.dz * side, 0, t.z + t.dz * out + t.dx * side));
-          e.agent.face = atGoal(e.agent) ? t.ry + PI : null;
-        }
-      }
-      if (age >= WALK && !e.shown) {
-        e.shown = true;
-        e.agent.p.bag.visible = c.res.kind === 'good';
-        if (c.res.kind === 'good') coin(TILL);
-        const face = c.res.kind === 'good' ? '😊' : c.res.kind === 'bad' ? '😞' : '😒';
-        reactions.push({ agent: e.agent, text: `${face} ${c.res.text}`, kind: c.res.kind, until: now + 2.2, id: 'r' + c.id });
-      }
-    }
-    for (const [id, e] of customers) {
-      if (!live.has(id)) e.leaving = true;
-      if (e.leaving) {
-        e.agent.face = null;
-        if (e.inside) { go(e.agent, doorOut()); if (e.agent.group.position.distanceTo(doorOut()) < 0.15) { e.inside = false; e.agent.path = null; } }
-        else e.agent.target.copy(streetOut());
-      }
-      const arrived = e.agent.update(dt);
-      if (e.leaving && !e.inside && arrived) { scene.remove(e.agent.group); customers.delete(id); }
-    }
-
-    // Browsers: visual only. More of them when the shop is busier.
-    if (view.zone === 'shop' && !view.design && trays.length && browsers.length < 4 && Math.random() < dt * Math.min(0.25, G.customersPerHour(s, s.clock) / 3600 * 6)) {
-      const look = { skin: Math.floor(Math.random() * 5), shirt: Math.floor(Math.random() * 10), hair: Math.floor(Math.random() * 6), pants: Math.floor(Math.random() * 5), h: 0.9 + Math.random() * 0.2, hat: Math.random() < 0.2 };
-      const tray = trays[Math.floor(Math.random() * trays.length)];
-      browsers.push({ agent: new Agent(scene, look, 'customer', streetIn().clone()), stage: 0, tray, until: 0, id: 'w' + (browserId++) });
-    }
-    for (let i = browsers.length - 1; i >= 0; i--) {
-      const w = browsers[i], a = w.agent;
-      if (w.stage === 0) { a.target.copy(doorIn()); a.face = null; if (a.group.position.distanceTo(doorIn()) < 0.15) w.stage = 1; }
-      else if (w.stage === 1) { const t = w.tray, out = 1.55 + Math.random() * 0.5, side = (Math.random() - 0.5) * 0.2; go(a, V3(t.x + t.dx * out - t.dz * side, 0, t.z + t.dz * out + t.dx * side)); a.face = null; w.stage = 2; }
-      else if (w.stage === 2 && atGoal(a)) { a.face = w.tray.ry + PI; w.stage = 3; w.until = now + 3 + Math.random() * 4; if (Math.random() < 0.5) reactions.push({ agent: a, text: Math.random() < 0.5 ? '👀' : '🤔', kind: 'meh', until: now + 2, id: 'r' + w.id }); }
-      else if (w.stage === 3 && now > w.until) { w.stage = 4; a.face = null; }
-      else if (w.stage === 4) { go(a, doorOut()); if (a.group.position.distanceTo(doorOut()) < 0.15) { w.stage = 5; a.path = null; } }
-      else if (w.stage === 5) a.target.copy(streetOut());
-      const arrived = a.update(dt);
-      if ((w.stage === 5 && arrived) || (view.zone !== 'shop' && w.stage < 2)) { scene.remove(a.group); browsers.splice(i, 1); }
-    }
+    if (seenCust.size > 500) { seenCust.clear(); for (const c of G.live.customers) seenCust.add(c.id); }
+    if (view.zone === 'shop' && !view.design && trays.length && customers.size < 7 && Math.random() < dt * Math.min(0.06, G.customersPerHour(s, s.clock) / 3600 * 2)) spawnShopper(null);
+    const menu = G.counterList(s), lines = new Map();
+    for (const [id, e] of customers) if (e.stage === 'queue' && e.c) { const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(e.c.want))); if (!lines.has(ti)) lines.set(ti, []); lines.get(ti).push(id); }
+    for (const [id, e] of customers) stepShopper(id, e, dt, now, menu, lines);
+    if (walkers.length < 3 && Math.random() < dt * 0.04) spawnWalker();
+    for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].agent.update(dt)) { scene.remove(walkers[i].agent.group); walkers.splice(i, 1); }
 
     // Night buyers: in through the back door, wait, leave the same way.
     const liveB = new Set();
