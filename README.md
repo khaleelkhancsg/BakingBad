@@ -78,8 +78,12 @@ whatever you've put down; customers queue in front of the counter they want, whe
 street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
 into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. Up to nine
 customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
-Wood, metal and cardboard in the scene (counters, the till, machines, crates, decor, benches) carry simple
-generated prototype textures (wood grain, brushed steel, card), picked by each material's colour.
+Everything solid in the scene carries a simple generated prototype texture (`three-helpers.js`): wood grain, floorboards,
+bark, brushed steel, chequer plate, card, fabric, velvet, fur, leaves, stone, concrete, plaster, tiles, rubber, epoxy,
+breeze block, brick, acoustic foam and gold leaf. Models name theirs with `tmat(colour, kind)`; anything else gets one
+picked by its material's colour (food, people, glass and lights stay plain). Every decoration and wall-art piece has
+its own model. The basement's floor and wall designs each have their own pattern, laid out by the metre (`worldUV`) so
+it doesn't stretch along long walls.
 
 **Display counters.** There's no menu to manage: anything you've learned (and is in season) can be cooked, and when
 it's collected it goes onto the glass counters by the till by itself. Each counter holds one product, 4 batches of it.
