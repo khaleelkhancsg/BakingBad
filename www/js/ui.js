@@ -1008,7 +1008,7 @@ function fabsHTML() {
 }
 function menuPanel() {
   const door = s.labUnlocked ? `<button class="ptile doorTile ${ui.room === 'back' ? '' : 'night'}" data-act="room"><span>${ui.room === 'back' ? '☀️' : '🪜'}</span><small>${ui.room === 'back' ? 'Upstairs' : 'Basement'}</small>${ui.room !== 'back' && doorTotal() ? `<i>${doorTotal()}</i>` : ''}</button>` : '';
-  return `<div class="panel menupanel">${door ? `<div class="pgroup"><div class="pgrid">${door}</div></div>` : ''}${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
+  return `<div class="panel menupanel ${ui.room === 'back' ? 'night' : ''}">${door ? `<div class="pgroup"><div class="pgrid">${door}</div></div>` : ''}${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
     <div class="pgrid">${ids.map(id => `<button class="ptile ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}"><span>${TABS[id].emoji}</span><small>${TABS[id].label}</small>${tabBadge(id) ? `<i>${tabBadge(id)}</i>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
 }
 function mapPanel() {
@@ -1083,7 +1083,7 @@ function machineModal(m) {
         `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>` : '';
       return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
         <span class="em">${r.emoji}</span>
-        <div class="grow"><b>${r.name}${starTag(id)}</b><small>×${G.servingsFor(s, id, mc.tier || 0)} · ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)} · ${money2(G.itemPrice(s, id))} each</small>
+        <div class="grow"><b>${r.name}${starTag(id)}</b><div class="facts"><span>⏱ ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)}</span><span>×${G.servingsFor(s, id, mc.tier || 0)} at ${money2(G.itemPrice(s, id))}</span><span class="money">${money(G.servingsFor(s, id, mc.tier || 0) * G.itemPrice(s, id))} a batch</span></div>
           <small>${ingText(r)}${known ? ` · stock for ${batches}${nc ? ` · ${Math.floor(s.display[id] || 0)} out on ${nc} counter${nc === 1 ? '' : 's'}` : ''}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
@@ -1094,7 +1094,7 @@ function machineModal(m) {
         : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < G.kitPrice(id, 'dirty', s) && s.clean < G.kitPrice(id, 'clean', s)))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${s.dirty >= G.kitPrice(id, 'dirty', s) ? '💜 ' + money(G.kitPrice(id, 'dirty', s)) : '💷 ' + money(G.kitPrice(id, 'clean', s))})`}</button>`;
       const cut = CUTS[s.cut[id] || 'none'], pur = Math.min(0.99, G.labPurity(s, mc) * cut.purity);
       return `<div class="mrow ${open ? '' : 'locked'}">${ibtn('product', id)}<span class="em">${p.emoji}</span>
-        <div class="grow"><b>${p.name}</b><small>${Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags)} bags · ≈${pct(pur)} pure · ${money(Math.round(p.price * purityMult(pur)))} a bag · ${mins(p.minutes * (1 - TIERS.labSpeed * (mc.tier || 0)))}</small>
+        <div class="grow"><b>${p.name}</b><div class="facts"><span>⏱ ${mins(p.minutes * (1 - TIERS.labSpeed * (mc.tier || 0)))}</span><span>${Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags)} bags at ${money(Math.round(p.price * purityMult(pur)))}</span><span class="money">≈${pct(pur)} pure</span></div>
           <small>${kits} kits · ${s.bags[id] || 0} bags${p.ing ? ` · uses ${Object.entries(p.ing).map(([k, q]) => q + INGREDIENTS[k].emoji).join(' ')}` : ''}</small>
           ${open ? `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${(s.cut[id] || 'none') === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>` : ''}</div><div class="mright">${right}</div></div>`;
     }).join('');
@@ -1517,11 +1517,11 @@ function render(force = false) {
   if (!force && html === lastHTML) return;
   lastHTML = html;
   const oldCat = app.querySelector('.catalog');
-  const catKey = oldCat?.dataset.key, catLeft = oldCat?.scrollLeft || 0;
+  const catKey = oldCat?.dataset.key, catLeft = oldCat?.scrollLeft || 0, catTop = oldCat?.scrollTop || 0;
   const oldModal = app.querySelector('.modal'), modalTop = oldModal?.scrollTop || 0;
   app.innerHTML = html;
   const newCat = app.querySelector('.catalog');
-  if (newCat && newCat.dataset.key === catKey) newCat.scrollLeft = catLeft;
+  if (newCat && newCat.dataset.key === catKey) { newCat.scrollLeft = catLeft; newCat.scrollTop = catTop; }
   const newModal = app.querySelector('.modal');
   if (newModal && oldModal) newModal.scrollTop = modalTop;
   layoutScene();
@@ -1853,7 +1853,7 @@ app.addEventListener('pointerdown', e => {
   const row = e.target.closest('.catalog, .dcats');
   if (row && row.scrollWidth > row.clientWidth) { rowDrag = { row, x: e.clientX, left: row.scrollLeft, moved: false }; return; }
   // Mouse: drag a menu up and down like a finger would
-  const box = e.target.closest('.modal');
+  const box = e.target.closest('.modal, .catalog.cards');
   if (box && box.scrollHeight > box.clientHeight && e.target.type !== 'range') rowDrag = { row: box, y: e.clientY, top: box.scrollTop, moved: false, v: true };
 });
 window.addEventListener('pointermove', e => {
