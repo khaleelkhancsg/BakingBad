@@ -35,7 +35,7 @@ There's no in-game day. The clock in the corner is your clock.
 - **Big purchases** (machines, tiers, expansions, shops, vans, fronts, corners, property, upgrades and recipes) ask
   you to confirm first. Buying a machine from 🍳 Kitchen or 🧪 Lab takes you to place it, then back to that section.
 - **Machines**: a machine's menu has a header that stays at the top while you scroll: ‹ back to the section you opened it
-  from, and ✕. The Lab's cards show, like the Kitchen's, how many of each machine you have, how many of its products
+  from, and ✕. An ⓘ opened from a machine's menu closes back to that menu ("‹ Back to the oven"), where you left it. The Lab's cards show, like the Kitchen's, how many of each machine you have, how many of its products
   you've unlocked, and what each one is doing.
 
 ## Bills

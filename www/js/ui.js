@@ -1139,6 +1139,13 @@ function buyerModal(m) {
     </div><button class="big" data-act="close" style="margin-top:8px">Make them wait</button>`;
 }
 
+// The close button of a pop-up opened over another: back to that one, by name for a machine
+function backLabel(prev) {
+  if (!prev) return 'Close';
+  if (prev.type !== 'machine') return '‹ Back';
+  const lab = prev.kind === 'night', mc = (lab ? s.lab : s.machines)[prev.idx], M = mc && (lab ? LAB_MACHINES : MACHINES)[mc.type];
+  return `‹ Back to the ${M ? M.name.toLowerCase() : 'machine'}`;
+}
 function reportModal(m) {
   const r = s.reports[m.i];
   if (!r) { ui.modal = null; return ''; }
@@ -1191,7 +1198,7 @@ function modalHTML() {
   const m = ui.modal;
   if (!m) return '';
   let inner = '';
-  if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`; }
+  if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">${backLabel(m.prev)}</button>`; }
   else if (m.type === 'story') {
     const c = STORY.find(x => x.id === m.id), n = STORY.findIndex(x => x.id === m.id) + 1;
     const more = (s.story?.queue?.length || 1) - 1;
@@ -1262,7 +1269,7 @@ function modalHTML() {
       <p class="quote">"Rosa never told you how she really kept this place going, did she? Bread doesn't pay a bank. The back room's still set up. I bring kits, you cook, and people come to the back door after dark. I'll throw in the first kit."</p>
       <div class="row2"><button class="violet" data-act="offer" data-id="yes">Hear him out</button><button data-act="offer" data-id="no">Not interested</button></div>`;
   }
-  const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night');
+  const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night') || (m.type === 'info' && m.prev?.kind === 'night');
   const sticky = m.type === 'levelup' || m.type === 'offer' || m.type === 'confirm' || m.type === 'decision' || m.type === 'story';
   return `<div class="modal-bg" data-act="${sticky ? 'noop' : 'close'}"><div class="modal ${night ? 'night' : ''}" data-act="noop">${inner}</div></div>`;
 }
@@ -1540,7 +1547,9 @@ function render(force = false) {
   const newCat = app.querySelector('.catalog');
   if (newCat && newCat.dataset.key === catKey) { newCat.scrollLeft = catLeft; newCat.scrollTop = catTop; }
   const newModal = app.querySelector('.modal');
-  if (newModal && oldModal) newModal.scrollTop = modalTop;
+  if (newModal && ui.modal?.scroll !== undefined && ui.modal !== ui.lastModal) newModal.scrollTop = ui.modal.scroll; // back to a menu: where you left it
+  else if (newModal && oldModal) newModal.scrollTop = modalTop;
+  ui.lastModal = ui.modal;
   layoutScene();
 }
 
@@ -1600,7 +1609,8 @@ function act(el) {
   }
   switch (a) {
     case 'noop': return;
-    case 'info': ui.modal = { type: 'info', kind: el.dataset.kind, id }; break;
+    case 'info': if (ui.modal && ui.modal.type !== 'info') ui.modal.scroll = app.querySelector('.modal')?.scrollTop || 0;
+      ui.modal = { type: 'info', kind: el.dataset.kind, id, prev: ui.modal?.type === 'info' ? ui.modal.prev : ui.modal || null }; break;
     case 'counter': {
       const k = Number(id);
       if (k < G.countersOf(s.design)) { ui.modal = { type: 'info', kind: 'tray', id: String(k) }; guideSeen('tray'); }
@@ -1807,7 +1817,7 @@ function act(el) {
     case 'turn': G.turnAway(s, Number(id)); ui.modal = null; break;
     case 'offer': G.answerOffer(s, id === 'yes'); ui.modal = null; if (id === 'yes') { G.viewShop(s, 0); ui.room = 'back'; ui.tab = 'back'; } break;
     case 'lvl-ok': s.levelUps.shift(); ui.modal = null; break;
-    case 'close': ui.modal = null; break;
+    case 'close': ui.modal = ui.modal?.prev || null; break; // back to the pop-up underneath, if there was one
     case 'confirm-yes': { const c = ui.confirm; ui.confirm = null; ui.modal = c?.back || null; if (c) act({ dataset: { ...c.data, confirmed: '1' } }); return; }
     case 'confirm-no': ui.modal = ui.confirm?.back || null; ui.confirm = null; break;
     // Design
