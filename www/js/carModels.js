@@ -42,6 +42,23 @@ function prepare(root, cfg) {
   const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
   const turn = (size.z > size.x ? 1 : 0) + (cfg.turn || 0); // long side along x
   const fix = new THREE.Matrix4().makeRotationY(-turn * Math.PI / 2);
+  // Some models sit at a slant (the Camaro is about 25 degrees off): find the body's long axis from its points and
+  // turn it square to x. Small angles are left alone (a lopsided body can read a degree or two off when it isn't).
+  {
+    const v = new THREE.Vector3(), m = new THREE.Matrix4(), pts = [];
+    root.traverse(o => {
+      if (!o.isMesh || WHEEL.test(o.name)) return;
+      m.multiplyMatrices(fix, o.matrixWorld); const a = o.geometry.attributes.position;
+      for (let i = 0; i < a.count; i += 2) { v.fromBufferAttribute(a, i).applyMatrix4(m); pts.push(v.x, v.z); }
+    });
+    let mx = 0, mz = 0; const n = pts.length / 2;
+    for (let i = 0; i < pts.length; i += 2) { mx += pts[i]; mz += pts[i + 1]; }
+    mx /= n; mz /= n;
+    let cxx = 0, czz = 0, cxz = 0;
+    for (let i = 0; i < pts.length; i += 2) { const dx = pts[i] - mx, dz = pts[i + 1] - mz; cxx += dx * dx; czz += dz * dz; cxz += dx * dz; }
+    const ang = 0.5 * Math.atan2(2 * cxz, cxx - czz);
+    if (Math.abs(ang) > 5 * Math.PI / 180) fix.premultiply(new THREE.Matrix4().makeRotationY(ang));
+  }
   const tmp = new THREE.Box3();
   root.traverse(o => { if (o.isMesh) { o.geometry.computeBoundingBox(); } });
   // the turned bounds, then a scale to the wanted length, centred, on the ground
