@@ -840,20 +840,29 @@ export const SPOTS = [
 export const MACHINE_WALL = { oven: 'back', fryer: 'back', grill: 'back', pizza: 'back', bbq: 'back', rotisserie: 'back', grand: 'back',
   mixer: 'left', drinks: 'left', icecream: 'left', griddle: 'island', steamer: 'island', noodles: 'island', choc: 'left',
   patisserie: 'left', bar: 'cart', sushi: 'island', candy: 'cart' };
-// The back room is 7 x 9 until you knock into the storeroom behind it (3 m deeper). Its back-wall machines then move
-// to the new back wall (ext), and the benches go in the new space: rows back to back, an aisle in front of every machine.
-export const BACK_DEPTH = 3;
+// The basement: under the shop, the same 9.2 m square, reached by stairs from a small room off the shop. Spots are in
+// the basement's own coordinates (its middle is under the middle of the shop). Digging out under the front and side
+// terraces makes it bigger. The scene draws it away from the street (BASEMENT_X) so nothing above gets in the way.
+export const BASEMENT_X = 60;
+export const BACK_DEPTH = 0;
 export const LAB_SPOTS = [
-  { x: -10.25, z: -3.95, ry: 0, ext: { x: -10.85, z: -6.95 } }, { x: -8.95, z: -3.95, ry: 0, ext: { x: -9.6, z: -6.95 } },
-  { x: -7.7, z: -3.95, ry: 0, ext: { x: -8.35, z: -6.95 } }, { x: -6.45, z: -3.95, ry: 0, ext: { x: -7.1, z: -6.95 } },
-  { x: -9.9, z: -4.9, ry: Math.PI, need: 'bench' }, { x: -8.65, z: -4.9, ry: Math.PI, need: 'bench' }, { x: -7.4, z: -4.9, ry: Math.PI, need: 'bench2' },
-  { x: -9.9, z: -3.85, ry: 0, need: 'bench3' }, { x: -8.65, z: -3.85, ry: 0, need: 'bench3' },
-  { x: -5.35, z: -3.6, ry: -Math.PI / 2, need: 'annex' }, { x: -5.35, z: -2.45, ry: -Math.PI / 2, need: 'annex' },
-  { x: -11.0, z: -0.25, ry: Math.PI / 2, need: 'annex' }, { x: -11.0, z: 0.9, ry: Math.PI / 2, need: 'annex' },
-  { x: -5.85, z: -6.95, ry: 0, need: 'storeroom' },
+  // the back wall
+  { x: -3.4, z: -3.95, ry: 0 }, { x: -2.15, z: -3.95, ry: 0 }, { x: -0.9, z: -3.95, ry: 0 }, { x: 0.35, z: -3.95, ry: 0 },
+  // a row of benches facing the back wall, and the cellar's spot at its end
+  { x: -3.0, z: -1.7, ry: Math.PI, need: 'bench' }, { x: -1.75, z: -1.7, ry: Math.PI, need: 'bench' }, { x: -0.5, z: -1.7, ry: Math.PI, need: 'bench2' },
+  // a second row, back to back with the first
+  { x: -3.0, z: -0.65, ry: 0, need: 'bench3' }, { x: -1.75, z: -0.65, ry: 0, need: 'bench3' },
+  // the right-hand wall
+  { x: 3.95, z: -3.4, ry: -Math.PI / 2, need: 'annex' }, { x: 3.95, z: -2.25, ry: -Math.PI / 2, need: 'annex' },
+  { x: 3.95, z: -1.1, ry: -Math.PI / 2, need: 'annex' }, { x: 3.95, z: 0.05, ry: -Math.PI / 2, need: 'annex' },
+  // one more on the back wall
+  { x: 1.6, z: -3.95, ry: 0, need: 'storeroom' },
+  // dug out under the front terrace
+  { x: -2.6, z: 5.9, ry: Math.PI, need: 'digfront' }, { x: -1.35, z: 5.9, ry: Math.PI, need: 'digfront' }, { x: -0.1, z: 5.9, ry: Math.PI, need: 'digfront' },
+  // dug out under the side terrace
+  { x: 5.9, z: -3.4, ry: -Math.PI / 2, need: 'digside' }, { x: 5.9, z: -2.25, ry: -Math.PI / 2, need: 'digside' }, { x: 5.9, z: -1.1, ry: -Math.PI / 2, need: 'digside' },
 ];
-// Where a back-room spot is, with or without the storeroom knocked through
-export const labSpotAt = (spot, ext) => (ext && spot.ext ? { ...spot, ...spot.ext } : spot);
+export const labSpotAt = spot => spot;
 
 // Display counters by the till: each one holds one product, and what's on sale is whatever fits on your counters.
 // Every branch starts with 2 and can have up to 7. The first sit nearest the till.

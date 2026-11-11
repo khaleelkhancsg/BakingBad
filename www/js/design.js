@@ -97,13 +97,15 @@ export const EXPANSIONS = {
   refit:   { level: 7,  name: 'Kitchen refit', desc: 'Re-plan the kitchen walls: room for 4 more machines between the ones you have.', price: 1500, spots: 4 },
   island:  { level: 12, name: 'Kitchen island', desc: 'An island in the middle of the kitchen: room for 2 more machines.', price: 3000, spots: 2 },
   carts:   { level: 18, name: 'Food carts',    desc: 'Room for 5 machines on carts along the front terrace.', price: 6000, spots: 5, needs: 'front' },
-  storeroom: { level: 14, name: 'Knock into the storeroom', desc: 'The back room goes 3 m deeper into the yard behind it: a new back wall with room for 1 more machine, and space for benches.', price: 5000, labSpots: 1 },
-  bench:   { level: 25, name: 'Back-room benches', desc: 'A row of benches in the new space: room for 2 more machines.', price: 8000, labSpots: 2, needs: 'storeroom' },
+  storeroom: { level: 14, name: 'Clear the coal store', desc: 'Clear the old coal store at the end of the basement\'s back wall: room for 1 more machine, and the basement is ready for benches.', price: 5000, labSpots: 1 },
+  bench:   { level: 25, name: 'Back-room benches', desc: 'A row of benches across the basement: room for 2 more machines.', price: 8000, labSpots: 2, needs: 'storeroom' },
   island2: { level: 30, name: 'Bigger island', desc: 'The island grows: room for 2 more machines.', price: 9000, spots: 2, needs: 'island' },
   stalls:  { level: 36, name: 'Side stalls',   desc: 'Room for 5 machines on stalls down the side terrace.', price: 12000, spots: 5, needs: 'side' },
-  bench2:  { level: 50, name: 'The cellar',    desc: 'A cellar under the back room: room for 1 more machine.', price: 25000, labSpots: 1, needs: 'bench' },
+  bench2:  { level: 50, name: 'The cellar',    desc: 'A cold store at the end of the bench row: room for 1 more machine.', price: 25000, labSpots: 1, needs: 'bench' },
   bench3:  { level: 32, name: 'More benches',  desc: 'A second row of benches, back to back with the first: room for 2 more machines.', price: 14000, labSpots: 2, needs: 'bench' },
-  annex:   { level: 44, name: 'The annex',     desc: 'Clear the clutter off the side walls: room for 4 more back-room machines along them.', price: 40000, labSpots: 4, needs: 'bench3' },
+  digfront: { level: 20, name: 'Dig out under the front terrace', desc: 'Extend the basement 2 m out under the front terrace: room for 3 more machines and more space for decor.', price: 15000, labSpots: 3, needs: 'front' },
+  digside:  { level: 30, name: 'Dig out under the side terrace', desc: 'Extend the basement 2 m out under the side terrace: room for 3 more machines and more space for decor.', price: 25000, labSpots: 3, needs: 'side' },
+  annex:   { level: 44, name: 'The far wall',     desc: 'Line the basement\'s right-hand wall: room for 4 more machines along it.', price: 40000, labSpots: 4, needs: 'bench3' },
 };
 export const SELL_BACK = 0.5;
 
@@ -245,53 +247,63 @@ export const BACK_DECOR = {
   panicroom: { level: 64, name: 'Panic room',       emoji: '🛡️', price: 60000, security: 5, cover: 3 },
   goldsofa:  { level: 80, name: 'Gold velvet sofa', emoji: '👑', price: 150000, comfort: 8 },
 };
-export const BACK_GRID = { cols: 7, rows: 9, x0: -11.1, z0: -4.0, size: 1, extRows: 3 };
-export const backExt = s => !!s.design?.expansions?.storeroom;
-export const backRowMin = s => (backExt(s) ? -BACK_GRID.extRows : 0);
+// The basement's design squares (1 m), in its own coordinates; digging out adds two rows at the front and two columns
+// at the side
+export const BACK_GRID = { cols: 9, rows: 9, x0: -4.1, z0: -4.1, size: 1, dig: 2, extRows: 0 };
+export const backExt = s => s.design?.expansions || {};
+export const backRowMin = () => 0;
+export const backBounds = ex => ({ cols: BACK_GRID.cols + (ex?.digside ? BACK_GRID.dig : 0), rows: BACK_GRID.rows + (ex?.digfront ? BACK_GRID.dig : 0) });
 export const backCellCenter = (bx, bz) => ({ x: BACK_GRID.x0 + bx * BACK_GRID.size, z: BACK_GRID.z0 + bz * BACK_GRID.size });
-// Squares that stay clear: machine spots, the doors, where buyers stand, the existing clutter
-const BACK_BLOCKS = [[-11.0, 2.2, 1.0], [-5.0, 3.1, 1.0], [-10.1, 2.9, 0.6], [-10.1, 1.5, 0.6], [-9.0, 3.4, 0.6], [-9.0, 2.1, 0.6], [-7.9, 3.0, 0.6], [-7.9, 1.7, 0.6],
-  [-11.0, -1.6, 0.6], [-10.9, 3.9, 0.6], [-6.9, 1.0, 0.7], [-6.0, -1.2, 0.6], [-11.2, -3.0, 0.5], [-7.7, -2.6, 0.5]];
-export function backCellBlocked(bx, bz, ext = false) {
-  if (bx < 0 || bx >= BACK_GRID.cols || bz >= BACK_GRID.rows || bz < (ext ? -BACK_GRID.extRows : 0)) return true;
+// The stairs come down along the left wall; the bottom step is at the front of the stairs
+export const STAIRS = { x0: -4.45, x1: -3.35, z0: 1.4, z1: 4.4, bottom: [-3.9, 0.9] };
+// Where buyers stand, and the tables (cash, bags) and kit boxes
+export const BUYER_SPOTS_LOCAL = [[-2.1, 2.4], [-1.1, 2.4], [-0.1, 2.4], [-2.1, 3.4], [-1.1, 3.4], [-0.1, 3.4]];
+// Tables and kit boxes sit on whole squares: the bag table, the cash table (two squares), the kit boxes
+export const BACK_PROPS = { bagTable: [0.9, 3.9], cashTable: [2.4, 3.9], kits: [-3.1, 3.9] };
+const BACK_CLUTTER = [[0.9, 3.9], [1.9, 3.9], [2.9, 3.9], [-3.1, 3.9], [-4.1, 1.9], [-4.1, 2.9], [-4.1, 3.9]];
+// Squares that stay clear: machine spots, the stairs and the landing at their foot, where buyers stand, the tables
+const BACK_BLOCKS = [[-3.9, 0.9, 0.7], ...BUYER_SPOTS_LOCAL.map(([x, z]) => [x, z, 0.6]), ...BACK_CLUTTER.map(([x, z]) => [x, z, 0.6])];
+export function backCellBlocked(bx, bz, ex = {}) {
+  if (typeof ex !== 'object') ex = {};
+  const { cols, rows } = backBounds(ex);
+  if (bx < 0 || bz < 0 || bx >= cols || bz >= rows) return true;
   const { x, z } = backCellCenter(bx, bz);
-  if (LAB_SPOTS.some(sp => { const p = labSpotAt(sp, ext); return Math.abs(p.x - x) < 0.85 && Math.abs(p.z - z) < 0.85; })) return true;
-  if (ext && z < -5.4 && z > -6.6) return true; // the aisle in front of the new back wall
+  if (LAB_SPOTS.some(p => Math.abs(p.x - x) < 0.85 && Math.abs(p.z - z) < 0.85)) return true;
+  if (x > STAIRS.x0 - 0.3 && x < STAIRS.x1 + 0.3 && z > STAIRS.z0 - 0.5 && z < STAIRS.z1 + 0.3) return true;
   return BACK_BLOCKS.some(([bxp, bzp, r]) => Math.abs(bxp - x) < r && Math.abs(bzp - z) < r);
 }
-// Walking room in the back room, on its 1 m design squares: decor may not cut anyone off from a machine, a door or
-// the buyers' spots. A square is walkable unless a machine, the fixed clutter or a piece of decor stands on it.
-const BACK_CLUTTER = [[-11.0, -1.6], [-10.9, 3.9], [-6.9, 1.0], [-6.0, -1.2], [-11.2, -3.0]];
-const BACK_GOALS = [[-11.1, 2.0], [-5.1, 3.0], [-10.1, 2.9], [-9.1, 3.4], [-8.1, 3.0]]; // back door, inner door, buyers
+// Walking room in the basement, on its design squares: decor may not cut anyone off from a machine, the stairs, the
+// tables or the buyers' spots. A square is walkable unless a machine, a table or a piece of decor stands on it.
+const BACK_GOALS = [STAIRS.bottom, ...BUYER_SPOTS_LOCAL, [1.9, 2.9]]; // the stairs, buyers, the tables' front
 export const backPathsOk = (s, decor) => backCutOff(s, decor) === 0;
-// How many machines, doors and buyer spots can't be reached with this decor in place
+// How many machines, buyer spots and the stairs can't be reached with this decor in place
 export function backCutOff(s, decor) {
-  const ext = backExt(s), z0 = ext ? -BACK_GRID.extRows : 0, rows = BACK_GRID.rows - z0, cols = BACK_GRID.cols;
-  const key = (bx, bz) => (bz - z0) * cols + bx;
+  const ex = s.design.expansions || {}, { cols, rows } = backBounds(ex);
+  const key = (bx, bz) => bz * cols + bx;
   const free = new Uint8Array(cols * rows).fill(1);
-  const ex = s.design.expansions || {};
-  const open = LAB_SPOTS.filter(sp => !sp.need || ex[sp.need]).map(sp => labSpotAt(sp, ext));
+  const open = LAB_SPOTS.filter(sp => !sp.need || ex[sp.need]);
   const cellOfXZ = (x, z) => [Math.round((x - BACK_GRID.x0) / BACK_GRID.size), Math.round((z - BACK_GRID.z0) / BACK_GRID.size)];
-  for (let bz = z0; bz < BACK_GRID.rows; bz++) for (let bx = 0; bx < cols; bx++) {
+  for (let bz = 0; bz < rows; bz++) for (let bx = 0; bx < cols; bx++) {
     const { x, z } = backCellCenter(bx, bz);
     const onMachine = open.some(p => { const side = Math.abs(Math.sin(p.ry)) > 0.5, hx = side ? 0.45 : 0.6, hz = side ? 0.6 : 0.45; return Math.abs(p.x - x) < hx && Math.abs(p.z - z) < hz; });
-    if (onMachine || BACK_CLUTTER.some(([cx, cz]) => Math.abs(cx - x) < 0.5 && Math.abs(cz - z) < 0.5)) free[key(bx, bz)] = 0;
+    const onStairs = x > STAIRS.x0 && x < STAIRS.x1 && z > STAIRS.z0 && z < STAIRS.z1;
+    if (onMachine || onStairs || BACK_CLUTTER.some(([cx, cz]) => Math.abs(cx - x) < 0.5 && Math.abs(cz - z) < 0.5)) free[key(bx, bz)] = 0;
   }
-  for (const d of decor) if (d.bz >= z0 && d.bz < BACK_GRID.rows && d.bx >= 0 && d.bx < cols) free[key(d.bx, d.bz)] = 0;
-  // Everyone gets in by the inner door: flood out from there
-  const [sx, sz] = cellOfXZ(-5.1, 3.0), seen = new Uint8Array(cols * rows), q = [[sx, sz]];
+  for (const d of decor) if (d.bz >= 0 && d.bz < rows && d.bx >= 0 && d.bx < cols) free[key(d.bx, d.bz)] = 0;
+  // Everyone comes down the stairs: flood out from their foot
+  const [sx, sz] = cellOfXZ(...STAIRS.bottom), seen = new Uint8Array(cols * rows), q = [[sx, sz]];
   seen[key(sx, sz)] = 1;
   while (q.length) {
     const [bx, bz] = q.pop();
     for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = bx + dx, nz = bz + dz;
-      if (nx < 0 || nx >= cols || nz < z0 || nz >= BACK_GRID.rows) continue;
+      if (nx < 0 || nx >= cols || nz < 0 || nz >= rows) continue;
       const k = key(nx, nz);
       if (seen[k] || !free[k]) continue;
       seen[k] = 1; q.push([nx, nz]);
     }
   }
-  const reach = (x, z) => { const [bx, bz] = cellOfXZ(x, z); return bz >= z0 && bz < BACK_GRID.rows && bx >= 0 && bx < cols && !!seen[key(bx, bz)]; };
+  const reach = (x, z) => { const [bx, bz] = cellOfXZ(x, z); return bz >= 0 && bz < rows && bx >= 0 && bx < cols && !!seen[key(bx, bz)]; };
   // Each machine is worked from the square in front of it
   const fronts = open.map(p => [p.x + Math.sin(p.ry) * 0.95, p.z + Math.cos(p.ry) * 0.95]);
   return [...BACK_GOALS, ...fronts].filter(([x, z]) => !reach(x, z)).length;

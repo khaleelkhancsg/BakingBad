@@ -36,11 +36,20 @@ const world = createScene(document.getElementById('scene'), document.getElementB
   },
 });
 
+// If a save can't be loaded, it's never thrown away: a copy is kept beside it (and offered as a backup code), and the
+// game says so, instead of quietly starting fresh over the top of it.
+let loadFailed = null;
 function load() {
+  let raw = null;
   try {
-    const d = JSON.parse(localStorage.getItem(KEY));
+    raw = localStorage.getItem(KEY);
+    const d = JSON.parse(raw);
     return d && d.v ? D.ensureDesign(G.migrate(d)) : null;
-  } catch { return null; }
+  } catch (e) {
+    console.error('Save failed to load', e);
+    if (raw) { try { localStorage.setItem(`${KEY}.kept-${Date.now()}`, raw); } catch { /* storage full */ } loadFailed = { raw, why: e.message }; }
+    return null;
+  }
 }
 // A backup is the save, as text that survives being copied around
 const backupCode = () => { const snap = D.cartSnapshot(); const copy = JSON.parse(JSON.stringify(s)); if (snap) copy.shops[snap.shop].design = snap.design; return btoa(unescape(encodeURIComponent(JSON.stringify(copy)))); };
@@ -958,7 +967,7 @@ function fabsHTML() {
   </div>`;
 }
 function menuPanel() {
-  const door = s.labUnlocked ? `<button class="ptile doorTile ${ui.room === 'back' ? '' : 'night'}" data-act="room"><span>${ui.room === 'back' ? '☀️' : '🚪'}</span><small>${ui.room === 'back' ? 'To the shop' : 'Back room'}</small>${ui.room !== 'back' && doorTotal() ? `<i>${doorTotal()}</i>` : ''}</button>` : '';
+  const door = s.labUnlocked ? `<button class="ptile doorTile ${ui.room === 'back' ? '' : 'night'}" data-act="room"><span>${ui.room === 'back' ? '☀️' : '🪜'}</span><small>${ui.room === 'back' ? 'Upstairs' : 'Basement'}</small>${ui.room !== 'back' && doorTotal() ? `<i>${doorTotal()}</i>` : ''}</button>` : '';
   return `<div class="panel menupanel">${door ? `<div class="pgroup"><div class="pgrid">${door}</div></div>` : ''}${menuGroups().map(([title, ids]) => `<div class="pgroup ${title === 'After dark' ? 'night' : ''}"><h4>${title}</h4>
     <div class="pgrid">${ids.map(id => `<button class="ptile ${ui.tab === id ? 'on' : ''}" data-act="tab" data-id="${id}"><span>${TABS[id].emoji}</span><small>${TABS[id].label}</small>${tabBadge(id) ? `<i>${tabBadge(id)}</i>` : ''}</button>`).join('')}</div></div>`).join('')}</div>`;
 }
@@ -1133,6 +1142,9 @@ function modalHTML() {
     inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection</p><button class="big primary" data-act="story-read">Carry on</button>` : '';
     if (!c) ui.modal = null;
   }
+  else if (m.type === 'loadfail') inner = `<h2>⚠️ Your save couldn't be loaded</h2><p>Something in it didn't load (${loadFailed?.why || 'unknown'}), so the game has started fresh. Your old save hasn't been lost: a copy is kept on this device, and here it is as a backup code. Copy it somewhere safe; once the game is fixed, Settings → Load a backup brings it back.</p>
+    <textarea id="backup-code" class="code" readonly>${loadFailed ? btoa(unescape(encodeURIComponent(loadFailed.raw))) : ''}</textarea>
+    <div class="pbtns"><button class="small primary" data-act="backup-copy">Copy</button><button class="small" data-act="close">Close</button></div>`;
   else if (m.type === 'backup') inner = `<h2>💾 Your backup</h2><p class="mute">This code is your whole game. Copy it somewhere safe; Settings → Load a backup puts it back.</p>
     <textarea id="backup-code" class="code" readonly>${backupCode()}</textarea>
     <div class="pbtns"><button class="small primary" data-act="backup-copy">Copy</button>${NATIVE ? '' : '<button class="small" data-act="backup-file">Save as a file</button>'}<button class="small" data-act="close">Close</button></div>`;
@@ -1790,6 +1802,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) save(
 window.addEventListener('pagehide', save);
 
 catchUp(vt);
+if (loadFailed) { ui.modal = { type: 'loadfail' }; render(true); }
 render(true);
 requestAnimationFrame(frame);
 

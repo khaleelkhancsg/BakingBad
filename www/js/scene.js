@@ -1,7 +1,7 @@
 // The 3D bakery (day) and back room (night). Everything is built from simple shapes in code.
 // The scene only reads game state; taps on stations and people are reported back through onPick.
 import * as THREE from 'three';
-import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, labSpotAt, BACK_DEPTH } from './data.js';
+import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, BASEMENT_X } from './data.js';
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic } from './three-helpers.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
@@ -708,9 +708,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const DIR = V3(1, 1.15, 1).normalize();
   const RIGHT = V3(1, 0, -1).normalize();
   const UPS = V3(0, 1, 0).addScaledVector(DIR, -DIR.y).normalize();
+  const BX = BASEMENT_X; // the basement is drawn here, away from the street, so nothing above it gets in the way
   const ZONES = {
     shop: { center: V3(0.45, 0.5, 0.75), needW: 11.6, needH: 9.8 },
-    back: { center: V3(-8.9, 0.5, 0.5), needW: 11.9, needH: 9.4 },
+    back: { center: V3(BX, 0.5, 0.5), needW: 11.8, needH: 10.2 },
   };
   const view = { zone: 'shop', light: 'day', top: 70, bottom: 90 };
   const cam = { target: ZONES.shop.center.clone(), zoom: 1, panR: 0, panU: 0 };
@@ -729,8 +730,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   sun.position.set(4, 16, 9);
   scene.add(sun, sun.target);
   const shopLamp = new THREE.PointLight('#ffd59a', 0, 10, 2); shopLamp.position.set(0, 2.7, 1.2); scene.add(shopLamp);
-  const bulb = new THREE.PointLight('#ffcc88', 0, 9, 2); bulb.position.set(-9.4, 2.6, -1.6); scene.add(bulb);
-  const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(-7.0, 2.3, -3.6); scene.add(neon);
+  const bulb = new THREE.PointLight('#ffcc88', 0, 12, 2); bulb.position.set(BX - 1.2, 2.6, 0.2); scene.add(bulb);
+  const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(BX + 1.0, 2.3, -3.4); scene.add(neon);
   // The street and alley lamps only glow (emissive); real point lights are kept to three for speed.
   const street = { intensity: 0 }, alley = { intensity: 0 };
   const LIGHTS = {
@@ -755,10 +756,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
   // Stone foundations, like the buildings along the street (the floor itself is painted by the design layer)
   statics.add(box(9.25, 0.45, 9.25, '#c7bfb2', 0, -0.45, 0, false));
-  const backFloor = mesh(new THREE.PlaneGeometry(6.9, 9), smat({ map: concreteTex, roughness: 0.95 }), -8.15, 0.001, 0, false);
+  // The small back room upstairs: a floor around the stairwell, on its own foundation
+  { const f = mesh(new THREE.PlaneGeometry(3.0, 3.0), smat({ map: concreteTex, roughness: 0.95 }), -6.2, 0.001, 3.1, false); f.rotation.x = -PI / 2; f.receiveShadow = true; statics.add(f); }
+  statics.add(box(3.15, 0.45, 3.0, '#a79f95', -6.2, -0.45, 3.1, false));
+  // The basement's floor, the same size as the shop; digging out adds more (basementShell)
+  const backFloor = mesh(new THREE.PlaneGeometry(9.2, 9.2), smat({ map: concreteTex, roughness: 0.95 }), BX, 0.001, 0, false);
   backFloor.rotation.x = -PI / 2; backFloor.receiveShadow = true; scene.add(backFloor); // its own mesh so its style can change
-  const backFloorOrig = backFloor.material;
-  statics.add(box(7.15, 0.45, 9.25, '#a79f95', -8.15, -0.45, 0, false));
+  const backFloorOrig = backFloor.material, basementFloors = [backFloor];
+  // The ground it's dug into
+  statics.add(box(34, 0.6, 34, '#231d19', BX, -0.62, 1, false));
 
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
@@ -788,33 +794,72 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   partition.add(box(0.34, 0.12, 9.3, capM, -4.6, 3.0, -0.05));
   scene.add(partition);
   statics.add(box(9.4, 0.12, 0.34, capM, 0.05, 3.0, -4.6));
-  const oldBackWall = new THREE.Group(); scene.add(oldBackWall);
-  oldBackWall.add(box(7.2, 0.12, 0.34, capM, -8.15, 3.0, -4.6));
-  statics.add(box(0.34, 0.12, 9.3, capM, -11.7, 3.0, -0.05));
-  // Back room walls
-  wallX(-11.6, -4.7, -4.6, backWall, backWain, null, oldBackWall);
-  const storeroom = new THREE.Group(); storeroom.visible = false; scene.add(storeroom);
-  {
-    const Z = -4.6 - BACK_DEPTH; // the new back wall
-    const ef = mesh(new THREE.PlaneGeometry(6.9, BACK_DEPTH + 0.1), backFloor.material, -8.15, 0.001, (Z - 4.6) / 2 + 0.05, false);
-    ef.rotation.x = -PI / 2; ef.receiveShadow = true; storeroom.add(ef); storeroom.userData.floor = ef;
-    storeroom.add(box(7.15, 0.45, BACK_DEPTH, '#a79f95', -8.15, -0.45, (Z - 4.6) / 2, false));
-    wallX(-11.6, -4.7, Z, backWall, backWain, null, storeroom);
-    wallZ(Z, -4.7, -11.7, backWall, backWain, storeroom);
-    // The side facing you is a knee wall, like the shop's, so you can see in
-    storeroom.add(box(0.2, 0.5, BACK_DEPTH, backWain, -4.7, 0, (Z - 4.6) / 2), box(0.26, 0.06, BACK_DEPTH + 0.04, trim, -4.7, 0.5, (Z - 4.6) / 2));
-    storeroom.add(box(7.2, 0.12, 0.34, capM, -8.15, 3.0, Z), box(0.34, 0.12, BACK_DEPTH, capM, -11.7, 3.0, (Z - 4.6) / 2));
-    // A steel beam where the old wall was
-    storeroom.add(box(7.0, 0.25, 0.25, mat('#6b7079', { metalness: 0.4, roughness: 0.5 }), -8.15, 2.75, -4.6));
-    for (const x of [-11.45, -4.85]) storeroom.add(box(0.2, 2.75, 0.2, mat('#6b7079', { metalness: 0.4, roughness: 0.5 }), x, 0, -4.6));
-  }
-  wallZ(-4.7, 1.6, -11.7, backWall, backWain);
-  wallZ(2.8, 4.6, -11.7, backWall, backWain);
-  statics.add(box(0.2, 0.95, 1.2, backWall, -11.7, 2.05, 2.2));
-  const backDoorPivot = new THREE.Group(); backDoorPivot.position.set(-11.68, 0, 1.62);
+  // ---- The small back room: the back door, and stairs down to the basement ----
+  wallX(-7.6, -4.7, 0.4, backWall, backWain);
+  wallZ(0.4, 1.4, -7.7, backWall, backWain); wallZ(2.6, 4.6, -7.7, backWall, backWain);
+  statics.add(box(0.2, 0.95, 1.2, backWall, -7.7, 2.05, 2.0));
+  statics.add(box(3.0, 0.5, 0.2, backWain, -6.2, 0, 4.6), box(3.04, 0.06, 0.26, trim, -6.2, 0.5, 4.6));
+  statics.add(box(3.3, 0.12, 0.34, capM, -6.15, 3.0, 0.4), box(0.34, 0.12, 4.3, capM, -7.7, 3.0, 2.5));
+  const backDoorPivot = new THREE.Group(); backDoorPivot.position.set(-7.68, 0, 1.42);
   const backDoor = box(0.08, 2.0, 1.15, '#55606b', 0, 0, 0.58); backDoorPivot.add(backDoor);
   backDoorPivot.add(box(0.1, 0.1, 0.1, '#c9ccd3', 0.05, 1.0, 1.02));
   scene.add(backDoorPivot);
+  // The stairwell along the back wall: steps going down into the dark, with a rail
+  const stepM = mat('#5a5048'), railM2 = mat('#2b2d36', { metalness: 0.4, roughness: 0.4 });
+  statics.add(box(2.6, 1.6, 1.15, '#141216', -6.2, -1.6, 1.0, false));
+  for (let k = 0; k < 7; k++) statics.add(box(0.32, 0.1, 1.0, stepM, -5.25 - k * 0.32, -0.16 - k * 0.2, 1.0, false));
+  for (const x of [-7.3, -6.2, -5.1]) statics.add(box(0.05, 0.95, 0.05, railM2, x, 0, 1.62, false));
+  statics.add(box(2.3, 0.05, 0.06, railM2, -6.2, 0.95, 1.62, false));
+  const stairwellHit = mesh(new THREE.BoxGeometry(2.4, 1.2, 1.2), new THREE.MeshBasicMaterial({ visible: false }), -6.2, 0.4, 1.0, false);
+  stairwellHit.userData = { act: 'room' }; scene.add(stairwellHit);
+  statics.add(box(0.6, 0.45, 0.45, '#6b5540', -5.2, 0, 4.15)); // a crate by the door
+
+  // The yard beside and behind the small back room, with bins and pallets
+  { for (const [w, d, x, z] of [[4.1, 9.3, -9.75, 0], [3.0, 5.0, -6.2, -2.1]]) { const y = mesh(new THREE.PlaneGeometry(w, d), mat('#8f8a82'), x, 0.006, z, false); y.rotation.x = -PI / 2; y.receiveShadow = true; statics.add(y); }
+    for (const [x, z, c] of [[-11.2, -3.6, '#3f6b4a'], [-10.4, -3.6, '#2b2d36']]) { statics.add(box(0.6, 1.0, 0.6, c, x, 0, z)); statics.add(box(0.64, 0.06, 0.64, '#22252c', x, 1.0, z)); }
+    statics.add(box(1.1, 0.14, 0.9, '#a8703f', -6.3, 0, -3.2), box(1.1, 0.14, 0.9, '#a8703f', -6.3, 0.14, -3.2)); }
+
+  // ---- The basement: under the shop, down the stairs ----
+  wallX(BX - 4.5, BX + 4.6, -4.6, backWall, backWain);
+  wallZ(-4.7, 4.6, BX - 4.6, backWall, backWain);
+  statics.add(box(9.3, 0.12, 0.34, capM, BX + 0.05, 3.0, -4.6), box(0.34, 0.12, 9.3, capM, BX - 4.6, 3.0, -0.05));
+  // Stairs down the left wall: from the ceiling at the front to the floor
+  for (let k = 0; k < 10; k++) statics.add(box(1.1, (10 - k) * 0.3, 0.3, stepM, BX - 3.9, 0, 4.25 - k * 0.3));
+  for (let k = 0; k <= 5; k++) statics.add(box(0.05, 0.9, 0.05, railM2, BX - 3.32, (5 - k) * 0.6, 4.25 - k * 0.6, false));
+  { const r = box(0.05, 0.05, 3.3, railM2, BX - 3.32, 2.1, 2.7, false); r.rotation.x = Math.atan2(3.0, 3.0) * 0.98; statics.add(r); }
+  const stairsHit = mesh(new THREE.BoxGeometry(1.2, 3.0, 3.2), new THREE.MeshBasicMaterial({ visible: false }), BX - 3.9, 1.5, 2.85, false);
+  stairsHit.userData = { act: 'room' }; scene.add(stairsHit);
+  // Ceiling pipes along the back wall
+  for (const [y, z, c] of [[2.7, -4.35, '#8d939c'], [2.5, -4.35, '#b8723a']]) { const pipe = cyl(0.05, 0.05, 9.0, mat(c, { metalness: 0.5, roughness: 0.4 }), BX, y, z, 8); pipe.rotation.z = PI / 2; pipe.position.set(BX, y, z); statics.add(pipe); }
+  // What digging out adds: more floor, the knee walls move out, the back and left walls run on (rebuilt with the expansions)
+  const basementShell = new THREE.Group(); scene.add(basementShell);
+  let basementSig = '';
+  function rebuildBasement(ex) {
+    const sig = `${!!ex.digfront}${!!ex.digside}`;
+    if (sig === basementSig) return;
+    basementSig = sig;
+    basementShell.clear(); basementFloors.length = 1;
+    const F = ex.digfront ? 6.8 : 4.6, S = ex.digside ? 6.8 : 4.6;
+    const floor = (w, d, x, z) => { const f = mesh(new THREE.PlaneGeometry(w, d), backFloor.material, BX + x, 0.001, z, false); f.rotation.x = -PI / 2; f.receiveShadow = true; basementShell.add(f); basementFloors.push(f); };
+    if (ex.digfront) floor(9.2, 2.2, 0, 5.7);
+    if (ex.digside) floor(2.2, 9.2, 5.7, 0);
+    if (ex.digfront && ex.digside) floor(2.2, 2.2, 5.7, 5.7);
+    // knee walls on the two sides you look in from
+    const knee = (w, d, x, z) => basementShell.add(box(w, 0.5, d, backWain, BX + x, 0, z), box(w + 0.04, 0.06, d + 0.04, trim, BX + x, 0.5, z));
+    knee(S + 4.6, 0.2, (S - 4.6) / 2, F); knee(0.2, F + 4.6, S, (F - 4.6) / 2);
+    if (ex.digfront && !ex.digside) knee(0.2, 2.2, 4.6, 5.7);
+    if (ex.digside && !ex.digfront) knee(2.2, 0.2, 5.7, 4.6);
+    // the back and left walls run on along a dug-out part
+    if (ex.digside) { const g = new THREE.Group(); wallX(BX + 4.6, BX + 6.8, -4.6, backWall, backWain, null, g); g.add(box(2.3, 0.12, 0.34, capM, BX + 5.7, 3.0, -4.6)); basementShell.add(g); }
+    if (ex.digfront) { const g = new THREE.Group(); wallZ(4.6, 6.8, BX - 4.6, backWall, backWain, g); g.add(box(0.34, 0.12, 2.3, capM, BX - 4.6, 3.0, 5.7)); basementShell.add(g); }
+    // props: shoring posts where the old walls were
+    const postM = mat('#6b7079', { metalness: 0.4, roughness: 0.5 });
+    if (ex.digfront) for (const x of [-2.0, 2.0]) basementShell.add(box(0.16, 2.9, 0.16, postM, BX + x, 0, 4.6));
+    if (ex.digside) for (const z of [-2.0, 2.0]) basementShell.add(box(0.16, 2.9, 0.16, postM, BX + 4.6, 0, z));
+    basementShell.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    ZONES.back.center.set(BX + (ex.digside ? 1.1 : 0), 0.5, ex.digfront ? 1.6 : 0.5);
+    ZONES.back.needW = ex.digside ? 13.6 : 11.8; ZONES.back.needH = ex.digfront ? 12.2 : 10.2;
+  }
 
   // Shop windows, sign and menu board
   function windowOn(x, z, w, h, y) {
@@ -965,39 +1010,35 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const [dx, dy, dz, r] of [[0, 0.55, 0, 0.26], [0.12, 0.72, 0.05, 0.18], [-0.12, 0.68, -0.06, 0.2]]) statics.add(sphere(r * s, '#4f9a5a', x + dx * s, dy * s, z + dz * s));
   }
   { const rug = mesh(new THREE.PlaneGeometry(1.6, 1.1), mat('#b8485e'), 3.8, 0.004, 3.6, false); rug.rotation.x = -PI / 2; statics.add(rug); }
-  // Back room clutter
-  statics.add(box(0.9, 0.6, 0.7, '#7d6448', -11.0, 0, -1.6)); statics.add(box(0.7, 0.5, 0.6, '#8d7354', -10.95, 0.6, -1.55));
-  statics.add(box(0.8, 0.5, 0.8, '#6b5540', -10.9, 0, 3.9));
+  // The basement's fittings: an LED strip and bulbs, the bag table, the cash table, the kit boxes (filled from state)
   const ledM = smat({ color: '#2a1840', emissive: '#a46bff', emissiveIntensity: 1.2 });
   glowMats.push(ledM);
-  oldBackWall.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48, false));
-  storeroom.add(box(6.6, 0.05, 0.05, ledM, -8.15, 2.85, -4.48 - BACK_DEPTH, false));
-  statics.add(cyl(0.01, 0.01, 0.5, '#222', -9.4, 2.5, -1.6, 6, false));
+  statics.add(box(8.6, 0.05, 0.05, ledM, BX, 2.85, -4.48, false));
   const bulbM = smat({ color: '#fff3d6', emissive: '#ffcc88', emissiveIntensity: 1 }); glowMats.push(bulbM);
-  statics.add(sphere(0.09, bulbM, -9.4, 2.45, -1.6, false));
-  // Cash table, kit boxes, bag pile (filled from state)
-  statics.add(box(1.2, 0.75, 0.75, '#5a4632', -6.9, 0, 1.0));
+  for (const [x, z] of [[-1.2, 0.2], [2.0, 2.4], [-1.0, -2.8]]) { statics.add(cyl(0.01, 0.01, 0.5, '#222', BX + x, 2.5, z, 6, false)); statics.add(sphere(0.09, bulbM, BX + x, 2.45, z, false)); }
+  const [bagX, bagZ] = D.BACK_PROPS.bagTable, [cashX, cashZ] = D.BACK_PROPS.cashTable, [kitX, kitZ] = D.BACK_PROPS.kits;
+  statics.add(box(1.2, 0.75, 0.75, '#5a4632', BX + cashX, 0, cashZ));
   const cash = [];
   for (let k = 0; k < 12; k++) {
-    const c = box(0.22, 0.05, 0.12, mat('#6fbf73', { roughness: 0.9 }), -7.3 + (k % 4) * 0.26, 0.75 + Math.floor(k / 4) * 0.06, 0.95 + (k % 2) * 0.05);
+    const c = box(0.22, 0.05, 0.12, mat('#6fbf73', { roughness: 0.9 }), BX + cashX - 0.4 + (k % 4) * 0.26, 0.75 + Math.floor(k / 4) * 0.06, cashZ - 0.05 + (k % 2) * 0.05);
     c.visible = false; scene.add(c); cash.push(c);
   }
   const kitsBoxes = [];
   for (let k = 0; k < 8; k++) {
-    const b = box(0.32, 0.22, 0.28, '#c9b38a', -11.2 + (k % 2) * 0.34, Math.floor(k / 2) * 0.23, -3.0 + (k % 2) * 0.02);
+    const b = box(0.32, 0.22, 0.28, '#c9b38a', BX + kitX - 0.17 + (k % 2) * 0.34, Math.floor(k / 2) * 0.23, kitZ + (k % 2) * 0.02);
     b.visible = false; scene.add(b); kitsBoxes.push(b);
   }
-  statics.add(box(0.9, 0.8, 0.6, '#4f4639', -6.0, 0, -1.2));
+  statics.add(box(0.9, 0.8, 0.6, '#4f4639', BX + bagX, 0, bagZ));
   const bagPile = [];
   for (let k = 0; k < 24; k++) {
-    const b = box(0.11, 0.14, 0.04, mat('#c79bff', { roughness: 0.3, transparent: true, opacity: 0.88 }), -6.3 + (k % 6) * 0.12, 0.8 + Math.floor(k / 12) * 0.15, -1.35 + Math.floor((k % 12) / 6) * 0.2);
+    const b = box(0.11, 0.14, 0.04, mat('#c79bff', { roughness: 0.3, transparent: true, opacity: 0.88 }), BX + bagX - 0.3 + (k % 6) * 0.12, 0.8 + Math.floor(k / 12) * 0.15, bagZ - 0.15 + Math.floor((k % 12) / 6) * 0.2);
     b.visible = false; scene.add(b); bagPile.push(b);
   }
   // Security camera upgrade
   const camGroup = new THREE.Group();
   camGroup.add(box(0.28, 0.14, 0.14, '#e6e6e6', 0, 0, 0)); camGroup.add(sphere(0.04, mat('#222'), 0.15, 0.07, 0, false));
   const camLed = new THREE.MeshBasicMaterial({ color: '#ff3a3a' }); camGroup.add(mesh(geo('led', () => new THREE.SphereGeometry(0.02, 6, 6)), camLed, 0.1, 0.12, 0.06, false));
-  camGroup.position.set(-11.45, 2.55, 0.9); camGroup.rotation.y = 0.5; camGroup.visible = false; scene.add(camGroup);
+  camGroup.position.set(-7.5, 2.55, 3.4); camGroup.rotation.y = 0.5; camGroup.visible = false; scene.add(camGroup);
   // Catering boxes upgrade
   const catering = new THREE.Group();
   for (let k = 0; k < 3; k++) catering.add(box(0.5, 0.18, 0.4, '#f4f0e8', 0, k * 0.19, 0));
@@ -1335,14 +1376,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const f = D.BACK_FLOORS[b.floor] || D.BACK_FLOORS.concrete;
     if (b.floor === 'concrete') backFloor.material = backFloorOrig;
     else backFloor.material = backFloorMats[b.floor] ||= (b.floor === 'neon' ? smat({ color: f.color, emissive: '#7b3fd6', emissiveIntensity: 0.35, roughness: 0.4 }) : smat({ color: f.color, roughness: b.floor === 'epoxy' || b.floor === 'tiles' ? 0.35 : 0.85 }));
-    storeroom.userData.floor.material = backFloor.material;
+    for (const f of basementFloors) f.material = backFloor.material;
     const w = D.BACK_WALLS[b.wall] || D.BACK_WALLS.block;
     backWall.color.set(w.color); backWain.color.set(w.lower);
-    navGrid = null; // decor is in the way of walking
+    invalidateNav(); // decor is in the way of walking
     backDecorGroup.clear();
     b.decor.forEach((it, idx) => {
       const m = decorModel(it.type), { x, z } = D.backCellCenter(it.bx, it.bz);
-      m.position.set(x, 0, z); m.rotation.y = (it.rot || 0) * PI / 2;
+      m.position.set(BX + x, 0, z); m.rotation.y = (it.rot || 0) * PI / 2;
       m.userData = { act: 'design', kind: 'bdecor', idx };
       m.traverse(o => { if (o.isMesh) o.castShadow = true; });
       backDecorGroup.add(m);
@@ -1675,34 +1716,19 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
     }
 
-    // ---- The back room: a plain storeroom front with a roller shutter, its own flat roof ----
+    // ---- The small back room: a plain block with a door and a camera, its own flat roof (the basement is below) ----
     const backM = sm('#55606b'), backTex = canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#5b6570'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(0,0,0,.18)'; for (let r = 0; r < 4; r++) c.fillRect(0, r * 16 + 15, w, 1); for (let r = 0; r < 4; r++) c.fillRect((r % 2) * 16 + 31, r * 16, 1, 16); });
-    backTex.wrapS = backTex.wrapT = THREE.RepeatWrapping; backTex.repeat.set(7, 3);
-    sb(7.0, 3.05, 0.22, sm('#ffffff', { map: backTex }), -8.2, 0, 4.66);
-    sb(3.2, 2.35, 0.08, darkM, -8.9, 0, 4.76);
-    sb(3.0, 2.2, 0.06, steelM, -8.9, 0, 4.8); for (let k = 0; k < 10; k++) sb(3.0, 0.03, 0.08, darkM, -8.9, 0.2 + k * 0.2, 4.83);
-    sb(3.3, 0.3, 0.3, steelM, -8.9, 2.3, 4.85);
-    sb(0.9, 2.0, 0.06, darkM, -6.0, 0, 4.8); sb(0.5, 0.18, 0.02, sm('#e8c02b'), -6.0, 1.6, 4.84); // STAFF ONLY plate
-    sb(0.3, 0.2, 0.25, darkM, -6.9, 2.5, 4.85); // a camera over the door
-    const deep = ex.storeroom ? 3 : 0, bz0 = -4.8 - deep;
-    sb(7.2, 0.22, 9.6 + deep, backM, -8.2, 3.05, -deep / 2);
-    for (const [w, d, x, z] of [[7.3, 0.15, -8.2, 4.78], [7.3, 0.15, -8.2, bz0 + 0.02], [0.15, 9.7 + deep, -11.78, -deep / 2]]) sb(w, 0.3, d, sm('#4a4550'), x, 3.27, z);
-    if (deep) {
-      // The side of the new part, facing the street corner, with a high window and an extractor
-      sb(0.22, 3.05, deep, sm('#ffffff', { map: backTex }), -4.72, 0, -4.8 - deep / 2);
-      sb(0.15, 0.3, deep, sm('#4a4550'), -4.72, 3.27, -4.8 - deep / 2);
-      sb(0.05, 0.4, 1.6, glassM, -4.6, 2.2, -4.8 - deep / 2);
-      sb(0.5, 0.5, 0.5, steelM, -9.6, 3.27, -6.4);
-    }
-    for (const [x, z] of [[-10.2, -2.5], [-9.0, 3.0]]) { sb(0.35, 0.45, 0.35, darkM, x, 3.27, z); sb(0.5, 0.06, 0.5, darkM, x, 3.72, z); }
-    // Benches: extractor fans; more benches: a run of ducting; the cellar: a grille in the pavement; the annex: a raised roof
-    if (ex.bench) for (const z of [-3.2, -1.6]) { sb(0.8, 0.35, 0.8, steelM, -10.4, 3.27, z); const fan = cyl(0.3, 0.3, 0.06, darkM, -10.4, 3.62, z, 16); shellGroup.add(fan); }
-    if (ex.bench3) { sb(4.2, 0.35, 0.35, steelM, -8.4, 3.27, -3.8); sb(0.35, 1.2, 0.35, steelM, -6.4, 3.27, -3.8); add(cyl(0.22, 0.22, 0.1, darkM, -6.4, 4.47, -3.8, 12)); }
-    if (ex.bench2) { sb(1.3, 0.04, 0.9, steelM, -10.6, 0, 5.4); for (let k = 0; k < 6; k++) sb(1.2, 0.02, 0.04, darkM, -10.6, 0.04, 5.05 + k * 0.14); }
-    if (ex.annex) {
-      sb(3.4, 1.0, 4.2, backM, -7.2, 3.27, 0.4); sb(3.5, 0.12, 4.3, sm('#4a4550'), -7.2, 4.27, 0.4);
-      sb(2.8, 0.45, 0.05, glassM, -7.2, 3.55, 2.52); sb(0.05, 0.45, 3.4, glassM, -5.48, 3.55, 0.4);
-    }
+    backTex.wrapS = backTex.wrapT = THREE.RepeatWrapping; backTex.repeat.set(3, 3);
+    sb(3.1, 3.05, 0.22, sm('#ffffff', { map: backTex }), -6.15, 0, 4.66);
+    sb(0.9, 2.0, 0.06, darkM, -6.6, 0, 4.8); sb(0.5, 0.18, 0.02, sm('#e8c02b'), -6.6, 1.6, 4.84); // STAFF ONLY
+    sb(0.3, 0.2, 0.25, darkM, -7.3, 2.5, 4.85); // a camera
+    sb(0.22, 3.05, 4.3, sm('#ffffff', { map: backTex }), -7.72, 0, 2.5);
+    sb(0.06, 2.0, 1.15, darkM, -7.85, 0, 2.0); // the back door
+    sb(3.3, 0.22, 4.5, backM, -6.15, 3.05, 2.5);
+    for (const [w, d, x, z] of [[3.4, 0.15, -6.15, 4.78], [3.4, 0.15, -6.15, 0.3], [0.15, 4.6, -7.78, 2.5]]) sb(w, 0.3, d, sm('#4a4550'), x, 3.27, z);
+    sb(0.35, 0.45, 0.35, darkM, -6.6, 3.27, 1.5); sb(0.5, 0.06, 0.5, darkM, -6.6, 3.72, 1.5);
+    // a grate in the yard over the basement's air vent, once there are benches down there
+    if (ex.bench) { sb(1.0, 0.03, 0.7, steelM, -9.2, 0, -1.0); for (let k = 0; k < 5; k++) sb(0.9, 0.02, 0.04, darkM, -9.2, 0.03, -1.25 + k * 0.12); }
 
     // ---- Out front and down the side: what the terraces and expansions add ----
     const planter = (x, z) => { sb(0.7, 0.45, 0.7, sm(shade(P.color, 0.75)), x, 0, z); add(sphere(0.34, sm('#3f7a3a'), x, 0.75, z)); add(sphere(0.06, sm('#ff7eb6'), x + 0.15, 0.95, z + 0.2)); };
@@ -1720,9 +1746,9 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     shellGeos = [];
     shellGroup.traverse(o => { if (o.isMesh && !o.userData.keep) shellGeos.push(o.geometry); }); // kept parts use shared shapes
   }
-  const FOOTPRINT = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85), new THREE.Vector3(4.85, 3.2, 4.85)), cullBox = new THREE.Box3();
-  // The shop part stops at -4.85; the back room reaches further back once the storeroom is in. Cull each part on its own.
-  const FOOT_BACK = new THREE.Box3(new THREE.Vector3(-11.85, -0.5, -4.85 - BACK_DEPTH), new THREE.Vector3(-4.6, 3.2, 4.85));
+  const FOOTPRINT = new THREE.Box3(new THREE.Vector3(-4.85, -0.5, -4.85), new THREE.Vector3(4.85, 3.2, 4.85)), cullBox = new THREE.Box3();
+  // The small back room is culled on its own (the yard behind it isn't covered by the building)
+  const FOOT_BACK = new THREE.Box3(new THREE.Vector3(-7.85, -2.0, 0.25), new THREE.Vector3(-4.6, 3.2, 4.85));
   let culled = [], cullT = 0;
   function cullInside(on, dt) {
     if (!on) { if (culled.length) { for (const o of culled) o.layers.set(0); culled = []; } cullT = 0; return; }
@@ -1736,7 +1762,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if ((o.isMesh || o.isSprite) && !o.isInstancedMesh && o.geometry) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         cullBox.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
-        if (FOOTPRINT.containsBox(cullBox) || (navState?.design?.expansions?.storeroom && FOOT_BACK.containsBox(cullBox))) { o.layers.set(1); culled.push(o); }
+        if (FOOTPRINT.containsBox(cullBox) || FOOT_BACK.containsBox(cullBox)) { o.layers.set(1); culled.push(o); }
       }
       for (const c of o.children) walk(c);
     };
@@ -1745,10 +1771,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // Zooming out past the normal view fades the building in; zooming back in shows the inside again
   function updateShell(s, dt) {
     // Designing the outside shows the building whatever the zoom; any other design tab shows the inside
-    const want = view.design ? (view.design.cat === 'outside' && !view.design.back ? 1 : 0) : Math.max(0, Math.min(1, (0.85 - cam.zoom) / 0.2));
+    const want = view.zone !== 'shop' ? 0 : view.design ? (view.design.cat === 'outside' && !view.design.back ? 1 : 0) : Math.max(0, Math.min(1, (0.85 - cam.zoom) / 0.2));
     shellK += (want - shellK) * Math.min(1, dt * 6);
     // Tell the UI when the view has gone outside (by zoom alone; a little either way so it doesn't flicker)
-    const out = zoomedOut ? cam.zoom < 0.8 : cam.zoom < 0.72;
+    const out = view.zone === 'shop' && (zoomedOut ? cam.zoom < 0.8 : cam.zoom < 0.72);
     if (out !== zoomedOut) { zoomedOut = out; onOutside?.(out); }
     if (shellK > 0.01) buildShell(s);
     shellGroup.visible = shellK > 0.01;
@@ -1801,27 +1827,27 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     };
     if (ex.carts) for (const x of [-3.6, -1.8, 0, 1.8, 3.6]) cart(x, 6.05);
     if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) stall(6.05, z);
-    storeroom.visible = !!ex.storeroom; oldBackWall.visible = !ex.storeroom;
-    ZONES.back.center.z = ex.storeroom ? -1.0 : 0.5; ZONES.back.needH = ex.storeroom ? 12.2 : 9.4;
-    navGrid = null;
-    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, -9.275, 0, -4.9));
-    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, -9.275, 0, -3.85));
-    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, -7.4, 0, -4.9)); add(box(0.8, 0.03, 0.8, '#2b2d36', -6.4, 0.005, -5.6)); }
-    if (ex.annex) { for (const [x, z] of [[-5.35, -3.0], [-11.0, 0.33]]) add(box(1.0, 0.02, 2.4, '#6b6f78', x, 0.004, z)); }
+    rebuildBasement(ex);
+    invalidateNav();
+    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, 0, -1.7));
+    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, 0, -0.65));
+    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, BX - 0.5, 0, -1.7)); add(box(0.08, 1.9, 0.9, '#c9ccd3', BX + 0.15, 0, -1.7)); }
+    if (ex.annex) add(box(1.0, 0.02, 4.8, '#6b6f78', BX + 3.95, 0.004, -1.7));
+    if (ex.storeroom) add(box(1.2, 0.02, 1.0, '#3a3530', BX + 1.6, 0.004, -3.95));
   }
 
   // Design overlay for the back room: green where decor can go
-  const BROWS = 9 + D.BACK_GRID.extRows;
-  const ovBack = canvasOf(7 * TS, BROWS * TS);
-  const ovBackMesh = mesh(new THREE.PlaneGeometry(7, BROWS), ovMatB(ovBack), D.BACK_GRID.x0 + 3, 0.02, D.BACK_GRID.z0 + 4 - D.BACK_GRID.extRows / 2, false);
+  const BCOLS = D.BACK_GRID.cols + D.BACK_GRID.dig, BROWS = D.BACK_GRID.rows + D.BACK_GRID.dig;
+  const ovBack = canvasOf(BCOLS * TS, BROWS * TS);
+  const ovBackMesh = mesh(new THREE.PlaneGeometry(BCOLS, BROWS), ovMatB(ovBack), BX + D.BACK_GRID.x0 - 0.5 + BCOLS / 2, 0.02, D.BACK_GRID.z0 - 0.5 + BROWS / 2, false);
   ovBackMesh.rotation.x = -PI / 2; ovBackMesh.visible = false; scene.add(ovBackMesh);
   function ovMatB(t) { return new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }); }
   let ovBackSig = '';
   function paintBackOverlay(s) {
     const c = ovBack.ctx, b = s.design.back || { decor: [] };
-    c.clearRect(0, 0, 7 * TS, BROWS * TS);
-    const ext = D.backExt(s), off = D.BACK_GRID.extRows;
-    for (let bz = D.backRowMin(s); bz < 9; bz++) for (let bx = 0; bx < 7; bx++) {
+    c.clearRect(0, 0, BCOLS * TS, BROWS * TS);
+    const ext = D.backExt(s), off = 0, bb = D.backBounds(ext);
+    for (let bz = 0; bz < bb.rows; bz++) for (let bx = 0; bx < bb.cols; bx++) {
       const blocked = D.backCellBlocked(bx, bz, ext), used = b.decor.some(d => d.bx === bx && d.bz === bz);
       // Free squares where decor would cut someone off show amber too
       const walls = !blocked && !used && !D.backPathsOk(s, [...b.decor, { bx, bz }]);
@@ -1907,7 +1933,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s); }
       const sel = bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
       selRing.visible = !!sel;
-      if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
+      if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(BX + x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
       overlay.visible = false;
       return;
     }
@@ -1935,14 +1961,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   function designPick(x, y) {
     dRay.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
     if (view.design.back) {
-      const hits = dRay.intersectObjects([backDecorGroup, backFloor], true);
+      const hits = dRay.intersectObjects([backDecorGroup, ...basementFloors], true);
       for (const h of hits) {
         let o = h.object;
         while (o && o.userData?.kind !== 'bdecor' && o.parent) o = o.parent;
         if (o?.userData?.kind === 'bdecor') { onPick({ ...o.userData }); return; }
-        if (h.object === backFloor) {
-          const bx = Math.round((h.point.x - D.BACK_GRID.x0) / D.BACK_GRID.size), bz = Math.round((h.point.z - D.BACK_GRID.z0) / D.BACK_GRID.size);
-          if (bx >= 0 && bx < 7 && bz >= D.backRowMin(navState || {}) && bz < 9) onPick({ act: 'design', kind: 'bcell', bx, bz });
+        if (basementFloors.includes(h.object)) {
+          const bx = Math.round((h.point.x - BX - D.BACK_GRID.x0) / D.BACK_GRID.size), bz = Math.round((h.point.z - D.BACK_GRID.z0) / D.BACK_GRID.size);
+          const bb = D.backBounds(navState?.design?.expansions);
+          if (bx >= 0 && bx < bb.cols && bz >= 0 && bz < bb.rows) onPick({ act: 'design', kind: 'bcell', bx, bz });
           return;
         }
       }
@@ -2001,7 +2028,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     stations = [];
     const add = (m, idx, kind) => {
       const M = kind === 'day' ? MACHINES[m.type] : LAB_MACHINES[m.type];
-      const pl = kind === 'day' ? SPOTS[m.spot] : LAB_SPOTS[m.spot] && labSpotAt(LAB_SPOTS[m.spot], !!s.design.expansions?.storeroom);
+      const pl = kind === 'day' ? SPOTS[m.spot] : LAB_SPOTS[m.spot] && { ...LAB_SPOTS[m.spot], x: BX + LAB_SPOTS[m.spot].x };
       if (!M || !pl) return;
       const st = (BUILDERS[M.model] || buildOven)(M.tint);
       const tier = m.tier || 0;
@@ -2030,8 +2057,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     };
     s.machines.forEach((m, i) => add(m, i, 'day'));
     s.lab.forEach((m, i) => add(m, i, 'night'));
-    navGrid = null;
-    if (s.labUnlocked && !pickables.includes(innerDoor)) pickables.push(innerDoor);
+    invalidateNav();
+    if (s.labUnlocked && !pickables.includes(innerDoor)) pickables.push(innerDoor, stairsHit, stairwellHit);
   }
 
   // Anything small (cups, fruit, knobs, pips, bulbs) gets no shadow: it barely shows and each one is another draw in the
@@ -2072,8 +2099,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   let revolving = false, drumBusy = false;
   const doorIn = () => (revolving ? GAP_IN : GAP), doorOut = () => (revolving ? GAP_OUT : GAP);
   const streetIn = () => (revolving ? OUT_IN : OUTSIDE), streetOut = () => (revolving ? OUT_OUT : OUTSIDE);
-  const DOOR_OUT = V3(-13.0, 0, 2.2), DOOR_IN = V3(-11.0, 0, 2.2);
-  const BUYER_SPOTS = [V3(-10.1, 0, 2.9), V3(-10.1, 0, 1.5), V3(-9.0, 0, 3.4), V3(-9.0, 0, 2.1), V3(-7.9, 0, 3.0), V3(-7.9, 0, 1.7)];
+  // The top of the stairs (from the back door), their foot, a step clear of them, and where buyers wait
+  const DOOR_OUT = V3(BX - 3.9, 0, 4.3), DOOR_IN = V3(BX - 3.9, 0, 0.9), LANDING = V3(BX - 2.9, 0, 1.1);
+  const BUYER_SPOTS = D.BUYER_SPOTS_LOCAL.map(([x, z]) => V3(BX + x, 0, z));
+  // On the stairs people climb: height from where they are along them
+  const stairY = p => (p.x > BX + D.STAIRS.x0 && p.x < BX + D.STAIRS.x1 && p.z > D.STAIRS.z0 - 0.1 ? Math.max(0, Math.min(1, (p.z - D.STAIRS.z0) / (D.STAIRS.z1 - D.STAIRS.z0))) * 3.0 : 0);
+  const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
   const TILL = V3(3.1, 1.3, 0.85);
   const customers = new Map(); // id -> { agent, shown, inside, leaving }
   const buyers = new Map();
@@ -2081,35 +2112,45 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const browsers = []; let browserId = 1;
 
   // You: the baker. Walks to whatever you tap.
-  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(-7.7, 0, -2.6) };
+  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(BX - 2.6, 0, 1.6) };
   const baker = new Agent(scene, { skin: 1, shirt: 0, hair: 1, pants: 0, h: 1.02 }, 'baker', BAKER_HOME.shop.clone());
   baker.face = PI / 4;
   let bakerZone = 'shop', bakerJob = null, bakerIdle = 0;
   // ---------- Walking around things: a grid over the floor, A* and a smoothed path ----------
-  const NAV = { x0: -11.6, x1: 6.9, z0: -4.45 - BACK_DEPTH, z1: 6.9, c: 0.2 };
-  const NW = Math.ceil((NAV.x1 - NAV.x0) / NAV.c), NH = Math.ceil((NAV.z1 - NAV.z0) / NAV.c);
+  const SNAV = { x0: -7.6, x1: 6.9, z0: -4.45, z1: 6.9, c: 0.2, grid: null };
+  const BNAV = { x0: BX - 4.5, x1: BX + 6.8, z0: -4.5, z1: 6.8, c: 0.2, grid: null };
+  for (const n of [SNAV, BNAV]) { n.w = Math.ceil((n.x1 - n.x0) / n.c); n.h = Math.ceil((n.z1 - n.z0) / n.c); }
+  let NAV = SNAV, NW = SNAV.w, NH = SNAV.h, navGrid = null;
+  const useNav = n => { NAV = n; NW = n.w; NH = n.h; navGrid = n.grid; };
+  function invalidateNav() { SNAV.grid = null; BNAV.grid = null; navGrid = null; }
   // Floor you can stand on: the shop, the back room, the door between them, the shop door and the terraces
-  const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-11.45, -4.85, -4.4, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
+  const AREAS = [[-4.35, 4.35, -4.4, 4.4], [-7.45, -4.85, 1.75, 4.4], [-5.0, -4.2, 2.65, 3.55], [4.2, 5.0, 3.25, 4.15],
     [4.85, 6.9, -4.4, 6.9], [-4.4, 6.9, 4.85, 6.9]];
-  const FIXED = [[-2.6, 3.5, 0.45, 1.45], [-11.45, -10.55, -1.95, -1.25], [-11.3, -10.5, 3.5, 4.3], [-7.5, -6.3, 0.62, 1.38], [-6.45, -5.55, -1.5, -0.9], [-11.4, -10.5, -3.2, -2.8]];
-  let navGrid = null, navState = null;
+  const FIXED = [[-2.6, 3.5, 0.45, 1.45], [-5.5, -4.9, 3.9, 4.4]];
+  // The basement: its stairs, the tables and the kit boxes
+  const bp = D.BACK_PROPS;
+  const BFIXED = [[BX + D.STAIRS.x0, BX + D.STAIRS.x1, D.STAIRS.z0, D.STAIRS.z1 + 0.2], [BX + bp.bagTable[0] - 0.45, BX + bp.bagTable[0] + 0.45, bp.bagTable[1] - 0.3, bp.bagTable[1] + 0.3],
+    [BX + bp.cashTable[0] - 0.6, BX + bp.cashTable[0] + 0.6, bp.cashTable[1] - 0.38, bp.cashTable[1] + 0.38], [BX + bp.kits[0] - 0.35, BX + bp.kits[0] + 0.35, bp.kits[1] - 0.2, bp.kits[1] + 0.2]];
+  let navState = null;
   const cellOf = (x, z) => [Math.floor((x - NAV.x0) / NAV.c), Math.floor((z - NAV.z0) / NAV.c)];
   const centre = (i, j) => V3(NAV.x0 + (i + 0.5) * NAV.c, 0, NAV.z0 + (j + 0.5) * NAV.c);
   function buildNav() {
-    const pad = 0.16, rects = FIXED.map(r => [r[0] - pad, r[1] + pad, r[2] - pad, r[3] + pad]);
-    const st0 = navState, ext = !!st0?.design?.expansions?.storeroom;
-    const areas = AREAS.map((a, k) => (k === 1 && ext ? [a[0], a[1], -4.4 - BACK_DEPTH, a[3]] : a));
-    // Decor (not rugs) stands in the way, in the shop and the back room
+    const st0 = navState, under = NAV === BNAV, ex = st0?.design?.expansions || {};
+    const pad = 0.16, rects = (under ? BFIXED : FIXED).map(r => [r[0] - pad, r[1] + pad, r[2] - pad, r[3] + pad]);
+    const F = ex.digfront ? 6.6 : 4.35, S = ex.digside ? 6.6 : 4.35;
+    const areas = under ? [[BX - 4.35, BX + 4.35, -4.35, 4.35], ...(ex.digfront ? [[BX - 4.35, BX + 4.35, 4.35, F]] : []), ...(ex.digside ? [[BX + 4.35, BX + S, -4.35, 4.35]] : []),
+      ...(ex.digfront && ex.digside ? [[BX + 4.35, BX + S, 4.35, F]] : [])] : AREAS;
+    // Decor (not rugs) stands in the way, in the shop and the basement
     if (st0?.design) {
-      for (const it of st0.design.decor || []) { if (/rug|mat/.test(it.type)) continue; const { x, z } = D.cellCenter(it.cx, it.cz); rects.push([x - 0.32, x + 0.32, z - 0.32, z + 0.32]); }
-      for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([x - 0.36, x + 0.36, z - 0.36, z + 0.36]); }
+      if (!under) for (const it of st0.design.decor || []) { if (/rug|mat/.test(it.type)) continue; const { x, z } = D.cellCenter(it.cx, it.cz); rects.push([x - 0.32, x + 0.32, z - 0.32, z + 0.32]); }
+      if (under) for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([BX + x - 0.36, BX + x + 0.36, z - 0.36, z + 0.36]); }
     }
     for (const st of stations) {
       const p = st.group.position, side = Math.abs(Math.sin(st.group.rotation.y)) > 0.5;
       const hx = (side ? 0.42 : 0.55) + pad, hz = (side ? 0.55 : 0.42) + pad;
       rects.push([p.x - hx, p.x + hx, p.z - hz, p.z + hz]);
     }
-    navGrid = new Uint8Array(NW * NH);
+    navGrid = NAV.grid = new Uint8Array(NW * NH);
     for (let j = 0; j < NH; j++) for (let i = 0; i < NW; i++) {
       const c = centre(i, j);
       const ok = areas.some(a => c.x >= a[0] && c.x <= a[1] && c.z >= a[2] && c.z <= a[3]) && !rects.some(r => c.x > r[0] && c.x < r[1] && c.z > r[2] && c.z < r[3]);
@@ -2128,6 +2169,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     return true;
   }
   function findPath(from, to) {
+    useNav(from.x > BX - 20 ? BNAV : SNAV);
     if (!navGrid) buildNav();
     const a = nearestFree(...cellOf(from.x, from.z)), b = nearestFree(...cellOf(to.x, to.z));
     if (!a || !b) return null;
@@ -2329,9 +2371,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         buyers.set(b.id, e);
       }
       const spot = BUYER_SPOTS[k % BUYER_SPOTS.length];
-      if (e.via) { e.agent.target.copy(DOOR_IN); if (e.agent.group.position.distanceTo(DOOR_IN) < 0.1) e.via = false; }
+      // down the stairs, a step clear of them, then to a spot by the tables
+      if (e.via === true) { e.agent.target.copy(DOOR_IN); if (flat(e.agent.group.position, DOOR_IN) < 0.1) e.via = 'landing'; }
+      else if (e.via === 'landing') { e.agent.target.copy(LANDING); if (flat(e.agent.group.position, LANDING) < 0.1) e.via = false; }
       else e.agent.target.copy(spot);
-      e.agent.face = PI / 2 + 0.3;
+      e.agent.face = e.via ? null : PI * 0.15;
     });
     for (const [id, e] of buyers) {
       if (!liveB.has(id) && !e.agent.leaving) {
@@ -2339,14 +2383,17 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         const i = pickables.indexOf(e.agent.group); if (i >= 0) pickables.splice(i, 1);
       }
       if (e.agent.leaving) {
-        e.agent.target.copy(e.stage === 0 ? DOOR_IN : DOOR_OUT);
-        if (e.agent.group.position.distanceTo(DOOR_IN) < 0.1) e.stage = 1;
+        e.agent.target.copy(e.stage === 0 ? LANDING : e.stage === 1 ? DOOR_IN : DOOR_OUT);
+        if (e.stage === 0 && flat(e.agent.group.position, LANDING) < 0.1) e.stage = 1;
+        else if (e.stage === 1 && flat(e.agent.group.position, DOOR_IN) < 0.1) e.stage = 2;
       }
       const arrived = e.agent.update(dt);
-      if (e.agent.leaving && e.stage === 1 && arrived) { scene.remove(e.agent.group); buyers.delete(id); }
+      e.agent.group.position.y = stairY(e.agent.group.position);
+      if (e.agent.leaving && e.stage === 2 && arrived) { scene.remove(e.agent.group); buyers.delete(id); }
     }
+    // The back door upstairs opens while someone is on the stairs
     let near = false;
-    for (const e of buyers.values()) if (e.agent.group.position.distanceTo(DOOR_IN) < 1.6) near = true;
+    for (const e of buyers.values()) if (e.agent.group.position.y > 1.5) near = true;
     const want = near ? -1.5 : 0;
     backDoorPivot.rotation.y += (want - backDoorPivot.rotation.y) * Math.min(1, dt * 6);
     updateFlyers(dt);
@@ -2355,7 +2402,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
   const bubbleEls = new Map();
   let bubbleScale = 1;
-  const DOOR_BUB = V3(-4.6, 1.6, 3.1);
+  const DOOR_BUB = V3(-4.6, 1.6, 3.1), STAIRS_BUB = V3(BX - 3.9, 3.4, 3.6);
   const tmp = new THREE.Vector3();
   function toScreen(v) {
     tmp.copy(v).project(camera);
@@ -2398,7 +2445,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k].x, 1.85, 0.95) });
       });
       // The door between the shop and the back room
-      if (s.labUnlocked) want.set('door', { html: view.zone === 'shop' ? '<span>🚪</span><small>Back</small>' : '<span>☀️</span><small>Shop</small>', cls: 'bub door', at: 'data-act="room"', pos: DOOR_BUB });
+      if (s.labUnlocked) want.set('door', { pos: view.zone === 'shop' ? DOOR_BUB : STAIRS_BUB, html: view.zone === 'shop' ? '<span>🪜</span><small>Basement</small>' : '<span>☀️</span><small>Upstairs</small>', cls: 'bub door', at: 'data-act="room"' });
       if (view.zone === 'back') {
         for (const b of s.door) {
           const e = buyers.get(b.id);

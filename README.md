@@ -59,9 +59,9 @@ The stall only takes the first four; the rest are fitted in Rosa's branches (see
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
 expansions (Design → Expand) add more spots, so a room never fills up before it has grown. The bakery starts with 6
 spots along its walls; the kitchen refit (level 7) adds 4 between them, the island 2 and the bigger island 2 more (back to
-back, with an aisle in front of each row), then food carts and side stalls outside. The back room starts with 4; knocking
-into the storeroom (level 14) makes it 3 m deeper with a new back wall (+1), and the benches, more benches, cellar and
-annex go in that space and along the side walls. At the limit the buy
+back, with an aisle in front of each row), then food carts and side stalls outside. The basement starts with 4 on its back
+wall; clearing the coal store (level 14) adds one more there, then the bench rows (back to back), the cold store and
+the right-hand wall, and digging out under the front and side terraces (once you have them) adds 3 more each. At the limit the buy
 button says "Reach level N to unlock additional ovens".
 
 **Display counters.** What's on sale is whatever is on the glass counters by the till: one product per counter, and each
@@ -79,6 +79,12 @@ When lots of machines crowd the screen, idle ones show as small dots. Crew make 
 again whenever its tray has room, and Grace the manager keeps the ingredients topped up.
 
 ## The back room
+
+The back room is a small room off the shop with the back door and a stairwell. The stairs go down to the **basement**,
+which runs under the whole shop: that's where the machines, the bag and cash tables, the kit boxes and the decor are,
+and where buyers come (in at the back door and down the stairs). Tap the 🪜 Basement bubble on the door, or the stairs,
+to go down; ☀️ Upstairs to come back. Digging out under the front and side terraces (Design → Layout, once you own
+those terraces) makes it 2 m bigger each way.
 
 Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own with its own
 machines, but only the stall has buyers: branch back rooms pack what they make into Rosa's vans, which drive it to
@@ -203,8 +209,8 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
   - 😌 **Comfort** (sofas, a big telly, a pool table, a fish tank, a jukebox): the night crew gain loyalty faster.
   - 🫥 **Cover** (bread crates, flour shelving, a wall safe, a false wall): raids find product less often (up to 40% less).
   - 🛡️ **Security** (CCTV monitors, a reinforced door, a panic room): heat cools faster (up to 50%).
-- **Layout**: knock into the storeroom first (the room gets 3 m deeper), then the benches, cellar and annex for more
-  machine spots. Decor can't go where it would cut anyone off from a machine, a door or the buyers (those squares show
+- **Layout**: clear the coal store first, then the benches, cold store and the far wall for more machine spots, and
+  dig out under the front and side terraces to make the basement bigger. Decor can't go where it would cut anyone off from a machine, a door or the buyers (those squares show
   faint red); decor already in the way when the room changes comes down with a full refund.
 - **Walking**: people walk around machines, counters and decor. If there's no way through they stop as close as they
   can get rather than walking through things.
@@ -378,7 +384,7 @@ Open **🎨 Design** any time:
   buttons become a single 🏠 Outside button, which opens these as tabs (Paint, Walls, Windows, Door, Roof, Awning, Sign,
   Extras); zoom back in and Map, Design and Menu return.
 - **The building grows** when zoomed out: the front terrace gets a deeper awning (over the food carts) and
-  planters, the storeroom a deeper back block, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
+  planters, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
   back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the
   flat upstairs adds a second storey to the stall (its windows light up in the evening and early morning). The OPEN sign
   on the door turns to CLOSED when trade stops for the night, and with a revolving door people keep to one side going in
