@@ -2880,7 +2880,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         const m = (st.kind === 'day' ? s.machines : s.lab)[st.idx];
         if (!m) continue;
         const b = slotBubble(st, G.jobView(s, m, s.clock, st.kind === 'night'), s, m, crowded);
-        if (b) want.set(`s-${st.kind}-${st.idx}`, { ...b, pos: st.anchorW });
+        if (b) want.set(`s-${st.kind}-${st.idx}`, { ...b, cls: b.cls + (st.kind === 'night' ? ' night' : ''), pos: st.anchorW });
       }
       const nowMs = Date.now();
       if (view.zone === 'shop') for (const [, e] of customers) {
@@ -2898,11 +2898,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (view.zone === 'back' && s.labUnlocked) {
         const kitsN = Object.values(s.kits).reduce((a, b) => a + b, 0), bagsN = Object.values(s.bags).reduce((a, b) => a + b, 0);
         const [kx, kz] = D.BACK_PROPS.kits, [bx2, bz2] = D.BACK_PROPS.bagTable;
-        if (kitsN < 2) want.set('lowkits', { html: `<span>📦</span><small>${kitsN ? 'kits low' : 'no kits'}</small>`, cls: `bub low ${kitsN ? '' : 'out'}`, at: 'data-act="tab" data-id="stash"', pos: V3(BX + kx, BY + 1.3, kz) });
-        if (!bagsN) want.set('nobags', { html: '<span>🛍️</span><small>no bags</small>', cls: 'bub low out', at: 'data-act="tab" data-id="back"', pos: V3(BX + bx2, BY + 1.4, bz2) });
+        if (kitsN < 2) want.set('lowkits', { html: `<span>📦</span><small>${kitsN ? 'kits low' : 'no kits'}</small>`, cls: `bub low night ${kitsN ? '' : 'out'}`, at: 'data-act="tab" data-id="stash"', pos: V3(BX + kx, BY + 1.3, kz) });
+        if (!bagsN) want.set('nobags', { html: '<span>🛍️</span><small>no bags</small>', cls: 'bub low out night', at: 'data-act="tab" data-id="back"', pos: V3(BX + bx2, BY + 1.4, bz2) });
       }
       // The door between the shop and the back room
-      if (s.labUnlocked) want.set('door', { pos: view.zone === 'shop' ? DOOR_BUB : STAIRS_BUB, html: view.zone === 'shop' ? '<span>🪜</span><small>Basement</small>' : '<span>☀️</span><small>Upstairs</small>', cls: 'bub door', at: 'data-act="room"' });
+      if (s.labUnlocked) want.set('door', { pos: view.zone === 'shop' ? DOOR_BUB : STAIRS_BUB, html: view.zone === 'shop' ? '<span>🪜</span><small>Basement</small>' : '<span>☀️</span><small>Upstairs</small>', cls: `bub door ${view.zone === 'shop' ? 'down' : 'up'}`, at: 'data-act="room"' });
       if (view.zone === 'back') {
         for (const b of s.door) {
           const e = buyers.get(b.id);
