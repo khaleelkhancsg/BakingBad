@@ -79,6 +79,28 @@ const away = ms => ms < HOUR ? `${Math.round(ms / MIN)} minutes` : ms < 2 * DAY 
 const sumOf = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const pct = v => `${Math.round(v * 100)}%`;
 const nowPrice = id => Math.round(PRODUCTS[id].price * purityMult(s.purity[id] ?? 0.6));
+// A bakery batch on a machine of this tier, at a price setting (the recipe's own, unless given): servings, price each,
+// takings, today's ingredient cost, profit, and the cook time in minutes
+function recipeBatch(id, tier = 0, level = s.priceLevel[id] || 'normal') {
+  const servings = G.servingsFor(s, id, tier), base = G.itemPrice(s, id) / PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult;
+  const each = base * PRICE_LEVELS[level].mult, takings = servings * each, cost = G.batchCost(s, id), minutes = G.cookMs(s, id, tier) / MIN;
+  return { servings, each, takings, cost, profit: takings - cost, minutes };
+}
+// A back-room cook on this machine (or none), cut this way (the product's own, unless given): bags, purity, price a bag,
+// takings, the kit (at Dez's dirty price), profit, and the cook time in minutes
+function productBatch(id, mc = null, cutKey = s.cut[id] || 'none') {
+  const p = PRODUCTS[id], cut = CUTS[cutKey], tier = mc?.tier || 0;
+  const bags = Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags), purity = Math.min(0.99, G.labPurity(s, mc) * cut.purity);
+  const each = Math.round(p.price * purityMult(purity) * G.tokenBonus(s) * (1 + 0.05 * G.perk(s, 'legend')));
+  const kit = G.kitPrice(id, 'dirty', s), takings = bags * each;
+  return { bags, purity, each, takings, kit, profit: takings - kit, minutes: p.minutes * (1 - TIERS.labSpeed * tier) };
+}
+// The machine an ⓘ was opened from (so its numbers match that machine's menu), else your best one of that kind
+function infoMachine(kind, type) {
+  const prev = ui.modal?.prev, list = kind === 'night' ? s.lab : s.machines;
+  if (prev?.type === 'machine' && prev.kind === kind && list[prev.idx]?.type === type) return list[prev.idx];
+  return list.filter(m => m.type === type).sort((a, b) => (b.tier || 0) - (a.tier || 0))[0] || null;
+}
 
 let toastBatch = [], toastTimer = 0;
 function showToast(text, kind = 'info') {
@@ -662,14 +684,13 @@ function infoFor(kind, id) {
       + '<p class="mute">Prices change every morning; stock keeps forever. Buy plenty when it\'s cheap.</p>');
   }
   if (kind === 'recipe') {
-    const r = ITEMS[id], cost = G.batchCost(s, id), cook = G.cookMs(s, id) / MIN, keep = G.spoilMs(s, id) / MIN;
-    const base = G.itemPrice(s, id) / PRICE_LEVELS[s.priceLevel[id] || 'normal'].mult;
+    const r = ITEMS[id], mc = infoMachine('day', r.machine), tier = mc?.tier || 0, now = recipeBatch(id, tier), keep = G.spoilMs(s, id) / MIN;
     const rows = Object.entries(PRICE_LEVELS).map(([k, L]) => {
-      const each = base * L.mult, profit = each * r.servings - cost;
-      return `<tr class="${s.priceLevel[id] === k ? 'on' : ''}"><td>${L.label}</td><td>${money2(each)}</td><td>${money(profit)}</td><td>${money(profit / (cook / 60))}</td><td>${Math.round(L.buy * 100)}%</td></tr>`;
+      const b = recipeBatch(id, tier, k);
+      return `<tr class="${(s.priceLevel[id] || 'normal') === k ? 'on' : ''}"><td>${L.label}</td><td>${money2(b.each)}</td><td>${money(b.profit)}</td><td>${money(b.profit / (b.minutes / 60))}</td><td>${Math.round(L.buy * 100)}%</td></tr>`;
     }).join('');
-    return T(`${r.emoji} ${r.name}`, line('Makes', `${r.servings} servings`) + line('Cooks in', mins(cook)) + line('Spoils if left', `${mins(keep)} after it's done`)
-      + line('Ingredients', ingText(r)) + line('Batch cost today', money2(cost))
+    return T(`${r.emoji} ${r.name}`, line('Makes', `${now.servings} servings${tier ? ` (tier ${tier})` : ''}`) + line('Cooks in', mins(now.minutes)) + line('Spoils if left', `${mins(keep)} after it's done`)
+      + line('Ingredients', ingText(r)) + line('Batch cost today', money2(now.cost)) + line('Profit a batch', `${money(now.profit)} (${money(now.takings)} takings − ${money2(now.cost)} ingredients)`, 'good')
       + line('Made on', `${MACHINES[r.machine].emoji} ${MACHINES[r.machine].name}`) + line('Popular', GROUP_TEXT[r.group])
       + line('XP', `${G.batchXp(id)} a batch + ${G.saleXp(id)} a sale`) + line('In the case', `${s.display[id] || 0} / ${G.trayCap(s, id)}`)
       + (s.recipes.includes(id) ? '' : line('Learn it', r.cost ? `${money(r.cost)} from level ${r.level}` : `comes with the machine at level ${r.level}`))
@@ -717,12 +738,12 @@ function infoFor(kind, id) {
       + line('Unlocks at', `level ${M.level}`) + `<p><b>Makes</b><br><small>${list}</small></p><p class="mute">Back-room cooks never spoil: bag them whenever you like.</p>`);
   }
   if (kind === 'product') {
-    const p = PRODUCTS[id], bags = Math.round(p.bags * (1 + G.eff(s, 'bags')));
-    const rows = Object.entries(CUTS).map(([k, c]) => { const pur = Math.min(0.99, G.labPurity(s, null) * c.purity), n = Math.round(bags * c.bags), each = Math.round(p.price * purityMult(pur));
-      return `<tr class="${(s.cut[id] || 'none') === k ? 'on' : ''}"><td>${c.label}</td><td>${n}</td><td>${pct(pur)}</td><td>${money(each)}</td><td>${money(n * each - p.kit)}</td></tr>`; }).join('');
-    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Supply kit', `💜 ${money(G.kitPrice(id, 'dirty', s))} · 💷 ${money(G.kitPrice(id, 'clean', s))}`) + `<p class="mute" style="margin:4px 0">Each kit: ${FAMILIES[p.family].supplies.join(' · ')}${p.ing ? ' (plus bakery stock)' : ''}.<br>Usually ${FAMILIES[p.family].cut}.</p>` + line('Cooks in', mins(p.minutes))
-      + line('List price', `${money(p.price)} a bag at 60% purity`) + (s.bags[id] ? line('Yours', `${s.bags[id]} bags at ${pct(s.purity[id] ?? 0.6)}: ${money(nowPrice(id))} each`) : '')
-      + `<table class="itable"><tr><th>Cut</th><th>Bags</th><th>Purity</th><th>Each</th><th>Profit</th></tr>${rows}</table>`
+    const p = PRODUCTS[id], mc = infoMachine('night', p.machine), now = productBatch(id, mc);
+    const rows = Object.entries(CUTS).map(([k, c]) => { const b = productBatch(id, mc, k);
+      return `<tr class="${(s.cut[id] || 'none') === k ? 'on' : ''}"><td>${c.label}</td><td>${b.bags}</td><td>${pct(b.purity)}</td><td>${money(b.each)}</td><td>${money(b.profit)}</td></tr>`; }).join('');
+    return T(`${p.emoji} ${p.name}`, line('Family', `${FAMILIES[p.family].emoji} ${FAMILIES[p.family].name}`) + line('Supply kit', `💜 ${money(G.kitPrice(id, 'dirty', s))} · 💷 ${money(G.kitPrice(id, 'clean', s))}`) + `<p class="mute" style="margin:4px 0">Each kit: ${FAMILIES[p.family].supplies.join(' · ')}${p.ing ? ' (plus bakery stock)' : ''}.<br>Usually ${FAMILIES[p.family].cut}.</p>` + line('Cooks in', mins(now.minutes))
+      + line('List price', `${money(p.price)} a bag at 60% purity`) + line('Profit a cook', `${money(now.profit)} (${money(now.takings)} for ${now.bags} bags − ${money(now.kit)} kit)`, 'good') + (s.bags[id] ? line('Yours', `${s.bags[id]} bags at ${pct(s.purity[id] ?? 0.6)}: ${money(nowPrice(id))} each`) : '')
+      + `<table class="itable"><tr><th>Cut</th><th>Bags</th><th>Purity</th><th>Each</th><th>Profit</th></tr>${rows}</table><p class="mute" style="margin:2px 0 6px">Profit is what the bags fetch at the door, less the kit at Dez's dirty price.</p>`
       + (p.ing ? line('Also uses', Object.entries(p.ing).map(([k, q]) => `${q} ${INGREDIENTS[k].name.toLowerCase()}`).join(', ')) : '')
       + line('Heat a cook', `+${p.heat}`) + line('Undercover buyers', `≈ ${Math.round(G.copChance(s, id) * 100)}% now`)
       + line('Made on', `${LAB_MACHINES[p.machine].emoji} ${LAB_MACHINES[p.machine].name}`) + line('Unlocks at', `level ${p.level}`)
@@ -1098,7 +1119,7 @@ function machineModal(m) {
         `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>` : '';
       return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
         <span class="em">${r.emoji}</span>
-        <div class="grow"><b>${r.name}${starTag(id)}</b><div class="facts"><span>⏱ ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)}</span><span>×${G.servingsFor(s, id, mc.tier || 0)} at ${money2(G.itemPrice(s, id))}</span><span class="money">${money(G.servingsFor(s, id, mc.tier || 0) * G.itemPrice(s, id))} a batch</span></div>
+        <div class="grow"><b>${r.name}${starTag(id)}</b>${(() => { const b = recipeBatch(id, mc.tier || 0); return `<div class="facts"><span>⏱ ${mins(b.minutes)}</span><span>×${b.servings} at ${money2(b.each)}</span><span class="money">${money(b.profit)} profit</span></div>`; })()}
           <small>${ingText(r)}${known ? ` · stock for ${batches}${nc ? ` · ${Math.floor(s.display[id] || 0)} out on ${nc} counter${nc === 1 ? '' : 's'}` : ''}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
@@ -1107,9 +1128,9 @@ function machineModal(m) {
       const p = PRODUCTS[id], open = G.unlocked(s, p.level), kits = s.kits[id] || 0;
       const right = !open ? `<span class="lock">🔒 Lv ${p.level}</span>`
         : `<button class="small violet" data-act="labcook" data-id="${id}" ${busy || mc.broken || G.sealed(s, s.clock) || (!kits && (!G.kitsLeftToday(s) || (s.dirty < G.kitPrice(id, 'dirty', s) && s.clean < G.kitPrice(id, 'clean', s)))) ? 'disabled' : ''}>${kits ? 'Cook' : `Cook (kit ${s.dirty >= G.kitPrice(id, 'dirty', s) ? '💜 ' + money(G.kitPrice(id, 'dirty', s)) : '💷 ' + money(G.kitPrice(id, 'clean', s))})`}</button>`;
-      const cut = CUTS[s.cut[id] || 'none'], pur = Math.min(0.99, G.labPurity(s, mc) * cut.purity);
+      const b = productBatch(id, mc);
       return `<div class="mrow ${open ? '' : 'locked'}">${ibtn('product', id)}<span class="em">${p.emoji}</span>
-        <div class="grow"><b>${p.name}</b><div class="facts"><span>⏱ ${mins(p.minutes * (1 - TIERS.labSpeed * (mc.tier || 0)))}</span><span>${Math.round(p.bags * (1 + G.eff(s, 'bags')) * cut.bags)} bags at ${money(Math.round(p.price * purityMult(pur)))}</span><span class="money">≈${pct(pur)} pure</span></div>
+        <div class="grow"><b>${p.name}</b><div class="facts"><span>⏱ ${mins(b.minutes)}</span><span>${b.bags} bags at ${money(b.each)}</span><span>≈${pct(b.purity)} pure</span><span class="money">${money(b.profit)} profit</span></div>
           <small>${kits} kits · ${s.bags[id] || 0} bags${p.ing ? ` · uses ${Object.entries(p.ing).map(([k, q]) => q + INGREDIENTS[k].emoji).join(' ')}` : ''}</small>
           ${open ? `<div class="seg">${Object.entries(CUTS).map(([k, c]) => `<button class="${(s.cut[id] || 'none') === k ? 'on' : ''}" data-act="cut" data-id="${id}" data-cut="${k}">${c.label}</button>`).join('')}</div>` : ''}</div><div class="mright">${right}</div></div>`;
     }).join('');
