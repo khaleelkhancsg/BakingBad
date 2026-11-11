@@ -55,9 +55,12 @@ export function buildWorld(scene) {
       c.fillStyle = rand() < 0.5 ? 'rgba(55,105,45,0.07)' : 'rgba(200,225,120,0.08)';
       c.beginPath(); c.arc(rand() * w, rand() * h, 6 + rand() * 30, 0, 2 * PI); c.fill();
     }
-    // Pavements, with a tile grid
+    // Mown stripes
+    for (let x = GX; x < GX + GSIZE; x += 3) { c.fillStyle = 'rgba(255,255,230,0.05)'; c.fillRect(X(x), 0, 1.5 * GPX, h); }
+    // Pavements, with a tile grid and the odd slab a shade off
     for (const p of PAVEMENTS) {
       rect(p.x0, p.z0, p.x1, p.z1, '#aaa6b2');
+      for (let x = Math.ceil(p.x0); x < p.x1; x += 1.1) for (let z = Math.ceil(p.z0); z < p.z1; z += 1.1) if (rand() < 0.18) { c.fillStyle = rand() < 0.5 ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)'; c.fillRect(X(x), Z(z), 1.1 * GPX, 1.1 * GPX); }
       c.strokeStyle = 'rgba(80,76,90,0.35)'; c.lineWidth = 2;
       for (let x = Math.ceil(p.x0); x < p.x1; x += 1.1) { c.beginPath(); c.moveTo(X(x), Z(p.z0)); c.lineTo(X(x), Z(p.z1)); c.stroke(); }
       for (let z = Math.ceil(p.z0); z < p.z1; z += 1.1) { c.beginPath(); c.moveTo(X(p.x0), Z(z)); c.lineTo(X(p.x1), Z(z)); c.stroke(); }
@@ -74,6 +77,17 @@ export function buildWorld(scene) {
     for (let x = GX + 1; x < 7 + R; x += 2.6) rect(x, 7.0 + R, x + 0.08, 7.75 + R, 'rgba(239,236,226,0.7)'); // parking bays
     for (let z = 7.2 + R; z < 10.7 + R; z += 0.7) rect(2.3, z, 4.7, z + 0.38, paint);                    // zebra crossing
     rect(7.25 + R, 6.55 + R, 10.55 + R, 6.72 + R, paint);                                                 // stop line
+    // Zig-zags either side of the crossing, along both kerbs
+    c.strokeStyle = paint; c.lineWidth = 0.09 * GPX;
+    for (const [z0, z1] of [[FRONT_EDGE + 0.18, FRONT_EDGE + 0.42], [FRONT_EDGE + 3.38, FRONT_EDGE + 3.62]]) for (const [xa, xb] of [[-2.3, 2.0], [5.0, 8.6]]) {
+      c.beginPath(); let k = 0; for (let x = xa; x <= xb + 1e-6; x += 0.45, k++) { const zz = k % 2 ? z1 : z0; k ? c.lineTo(X(x), Z(zz)) : c.moveTo(X(x), Z(zz)); } c.stroke();
+    }
+    // Manholes and drains
+    for (const [x, z] of [[-9, FRONT_EDGE + 1.4], [13.5, FRONT_EDGE + 2.6], [SIDE_EDGE + 1.7, -6], [-20, FRONT_EDGE + 2.4]]) {
+      c.fillStyle = '#3c3b44'; c.beginPath(); c.arc(X(x), Z(z), 0.34 * GPX, 0, 2 * PI); c.fill();
+      c.strokeStyle = 'rgba(255,255,255,0.12)'; c.lineWidth = 2; for (let q = -2; q <= 2; q++) { c.beginPath(); c.moveTo(X(x - 0.25), Z(z + q * 0.1)); c.lineTo(X(x + 0.25), Z(z + q * 0.1)); c.stroke(); }
+    }
+    for (let x = -24; x < 20; x += 6) { c.fillStyle = '#2f2e36'; c.fillRect(X(x), Z(FRONT_EDGE + 0.04), 0.5 * GPX, 0.22 * GPX); }
     // Park: path, pond, flower beds
     c.strokeStyle = '#d9c69c'; c.lineWidth = 1.3 * GPX; c.lineCap = 'round';
     c.beginPath(); c.moveTo(X(-14.4), Z(4.4)); c.bezierCurveTo(X(-17), Z(4.4), X(-17.2), Z(-1.5), X(-20.5), Z(-2.4)); c.bezierCurveTo(X(-23.5), Z(-3.2), X(-25), Z(-1), X(-27), Z(0.5)); c.stroke();
@@ -154,8 +168,18 @@ export function buildWorld(scene) {
     root.add(box(0.12, 0.22, d + 0.1, cap, x1 - 0.06, top, (z0 + z1) / 2));
     root.add(box(w + 0.1, 0.22, 0.12, cap, (x0 + x1) / 2, top, z0 + 0.06));
     root.add(box(0.12, 0.22, d + 0.1, cap, x0 + 0.06, top, (z0 + z1) / 2));
+    { // window boxes on the upper floors, on the side that faces the street
+      const r = rng(seed * 13), floors = Math.max(1, Math.round(h / 1.6)), cols = Math.max(1, Math.round(w / 1.25)), boxM = mat(['#7a4a2e', '#f4f0e8', '#2f5240'][seed % 3]);
+      for (let f = 0; f < floors - 1; f++) for (let k = 0; k < cols; k++) {
+        if (r() > 0.4) continue;
+        const x = x0 + (k + 0.5) * w / cols, y = h - 0.09 - (f + 0.75) * h / floors - 0.12;
+        root.add(box(w / cols * 0.6, 0.14, 0.2, boxM, x, y, z1 + 0.1, false));
+        for (let q = 0; q < 4; q++) root.add(sphere(0.07, ['#ff7eb6', '#ffd447', '#ff5d6c', '#ffffff', '#4f9a5a'][Math.floor(r() * 5)], x - w / cols * 0.22 + q * w / cols * 0.15, y + 0.18, z1 + 0.12, false));
+      }
+    }
     if (props) {
       const r = rng(seed * 7);
+      { const cx = x0 + w * (0.1 + r() * 0.15), cz = z0 + d * 0.3; root.add(box(0.5, 0.7, 0.4, color, cx, h - 0.09, cz)); for (const dx of [-0.12, 0.12]) root.add(cyl(0.06, 0.07, 0.22, '#b8653f', cx + dx, h + 0.61, cz, 8)); }
       root.add(box(0.7, 0.45, 0.55, '#c9ccd3', x0 + w * (0.25 + r() * 0.2), top, z0 + d * 0.6));
       if (r() < 0.6) {
         const tx = x0 + w * 0.72, tz = z0 + d * 0.35;
@@ -273,6 +297,24 @@ export function buildWorld(scene) {
     root.add(cyl(0.035, 0.035, 2.3, '#3a3d44', x + 1.6, -0.09, z - 0.3, 6));
     root.add(cyl(0.22, 0.22, 0.04, '#4f9de8', x + 1.6, 2.15, z - 0.3, 14).rotateX(PI / 2));
   }
+  // Belisha beacons either end of the zebra crossing, a red phone box and a bike rack (placed where they stand now)
+  const beaconM = night(smat({ color: '#ffb347', emissive: '#ff9a2a', emissiveIntensity: 0.3 }), 1.4);
+  const fixed = o => { o.userData.fixed = true; root.add(o); return o; };
+  for (const [x, z] of [[2.0, FRONT_EDGE - 0.25], [5.0, FRONT_EDGE - 0.25], [2.0, FRONT_EDGE + 5.0], [5.0, FRONT_EDGE + 5.0]]) {
+    for (let k = 0; k < 6; k++) fixed(cyl(0.045, 0.045, 0.32, k % 2 ? '#f4f1e8' : '#1b1b1f', x, -0.09 + k * 0.32, z, 8));
+    fixed(sphere(0.16, beaconM, x, 2.05, z, false));
+  }
+  { const x = -5.2, z = FRONT_EDGE + 5.0, red = mat('#c8323c'), pane = mat('#bfe6ff', { roughness: 0.15, metalness: 0.2 });
+    fixed(box(0.8, 2.3, 0.8, red, x, -0.09, z)); fixed(box(0.86, 0.12, 0.86, red, x, 2.21, z));
+    fixed(box(0.6, 1.4, 0.02, pane, x, 0.6, z - 0.41, false)); fixed(box(0.02, 1.4, 0.6, pane, x + 0.41, 0.6, z, false));
+    fixed(box(0.6, 0.14, 0.02, mat('#f4f1e8'), x, 1.98, z - 0.42, false)); }
+  { const x = 7.0, z = FRONT_EDGE + 5.05, steel = mat('#8d939c', { metalness: 0.5, roughness: 0.35 });
+    for (let k = 0; k < 4; k++) { const hoop = mesh(geo('hoop', () => new THREE.TorusGeometry(0.3, 0.025, 6, 12, PI)), steel, x + k * 0.45, -0.09, z); fixed(hoop); }
+    const bike = new THREE.Group(); const fr = mat('#4f9de8');
+    for (const dx of [-0.3, 0.3]) { const wh = mesh(geo('bwheel', () => new THREE.TorusGeometry(0.22, 0.025, 6, 16)), mat('#1e1e24'), dx, 0.22, 0); bike.add(wh); }
+    const bar = box(0.6, 0.04, 0.04, fr, 0, 0.42, 0); bar.rotation.z = 0.1; bike.add(bar); bike.add(box(0.04, 0.3, 0.04, fr, -0.1, 0.25, 0)); bike.add(box(0.18, 0.04, 0.08, '#2b2d36', -0.12, 0.56, 0));
+    bike.position.set(x + 0.45, -0.09, z + 0.02); fixed(bike); }
+
   // Benches in the park
   for (const [x, z, ry] of [[-18.8, -2.2, 0.3], [-23.8, 5.3, -0.4], [-23.6, -0.9, PI / 2 + 0.6]]) {
     const g = new THREE.Group();
@@ -288,36 +330,62 @@ export function buildWorld(scene) {
   const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
   const tailM = night(smat({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
   const glassM = mat('#2b3444', { roughness: 0.15, metalness: 0.3 });
-  const tyreM = mat('#1e1e24');
-  const wheelGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.16, 12).rotateX(PI / 2);
-  const CAR_COLOURS = ['#e85d75', '#4f9de8', '#f0b44c', '#5fcf8a', '#efefef', '#3a3f55', '#9b6bff', '#ff8a5c'];
-  function car(color, parent = root, ownPaint = false) {
+  const tyreM = mat('#1e1e24'), hubM = mat('#c9ccd3', { roughness: 0.3, metalness: 0.5 }), trimCar = mat('#2b2d36'), plateM = mat('#f4f1e8'), plateBackM = mat('#f2c94c');
+  const wheelGeo = new THREE.CylinderGeometry(0.19, 0.19, 0.16, 14).rotateX(PI / 2);
+  const hubGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.17, 10).rotateX(PI / 2);
+  const CAR_COLOURS = ['#e85d75', '#4f9de8', '#f0b44c', '#5fcf8a', '#efefef', '#3a3f55', '#9b6bff', '#ff8a5c', '#7a2f3a', '#9fb8c8'];
+  // Body types: length, body height, cabin (length, offset, height), wheelbase, and a few extras
+  const CAR_TYPES = {
+    hatch: { len: 1.85, h: 0.46, cab: [1.0, -0.2, 0.4], wb: 0.6 },
+    sedan: { len: 2.1, h: 0.44, cab: [1.0, -0.1, 0.38], wb: 0.68 },
+    mini: { len: 1.6, h: 0.5, cab: [0.95, -0.08, 0.42], wb: 0.52, round: true },
+    van: { len: 2.2, h: 0.62, cab: [1.6, -0.25, 0.55], wb: 0.72 },
+    taxi: { len: 2.1, h: 0.44, cab: [1.0, -0.1, 0.38], wb: 0.68, sign: true },
+  };
+  function car(color, parent = root, ownPaint = false, type = 'hatch') {
+    const T = CAR_TYPES[type] || CAR_TYPES.hatch, L = T.len, hw = 0.46;
     const g = new THREE.Group();
     const paint = ownPaint ? smat({ color, roughness: 0.3, metalness: 0.3 }) : mat(color, { roughness: 0.3, metalness: 0.3 });
-    g.add(rbox(1.9, 0.46, 0.92, paint, 0, 0.18, 0, 0.12));
-    g.add(rbox(1.04, 0.4, 0.84, glassM, -0.12, 0.6, 0, 0.12));
-    g.add(rbox(0.94, 0.07, 0.86, paint, -0.12, 0.98, 0, 0.03));
+    const tail = ownPaint ? smat({ color: '#7a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }) : tailM;
+    g.add(rbox(L, T.h, 0.92, paint, 0, 0.18, 0, T.round ? 0.2 : 0.12));
+    const [cl, co, ch] = T.cab, top = 0.18 + T.h;
+    g.add(rbox(cl, ch, 0.84, glassM, co, top - 0.04, 0, 0.12));
+    g.add(rbox(cl - 0.08, 0.07, 0.86, paint, co, top - 0.04 + ch, 0, 0.03)); // roof
+    for (const x of [co - cl / 2 + 0.06, co + cl / 2 - 0.06, co]) for (const z of [-0.415, 0.415]) g.add(box(0.07, ch, 0.03, paint, x, top - 0.04, z, false)); // pillars
+    // bumpers, grille, number plates, door seams, mirrors
+    for (const s of [1, -1]) g.add(rbox(0.12, 0.13, 0.94, trimCar, s * (L / 2 + 0.01), 0.15, 0, 0.04));
+    g.add(box(0.03, 0.12, 0.5, trimCar, L / 2 + 0.005, 0.32, 0, false));
+    g.add(box(0.02, 0.07, 0.24, plateM, L / 2 + 0.075, 0.18, 0, false)); g.add(box(0.02, 0.07, 0.24, plateBackM, -L / 2 - 0.075, 0.18, 0, false));
+    for (const z of [-hw - 0.005, hw + 0.005]) { g.add(box(0.015, T.h - 0.1, 0.01, trimCar, co + 0.1, 0.24, z, false)); g.add(box(0.12, 0.025, 0.012, trimCar, co + 0.25, top - 0.12, z, false)); }
+    for (const z of [-0.5, 0.5]) g.add(rbox(0.08, 0.06, 0.08, paint, co + cl / 2 + 0.02, top, z, 0.02));
+    if (T.sign) { g.add(rbox(0.32, 0.1, 0.18, mat('#2b2d36'), co, top - 0.04 + ch + 0.07, 0, 0.02)); g.add(box(0.3, 0.07, 0.16, night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5), co, top - 0.04 + ch + 0.09, 0, false)); }
+    if (type === 'van') g.add(box(0.02, 0.3, 0.9, trimCar, co - 0.3, 0.3, 0, false));
     const wheels = [];
-    for (const [x, z] of [[0.6, 0.42], [-0.6, 0.42], [0.6, -0.42], [-0.6, -0.42]]) { const w = mesh(wheelGeo, tyreM, x, 0.19, z); g.add(w); wheels.push(w); }
-    for (const z of [-0.29, 0.29]) { g.add(box(0.04, 0.1, 0.2, headM, 0.94, 0.42, z, false)); g.add(box(0.04, 0.1, 0.18, tailM, -0.94, 0.42, z, false)); }
+    for (const [x, z] of [[T.wb, 0.42], [-T.wb, 0.42], [T.wb, -0.42], [-T.wb, -0.42]]) {
+      const w = mesh(wheelGeo, tyreM, x, 0.19, z); w.add(mesh(hubGeo, hubM, 0, 0, 0)); g.add(w); wheels.push(w);
+    }
+    for (const z of [-0.29, 0.29]) { g.add(box(0.04, 0.1, 0.2, headM, L / 2 + 0.04, 0.38, z, false)); g.add(box(0.04, 0.1, 0.18, tail, -L / 2 - 0.04, 0.38, z, false)); }
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     parent.add(g);
-    return { group: g, wheels, paint };
+    return { group: g, wheels, paint, tail, len: L };
   }
+  const PARKED_TYPES = ['hatch', 'sedan', 'van', 'mini', 'sedan', 'hatch'];
   for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.4, 7.5, PI, 1], [0.3, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
-    const c = car(CAR_COLOURS[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
+    const c = car(CAR_COLOURS[k], root, false, PARKED_TYPES[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
   }
-  // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night
+  // Now and then a car drives past (never more than two at once), with a soft pool of headlight at night. They stop
+  // for anyone on the zebra crossing.
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
   const LANES = [{ lane: 8.45 + ROAD_SHIFT, dir: 1 }, { lane: 9.85 + ROAD_SHIFT, dir: -1 }];
-  const movers = [6, 22].map((wait, i) => {
-    const m = { ...LANES[i], x: 0, speed: 3.2, active: false, wait };
-    const c = car(CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true);
+  const CROSS = { x0: 2.0, x1: 5.0 }; // the zebra (x 2.3 to 4.7) and a little room either side
+  const movers = ['hatch', 'taxi', 'sedan', 'van'].map((type, i) => {
+    const m = { ...LANES[i % 2], x: 0, v: 0, speed: 3.2, active: false, wait: 6 + i * 9, type };
+    const c = car(type === 'taxi' ? '#f2c94c' : CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true, type);
     c.group.visible = false;
     c.group.position.set(m.x, -0.09, m.lane); c.group.rotation.y = m.dir > 0 ? 0 : PI;
     const beamM = new THREE.MeshBasicMaterial({ map: beamTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
     const beam = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.3), beamM);
-    beam.rotation.x = -PI / 2; beam.position.set(1.9, 0.1, 0); c.group.add(beam);
+    beam.rotation.x = -PI / 2; beam.position.set(c.len / 2 + 0.9, 0.1, 0); c.group.add(beam);
     return { ...m, ...c, beamM };
   });
 
@@ -326,7 +394,7 @@ export function buildWorld(scene) {
 
   let nightK = 0;
   return {
-    update(dt, now, k) {
+    update(dt, now, k, crossingBusy = false) {
       nightK = k;
       for (const { m, k: mult } of nightMats) m.emissiveIntensity = nightK * mult;
       water.color.setHSL(0.56, 0.5, 0.52 + Math.sin(now * 1.3) * 0.02 - nightK * 0.25);
@@ -334,19 +402,28 @@ export function buildWorld(scene) {
         if (!m.active) {
           m.wait -= dt;
           if (m.wait > 0) continue;
-          // Pull in from the end of the road, on a random side, in a random colour
+          // Pull in from the end of the road, on a random side; a taxi keeps its yellow, the rest come in any colour
           const lane = LANES[Math.random() < 0.5 ? 0 : 1];
-          if (movers.some(o => o !== m && o.active && o.lane === lane.lane)) { m.wait = 3; continue; }
-          Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -30 : 24, speed: 2.8 + Math.random() * 1.2 });
+          if (movers.filter(o => o.active).length >= 2 || movers.some(o => o !== m && o.active && o.lane === lane.lane)) { m.wait = 3; continue; }
+          const speed = 2.8 + Math.random() * 1.2;
+          Object.assign(m, lane, { active: true, x: lane.dir > 0 ? -30 : 24, speed, v: speed });
           m.group.position.z = m.lane; m.group.rotation.y = m.dir > 0 ? 0 : PI;
-          m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
+          if (m.type !== 'taxi') m.paint.color.set(CAR_COLOURS[Math.floor(Math.random() * CAR_COLOURS.length)]);
         }
-        m.x += m.dir * m.speed * dt;
+        // Give way at the zebra: if someone's on it and the car hasn't reached it yet, ease to a stop short of it
+        const front = m.x + m.dir * m.len / 2, line = m.dir > 0 ? CROSS.x0 - 0.3 : CROSS.x1 + 0.3;
+        const toLine = (line - front) * m.dir; // metres left before the line (negative once past it)
+        let want = m.speed;
+        if (crossingBusy && toLine > -0.05) want = Math.max(0, Math.min(m.speed, toLine * 1.6));
+        m.v += Math.max(-7 * dt, Math.min(2.5 * dt, want - m.v));
+        if (crossingBusy && toLine > -0.05) m.v = Math.min(m.v, Math.max(0, toLine) / Math.max(dt, 1e-3));
+        m.x += m.dir * m.v * dt;
         if ((m.dir > 0 && m.x > 24) || (m.dir < 0 && m.x < -30)) { m.active = false; m.group.visible = false; m.wait = 10 + Math.random() * 25; continue; }
         m.group.position.x = m.x;
-        m.group.visible = Math.abs(m.x - CENTER.x) < FADE_OUT - 2;
-        for (const w of m.wheels) w.rotation.z -= m.speed * dt / 0.19;
+        m.group.visible = Math.abs(m.x - CENTER.x) < FADE_OUT - 1;
+        for (const w of m.wheels) w.rotation.z -= m.v * dt / 0.19;
         m.beamM.opacity = nightK * 0.55;
+        m.tail.emissiveIntensity = Math.max(nightK * 1.6, m.v < m.speed - 0.2 ? 1.8 : 0); // brake lights
       }
     },
   };

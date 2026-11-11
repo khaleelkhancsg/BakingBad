@@ -581,34 +581,77 @@ function bakePart(part, skip = []) {
 function buildPerson(look, kind) {
   const g = new THREE.Group();
   const body = new THREE.Group(); g.add(body);
-  const skin = mat(PAL.skin[look.skin % 5]);
+  // Everything about how someone dresses follows from their look, so the same customer always looks the same
+  let seed = ((look.skin * 73 + look.shirt * 151 + look.hair * 37 + look.pants * 211 + Math.round((look.h || 1) * 1000)) >>> 0) || 1;
+  const r = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const pick = a => a[Math.floor(r() * a.length)];
+  const plain = kind === 'customer';
+  const outfit = kind === 'customer' ? pick(['tee', 'tee', 'jacket', 'dress', 'stripes', 'jumper']) : kind;
+  const skinC = PAL.skin[look.skin % 5], skin = mat(skinC);
   const topC = kind === 'hood' ? PAL.hoodie[look.shirt % 5] : kind === 'baker' ? '#fbf7f2' : PAL.shirt[look.shirt % 10];
   const top = mat(topC);
-  const pants = mat(kind === 'baker' ? '#3a3550' : PAL.pants[look.pants % 5]);
-  const shoe = mat('#2a2230');
+  const jacketC = pick(['#3a3f55', '#6b4a2e', '#2f4a3a', '#7a2f3a', '#c9b48a', '#24344a']);
+  const sleeve = outfit === 'jacket' ? mat(jacketC) : top;
+  const pantsC = kind === 'baker' ? '#3a3550' : PAL.pants[look.pants % 5];
+  const pants = mat(pantsC);
+  const legM = outfit === 'dress' ? mat(pick(['#2b2d36', skinC, skinC])) : pants;
+  const shoe = mat(kind === 'hood' ? '#1b1b1f' : plain ? pick(['#2a2230', '#f2f2f2', '#7a4a2a', '#c8323c', '#2a2230', '#4f6f9a']) : '#2a2230');
+  const sole = mat('#e9e4da');
   const legGeo = geo('leg', () => new THREE.CapsuleGeometry(0.068, 0.26, 3, 8));
   const armGeo = geo('arm', () => new THREE.CapsuleGeometry(0.056, 0.22, 3, 8));
   const pivot = (parent, x, y) => { const p = new THREE.Group(); p.position.set(x, y, 0); p.userData.pivot = true; parent.add(p); return p; };
   const legL = pivot(body, -0.09, 0.42), legR = pivot(body, 0.09, 0.42);
   for (const leg of [legL, legR]) {
-    leg.add(mesh(legGeo, pants, 0, -0.19, 0));
-    leg.add(rbox(0.13, 0.08, 0.21, shoe, 0, -0.44, 0.03, 0.035));
+    leg.add(mesh(legGeo, legM, 0, -0.19, 0));
+    leg.add(rbox(0.13, 0.08, 0.22, shoe, 0, -0.43, 0.035, 0.035));
+    leg.add(rbox(0.135, 0.025, 0.225, sole, 0, -0.455, 0.035, 0.01));
   }
-  const torso = mesh(geo('torso2', () => new THREE.CapsuleGeometry(0.2, 0.2, 4, 14)), top, 0, 0.71, 0);
+  // The body: a top, maybe a jacket over it, stripes, a skirt, a belt
+  const torsoGeo = geo('torso2', () => new THREE.CapsuleGeometry(0.2, 0.2, 4, 14));
+  const torso = mesh(torsoGeo, outfit === 'jacket' ? mat(jacketC) : top, 0, 0.71, 0);
   torso.scale.set(1, 1, 0.85); body.add(torso);
-  if (kind === 'baker') body.add(rbox(0.3, 0.38, 0.04, '#ff9fb2', 0, 0.48, 0.165, 0.02));
+  if (outfit === 'jacket') {
+    body.add(rbox(0.13, 0.36, 0.03, top, 0, 0.66, 0.165, 0.015)); // the shirt showing down the front
+    for (const x of [-0.075, 0.075]) { const lap = rbox(0.06, 0.16, 0.025, mat(jacketC), x, 0.78, 0.17, 0.01); lap.rotation.z = x < 0 ? 0.35 : -0.35; body.add(lap); }
+  }
+  if (outfit === 'stripes') {
+    const stripeM = mat(pick(['#ffffff', '#2b2d36', '#ffd447']));
+    for (const y of [0.6, 0.7, 0.8]) { const ring = mesh(geo('stripe', () => new THREE.CylinderGeometry(0.205, 0.205, 0.035, 14, 1, true)), stripeM, 0, y, 0); ring.scale.set(1, 1, 0.86); body.add(ring); }
+  }
+  if (outfit === 'jumper') { const col = mesh(geo('rollneck', () => new THREE.CylinderGeometry(0.1, 0.11, 0.07, 12)), top, 0, 0.98, 0); body.add(col); }
+  if (outfit === 'dress') {
+    const skirt = mesh(geo('skirt', () => new THREE.CylinderGeometry(0.18, 0.27, 0.32, 14)), top, 0, 0.42, 0); skirt.scale.z = 0.85; body.add(skirt);
+  } else if (kind !== 'hood') {
+    const belt = mesh(geo('belt', () => new THREE.CylinderGeometry(0.2, 0.2, 0.04, 14)), mat(kind === 'baker' ? '#3a3550' : '#2b2220'), 0, 0.5, 0); belt.scale.z = 0.86; body.add(belt);
+  }
+  if (kind === 'baker') {
+    body.add(rbox(0.3, 0.42, 0.04, '#ff9fb2', 0, 0.44, 0.165, 0.02)); // apron
+    body.add(rbox(0.14, 0.08, 0.02, '#ffffff', 0, 0.62, 0.188, 0.01)); // its pocket
+    for (const x of [-0.12, 0.12]) { const tie = box(0.025, 0.3, 0.02, mat('#ff9fb2'), x, 0.78, 0.15); tie.rotation.z = x < 0 ? -0.25 : 0.25; body.add(tie); }
+    for (const y of [0.78, 0.66]) body.add(sphere(0.016, '#d9cfc2', 0.06, y, 0.17, false)); // chef's buttons
+  }
+  if (kind === 'hood') body.add(rbox(0.22, 0.1, 0.05, top, 0, 0.6, 0.165, 0.02)); // the front pocket
+  // Neck
+  body.add(cyl(0.065, 0.075, 0.1, skin, 0, 0.93, 0, 10));
   const armL = pivot(body, -0.255, 0.88), armR = pivot(body, 0.255, 0.88);
+  const shortSleeves = outfit === 'tee' || outfit === 'dress';
   for (const arm of [armL, armR]) {
-    arm.add(mesh(armGeo, top, 0, -0.15, 0));
+    if (shortSleeves) { arm.add(mesh(geo('upperArm', () => new THREE.CapsuleGeometry(0.06, 0.06, 3, 8)), sleeve, 0, -0.07, 0)); arm.add(mesh(geo('foreArm', () => new THREE.CapsuleGeometry(0.048, 0.14, 3, 8)), skin, 0, -0.2, 0)); }
+    else arm.add(mesh(armGeo, sleeve, 0, -0.15, 0));
     arm.add(sphere(0.062, skin, 0, -0.32, 0));
   }
   const head = new THREE.Group(); head.position.set(0, 1.17, 0); head.userData.pivot = true; body.add(head);
   const skull = sphere(0.24, skin); skull.scale.set(1, 0.95, 0.95); head.add(skull);
-  const eyeM = mat('#1a1420');
-  const eyes = [-0.085, 0.085].map(x => { const e = sphere(0.032, eyeM, x, 0.03, 0.212, false); head.add(e); return e; });
+  for (const x of [-0.235, 0.235]) { const ear = sphere(0.05, skin, x, 0.0, 0.0); ear.scale.set(0.5, 1, 0.8); head.add(ear); }
+  // A face: eyes with a glint (they blink), eyebrows, a nose, a smile, rosy cheeks
+  const eyeM = mat('#1a1420'), glintM = mat('#ffffff');
+  const eyes = [-0.085, 0.085].map(x => { const e = sphere(0.034, eyeM, x, 0.03, 0.212, false); e.scale.z = 0.6; e.userData.pivot = true; e.add(sphere(0.011, glintM, 0.012, 0.014, 0.03, false)); head.add(e); return e; });
+  const hairC = PAL.hair[look.hair % 6], hairM = mat(hairC);
+  for (const x of [-0.085, 0.085]) { const b = rbox(0.07, 0.018, 0.02, hairM, x, 0.085, 0.215, 0.008); b.rotation.z = x < 0 ? 0.12 : -0.12; head.add(b); }
+  const nose = sphere(0.03, mat(skinC), 0, -0.02, 0.235, false); nose.scale.set(1, 0.85, 0.8); head.add(nose);
+  const mouth = mesh(geo('smile', () => new THREE.TorusGeometry(0.04, 0.011, 4, 10, PI)), mat('#7a2f3a'), 0, -0.07, 0.218, false); mouth.rotation.z = PI; head.add(mouth);
   const blush = mat('#ff9a9a');
-  for (const x of [-0.145, 0.145]) head.add(sphere(0.038, blush, x, -0.06, 0.175, false));
-  const hairM = mat(PAL.hair[look.hair % 6]);
+  for (const x of [-0.145, 0.145]) { const b = sphere(0.036, blush, x, -0.06, 0.18, false); b.scale.z = 0.4; head.add(b); }
   const cap = geo('hcap', () => new THREE.SphereGeometry(0.25, 16, 10, 0, PI * 2, 0, PI * 0.5));
   if (kind === 'hood') {
     const hood = mesh(geo('hood2', () => new THREE.SphereGeometry(0.3, 16, 12, 0, PI * 2, 0, PI * 0.66)), top, 0, 0.02, -0.04);
@@ -617,13 +660,21 @@ function buildPerson(look, kind) {
     const h = mesh(cap, hairM, 0, 0.03, -0.01); h.rotation.x = -0.2; head.add(h);
     head.add(cyl(0.17, 0.17, 0.16, '#ffffff', 0, 0.16, 0, 16));
     const puff = sphere(0.21, '#ffffff', 0, 0.38, 0); puff.scale.y = 0.7; head.add(puff);
+    for (const x of [-0.1, 0, 0.1]) head.add(sphere(0.09, '#ffffff', x, 0.33, x ? 0.05 : -0.06)); // the pleats of the toque
   } else {
-    const style = (look.shirt + look.pants) % 4;
+    const style = Math.floor(r() * 7);
     const h = mesh(cap, hairM, 0, 0.03, -0.015); h.rotation.x = -0.22; head.add(h);
-    if (style === 1) head.add(sphere(0.11, hairM, 0, 0.27, -0.1));
-    if (style === 2) { const back = sphere(0.22, hairM, 0, -0.08, -0.1); back.scale.set(1.05, 1.2, 0.7); head.add(back); }
-    if (style === 3) for (const [x, z] of [[-0.12, 0.05], [0.12, 0.05], [0, -0.12]]) head.add(sphere(0.09, hairM, x, 0.2, z));
-    if (look.hat) { head.add(cyl(0.27, 0.27, 0.025, '#2d2f3a', 0, 0.12, 0, 18)); head.add(cyl(0.18, 0.2, 0.16, '#2d2f3a', 0, 0.13, 0, 18)); }
+    if (style === 1) head.add(sphere(0.11, hairM, 0, 0.27, -0.1)); // a bun
+    if (style === 2) { const back = sphere(0.22, hairM, 0, -0.08, -0.1); back.scale.set(1.05, 1.2, 0.7); head.add(back); } // long
+    if (style === 3) for (const [x, z] of [[-0.12, 0.05], [0.12, 0.05], [0, -0.12]]) head.add(sphere(0.09, hairM, x, 0.2, z)); // curls
+    if (style === 4) { const tail = mesh(geo('ptail', () => new THREE.CapsuleGeometry(0.055, 0.18, 3, 8)), hairM, 0, -0.02, -0.26); tail.rotation.x = 0.5; head.add(tail); } // ponytail
+    if (style === 5) { const fr = rbox(0.34, 0.07, 0.1, hairM, 0, 0.14, 0.16, 0.03); fr.rotation.x = -0.3; head.add(fr); } // a fringe
+    if (style === 6) { const quiff = sphere(0.12, hairM, 0, 0.24, 0.1); quiff.scale.set(1.2, 0.8, 1.1); head.add(quiff); }
+    if (look.hair === 4 || (outfit === 'jacket' && r() < 0.35)) { const beard = sphere(0.17, hairM, 0, -0.1, 0.06); beard.scale.set(1.15, 0.8, 0.95); head.add(beard); }
+    if (look.hat) {
+      if (r() < 0.5) { head.add(cyl(0.27, 0.27, 0.025, '#2d2f3a', 0, 0.12, 0, 18)); head.add(cyl(0.18, 0.2, 0.16, '#2d2f3a', 0, 0.13, 0, 18)); }
+      else { const beanie = mesh(cap, mat(pick(['#e85d75', '#4f9de8', '#f0b44c', '#5fcf8a'])), 0, 0.06, -0.01); beanie.scale.set(1.04, 1.1, 1.04); head.add(beanie); head.add(sphere(0.06, '#ffffff', 0, 0.33, -0.01)); }
+    }
   }
   const bagM = smat({ color: '#c8a36a', roughness: 0.85 });
   const bag = rbox(0.17, 0.2, 0.11, bagM, 0, -0.5, 0.03, 0.02);
@@ -703,7 +754,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   renderer.toneMapping = THREE.NeutralToneMapping; // keeps the pastel colours, softens hot spots
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#2b2140');
+  scene.background = new THREE.Color('#4a3e64');
 
   const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 300);
   const DIR = V3(1, 1.15, 1).normalize();
@@ -739,9 +790,9 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // The street and alley lamps only glow (emissive); real point lights are kept to three for speed.
   const street = { intensity: 0 }, alley = { intensity: 0 };
   const LIGHTS = {
-    day:     { nightK: 0, hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#2b2140', lamp: 0, bulb: 3, neon: 4, street: 0, alley: 0, lampI: 0.3, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
-    evening: { nightK: 0.55, hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#2a1830', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
-    night:   { nightK: 1, hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#0b0912', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
+    day:     { nightK: 0, hemi: 1.7, hemiC: '#fff1dc', sun: 2.4, sunC: '#ffe2b8', bg: '#4a3e64', lamp: 0, bulb: 3, neon: 4, street: 0, alley: 0, lampI: 0.3, win: '#bfe6ff', winI: 0.9, glow: 0.6 },
+    evening: { nightK: 0.55, hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#43304f', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
+    night:   { nightK: 1, hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#191428', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
   };
   const cur = { ...LIGHTS.day, bgC: new THREE.Color(LIGHTS.day.bg), winC: new THREE.Color(LIGHTS.day.win), hemiCC: new THREE.Color(LIGHTS.day.hemiC), sunCC: new THREE.Color(LIGHTS.day.sunC) };
 
@@ -1089,6 +1140,22 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   planter(sideWall, 4.6, -3.2, false); planter(sideWall, 4.6, 0.3, false);
   scene.add(frontWall, sideWall);
   for (const z of [2.85, 4.55]) { statics.add(box(0.24, 1.05, 0.24, '#7a4a2e', 4.62, 0, z)); statics.add(sphere(0.13, '#7a4a2e', 4.62, 1.12, z)); }
+  // The shop door: two café-style leaves hung on the posts (low, so you can still see in), swinging in as people pass
+  const doorLeaves = [];
+  { const woodM = tmat('#8a5534', 'wood'), paneM = smat({ color: '#d8f0ff', transparent: true, opacity: 0.45, roughness: 0.1 }), brass = tmat('#d4af37', 'metal', { metalness: 0.6, roughness: 0.3 });
+    for (const [hz, dir] of [[2.97, 1], [4.43, -1]]) {
+      const leaf = new THREE.Group(); leaf.position.set(4.62, 0, hz);
+      const w = 0.72, mid = dir * w / 2;
+      leaf.add(box(0.05, 0.12, w, woodM, 0, 0.12, mid), box(0.05, 0.1, w, woodM, 0, 0.9, mid), box(0.05, 0.1, w, woodM, 0, 0.52, mid));
+      leaf.add(box(0.05, 0.88, 0.06, woodM, 0, 0.12, dir * 0.03), box(0.05, 0.88, 0.06, woodM, 0, 0.12, dir * (w - 0.03)));
+      leaf.add(box(0.02, 0.28, w - 0.12, paneM, 0, 0.62, mid, false), box(0.03, 0.27, w - 0.12, tmat('#a8703f', 'wood'), 0, 0.24, mid));
+      leaf.add(box(0.07, 0.04, 0.1, brass, 0, 0.7, dir * (w - 0.1)));
+      leaf.userData.dir = dir;
+      leaf.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+      scene.add(leaf); doorLeaves.push(leaf);
+    }
+  }
+  let doorT = 0; // 0 shut, 1 open
   const openTex = canvasTex(128, 64, (c, w, h) => {
     c.fillStyle = '#fff4e0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#b8485e'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
     c.fillStyle = '#b8485e'; c.font = 'bold 34px Georgia, serif'; c.textAlign = 'center'; c.fillText('OPEN', w / 2, 44);
@@ -1791,7 +1858,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     c.beginPath(); c.arc(w / 2, h / 2, h / 3, 0, 7); c.stroke();
   };
 
-  let shellK = 0, shellSig = '', zoomedOut = false, revolver = null, flatGlass = null;
+  let shellK = 0, shellSig = '', zoomedOut = false, revolver = null, flatGlass = null, shellDoor = null;
   function buildShell(s) {
     const o = { ...D.outOf(s) }, ex = s.design.expansions || {}, text = G.shopDef(s).sign;
     const flat = s.cur === 0 && !!s.property?.flat;
@@ -1803,7 +1870,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const m of shellMats) { m.map?.dispose(); m.dispose(); }
     for (const g of shellGeos) g.dispose();
     for (const m of shellGlassMats) { const i = windows.indexOf(m); if (i >= 0) windows.splice(i, 1); }
-    shellMats = []; shellGlassMats = []; shellGeos = []; smCache = new Map(); revolver = null;
+    shellMats = []; shellGlassMats = []; shellGeos = []; smCache = new Map(); revolver = null; shellDoor = null;
     const wallCache = new Map();
 
     const P = D.OUT_PAINT[o.paint] || D.OUT_PAINT.cream, C = D.OUT_CANOPY[o.canopy], S = D.OUT_SIGN[o.sign];
@@ -1913,12 +1980,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       shellGroup.add(revolver);
     } else {
       const leafM = o.door === 'gold' ? goldM : sm(dc, o.door === 'glass' ? { metalness: 0.3 } : {});
-      if (o.door === 'glass') { sb(0.06, 2.12, 1.5, glassM, 4.79, 0, 3.7); for (const z of [2.96, 4.44]) sb(0.08, 2.12, 0.06, leafM, 4.8, 0, z); sb(0.08, 0.08, 1.5, leafM, 4.8, 2.06, 3.7); sb(0.06, 0.9, 0.04, steelM, 4.86, 0.6, 3.5); }
+      // The leaf hangs on its own hinge (by the far post) so it can swing out when someone comes or goes
+      shellDoor = new THREE.Group(); shellDoor.position.set(4.8, 0, 4.45); shellGroup.add(shellDoor);
+      const db = (w, h, d, m, x, y, z) => { const b = box(w, h, d, m, x - 4.8, y, z - 4.45); b.castShadow = true; b.userData.keep = true; shellDoor.add(b); return b; };
+      if (o.door === 'glass') { db(0.06, 2.12, 1.5, glassM, 4.79, 0, 3.7); for (const z of [2.96, 4.44]) db(0.08, 2.12, 0.06, leafM, 4.8, 0, z); db(0.08, 0.08, 1.5, leafM, 4.8, 2.06, 3.7); db(0.06, 0.9, 0.04, steelM, 4.86, 0.6, 3.5); }
       else {
-        sb(0.06, 2.12, 1.5, leafM, 4.79, 0, 3.7);
-        sb(0.07, 0.75, 0.9, glassM, 4.8, 1.15, 3.7);
-        for (const z of [3.35, 4.05]) sb(0.08, 0.6, 0.5, sm(shade(dc, 1.15)), 4.8, 0.25, z);
-        add(sphere(0.05, goldM, 4.88, 1.05, 3.12));
+        db(0.06, 2.12, 1.5, leafM, 4.79, 0, 3.7);
+        db(0.07, 0.75, 0.9, glassM, 4.8, 1.15, 3.7);
+        for (const z of [3.35, 4.05]) db(0.08, 0.6, 0.5, sm(shade(dc, 1.15)), 4.8, 0.25, z);
+        { const k = sphere(0.05, goldM, 4.88 - 4.8, 1.05, 3.12 - 4.45); k.userData.keep = true; shellDoor.add(k); }
         if (o.door === 'victorian') { const fl = mesh(sg(new THREE.CircleGeometry(0.62, 18, 0, PI)), glassM, 4.85, 2.28, 3.7, false); fl.rotation.y = PI / 2; fl.scale.y = 0.6; shellGroup.add(fl); sb(0.1, 0.06, 1.76, goldM, 4.86, 2.1, 3.7); }
       }
       if (o.door === 'gold' || o.door === 'victorian') add(box(0.3, 0.04, 0.6, sm('#7a1f2e'), 5.0, 0, 3.7)); // a mat
@@ -2442,6 +2512,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const stairY = p => { if (Math.abs(p.z - 1.1) > 0.7 || p.x > BX - 3.6) return 0; const u = (p.x - (BX + STEP_TOP_X)) / STEP_RUN; return u <= 0 ? 3.45 : Math.max(0, 3.45 - (u + 0.5) * STEP_RISE); };
   const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
   const customers = new Map(); // id -> { agent, shown, inside, leaving }
+  // Is anyone walking over the zebra crossing (the road between the kerbs, x 2.1 to 4.9)? Cars wait for them.
+  function onZebra() {
+    const on = a => { const p = a.group.position; return p.x > 2.1 && p.x < 4.9 && p.z > 8.95 && p.z < 13.05; };
+    for (const e of customers.values()) if (on(e.agent)) return true;
+    for (const w of walkers) if (on(w.agent)) return true;
+    return false;
+  }
   const buyers = new Map();
   const reactions = []; // { agent, text, kind, until, id }
   const browsers = []; let browserId = 1;
@@ -2759,6 +2836,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const e of buyers.values()) if (e.agent.group.position.y > BY + 1.5) near = true;
     const want = near ? -1.5 : 0;
     backDoorPivot.rotation.y += (want - backDoorPivot.rotation.y) * Math.min(1, dt * 6);
+    // The shop door opens for anyone coming or going, and shuts behind them
+    let atDoor = false;
+    for (const e of customers.values()) { const p = e.agent.group.position; if (Math.abs(p.x - 4.65) < 1.25 && Math.abs(p.z - 3.7) < 0.9) { atDoor = true; break; } }
+    doorT += ((atDoor ? 1 : 0) - doorT) * Math.min(1, dt * (atDoor ? 9 : 4));
+    for (const l of doorLeaves) { l.rotation.y = -l.userData.dir * 1.35 * doorT; l.visible = !revolving; }
+    if (shellDoor) shellDoor.rotation.y = -1.25 * doorT;
     updateFlyers(dt);
   }
 
@@ -2970,6 +3053,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       const k = Math.exp(-dt * 6); cam.vR *= k; cam.vU *= k;
       if (Math.hypot(cam.vR, cam.vU) < 0.05) { cam.vR = 0; cam.vU = 0; }
     }
+    if (camHome) { // easing back to the starting view after a double tap
+      const k = 1 - Math.exp(-dt * 7);
+      cam.panR += (0 - cam.panR) * k; cam.panU += (0 - cam.panU) * k; cam.zoom += (1 - cam.zoom) * k;
+      if (Math.abs(cam.panR) + Math.abs(cam.panU) + Math.abs(cam.zoom - 1) < 0.01) { cam.panR = 0; cam.panU = 0; cam.zoom = 1; camHome = false; }
+    }
     const lim = 4 + 5 / cam.zoom;
     cam.panR = Math.max(-lim, Math.min(lim, cam.panR));
     cam.panU = Math.max(-lim * 0.7, Math.min(lim * 0.7, cam.panU));
@@ -2994,13 +3082,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // A gesture can start on the canvas or on a bubble over a machine (the UI passes those in with what a tap would do):
   // it's only a tap if the finger barely moved; otherwise it pans like any other drag.
   const ptrs = new Map();
+  let lastGround = null, camHome = false;
   let drag = null, pinch = null;
   const ray = new THREE.Raycaster();
   const TAP_SLOP = 10; // pixels a finger can wander and still be a tap
   const zoomTo = z => Math.max(0.4, Math.min(2.6, z));
   function pointerDown(e, onTap = null) {
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    cam.vR = 0; cam.vU = 0; // a touch stops a glide
+    cam.vR = 0; cam.vU = 0; camHome = false; // a touch stops a glide (and easing home)
     if (ptrs.size === 1) {
       const now = performance.now();
       drag = { x: e.clientX, y: e.clientY, r: cam.panR, u: cam.panU, moved: false, onTap, vx: 0, vy: 0, lx: e.clientX, ly: e.clientY, lt: now };
@@ -3077,6 +3166,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (o && long) { if (o.userData.act === 'machine') onPick({ ...o.userData, long: '1' }); return; } // held: only machines care
       if (o) { onPick({ ...o.userData }); return; }
     }
+    if (long) return;
+    // Two quick taps on nothing glide the view back to where it started
+    const t = performance.now();
+    if (lastGround && t - lastGround.t < 350 && Math.hypot(x - lastGround.x, y - lastGround.y) < 40) { camHome = true; cam.vR = 0; cam.vU = 0; lastGround = null; }
+    else lastGround = { t, x, y };
+    onPick({ act: 'ground' }); // a tap on nothing in particular (the UI uses it to close menus)
   }
 
   let last = performance.now() / 1000, simClock = 0;
@@ -3108,7 +3203,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       view.light = hr >= 7 && hr < 17 ? 'day' : hr >= 17 && hr < 20.5 ? 'evening' : 'night';
       const frac = Math.max(0, Math.min(1, (hr - 7) / 10));
       applyLights(dt, now, frac);
-      hood.update(dt, now, cur.nightK);
+      hood.update(dt, now, cur.nightK, onZebra());
       updateCamera(dt);
       updateShell(s, dt);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }

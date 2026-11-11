@@ -7,7 +7,7 @@ The game never ends: like Clash of Clans, you just keep building the place up. L
 
 It's a 3D game: you look down into the shop at an angle. The bakery has ovens, mixers, fryers and more, and a glass case
 that fills with what you make while customers walk in and queue. Next door is the back room, lit purple. Tap a machine
-(or the bubble above it) to work it. Drag to look around (a quick swipe glides on a little), and pinch or scroll to zoom: it zooms in on the point between your fingers (or under the mouse), and moving both fingers pans at the same time. A swipe that starts on a machine or its bubble just moves the view; only a tap opens it.
+(or the bubble above it) to work it. Drag to look around (a quick swipe glides on a little), and pinch or scroll to zoom: it zooms in on the point between your fingers (or under the mouse), and moving both fingers pans at the same time. A swipe that starts on a machine or its bubble just moves the view; only a tap opens it. Double-tap empty ground to glide back to the normal view. A tap on the scene closes the menu or map, and Esc (or the phone's back button) closes whatever is on top.
 
 A compact strip along the top shows the time, cash, level, popularity, heat and anything that needs you. Zoom right out to see the whole building from outside (walls, windows, the sign and awning, the roofs, and a wide pavement all round that the terraces never swallow); zoom back in for the cut-away view. Tap the door between the shop and the back room (or its 🚪 bubble) to go through. Three buttons sit in the bottom-right corner: **☰ Menu** (in the shop: Kitchen, Supplies, Upgrades, Crew, Orders, Marketing, Shops & property,
 Bank & tax; in the back room only back-room sections: Lab, Supplies (kits, cutting, the auction), Upgrades, Crew,
@@ -76,7 +76,7 @@ whatever you've put down; customers queue in front of the counter they want, whe
 
 **The street.** Customers walk into town from its faded edges along the pavements (along the front, down the side
 street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
-into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. Up to nine
+into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars (hatchbacks, saloons, vans, a taxi) brake for anyone on the zebra crossing. Up to nine
 customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
 Everything solid in the scene carries a simple generated prototype texture (`three-helpers.js`): wood grain, floorboards,
 bark, brushed steel, chequer plate, card, fabric, velvet, fur, leaves, stone, concrete, plaster, tiles, rubber, epoxy,

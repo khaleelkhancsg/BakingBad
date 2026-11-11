@@ -26,6 +26,9 @@ const world = createScene(document.getElementById('scene'), document.getElementB
   onPick: info => {
     if (info.act === 'design') { if (ui.design) designTap(info); return; }
     if (ui.design || ui.modal) return;
+    // With the menu or map open, a tap on the scene just closes it (so it can't open a machine by accident)
+    if (ui.panel) { ui.panel = null; render(); return; }
+    if (info.act === 'ground') return;
     act({ dataset: info });
   },
   // Zooming out to the outside of the building swaps the corner buttons for one Outside button, and back
@@ -225,7 +228,7 @@ function kitchenTab() {
   }).join('');
   cards += elsewhere(false);
   const spots = G.freeSpots(s).length;
-  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} Counters in use: ${G.counterList(s).filter(Boolean).length} of ${G.menuSlots(s)} (cooked food fills them by itself; tap a bare counter by the till for another).${G.currentSeason() ? ` ${SEASONS[G.currentSeason()].emoji} ${SEASONS[G.currentSeason()].name}: seasonal recipes are on the machines.` : ''} Locals here like ${Object.entries(TASTES[s.shops[s.cur || 0].id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}. Collect a batch yourself within a few minutes of it finishing for a ✨ perfect bake. Tap a machine to cook, choose what's on sale and set prices.` };
+  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} Counters in use: ${G.counterList(s).filter(Boolean).length} of ${G.menuSlots(s)} (cooked food fills them by itself; buy another in 🎨 Design → Kitchen).${G.currentSeason() ? ` ${SEASONS[G.currentSeason()].emoji} ${SEASONS[G.currentSeason()].name}: seasonal recipes are on the machines.` : ''} Locals here like ${Object.entries(TASTES[s.shops[s.cur || 0].id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}. Collect a batch yourself within a few minutes of it finishing for a ✨ perfect bake. Tap a machine to cook and set prices.` };
 }
 
 function shopTab(lab = false) {
@@ -601,7 +604,7 @@ function unlocksAt(L) {
   }
   for (const [, r] of Object.entries(ITEMS)) if (r.level === L && L > 1) out.push(`${r.emoji} ${r.name} on the ${MACHINES[r.machine].name.toLowerCase()}${r.cost ? ` (learn for ${money(r.cost)})` : ''}`);
   for (const [, p] of Object.entries(PRODUCTS)) if (p.level === L && L > 1) out.push(`${p.emoji} ${p.name}, ${money(p.price)} a bag (back room)`);
-  for (const [key, label] of [['menu', 'things on sale at once'], ['kits', 'kits a day from Dez'], ['decor', 'decorations'], ['campaigns', 'campaigns at once']]) {
+  for (const [key, label] of [['menu', 'counters'], ['kits', 'kits a day from Dez'], ['decor', 'decorations'], ['campaigns', 'campaigns at once']]) {
     for (const [l, n] of CAPS[key]) if (l === L && l > 1) out.push(`➕ ${n} ${label}`);
   }
   for (const [l, n] of CAPS.loan) if (l === L && l > 4) out.push(`💳 Loans up to ${money(n)}`);
@@ -960,7 +963,7 @@ const GUIDE = [
   { text: '⏲️ Baking runs on the real clock. When the timer\'s done, tap the machine: the food goes on a <b>counter</b> by the till.', done: s => (s.stats.batches || 0) > 0 },
   { text: '🧺 Customers buy from the counters. Tap a <b>counter</b> to see how many servings are left.', done: s => s.guide.seen?.tray },
   { text: '🛒 Ingredients run out. Open <b>☰ Menu → Supplies</b> to stock up.', done: s => s.guide.seen?.supplies },
-  { text: '➕ Each counter holds one thing; what you cook fills them by itself. Tap a <b>bare counter</b> (green card) to buy another once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
+  { text: '➕ Each counter holds one thing; what you cook fills them by itself. Buy another in <b>🎨 Design → Kitchen</b> and tap where it goes, once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
   { text: '🎨 Make it yours: <b>Design</b> has floors, decor and expansions that bring more customers.', done: s => s.guide.seen?.design },
   { text: '🏦 The stall came with a debt. <b>☰ Menu → Bank & tax</b> shows what\'s due and when.', done: s => s.guide.seen?.bank },
   { text: '🌙 That\'s the basics. At level 3 a door at the back opens up... the rest you can find out yourself.', done: () => false, last: true },
@@ -1506,7 +1509,7 @@ function render(force = false) {
     if (s.levelUps?.length) ui.modal = { type: 'levelup', level: s.levelUps[0] };
     else if (s.offerPending) ui.modal = { type: 'offer' };
     else if (s.decisions.length) ui.modal = { type: 'decision', id: s.decisions[0].id };
-    else if (s.story?.queue?.length && s.introSeen && !ui.storyLater) ui.modal = { type: 'story', id: s.story.queue[0] };
+    else if (s.story?.queue?.length > (s.story.later || 0) && s.introSeen) ui.modal = { type: 'story', id: s.story.queue[0] };
   }
   const html = hudHTML() + (ui.design ? designScreen() : dockHTML()) + guideHTML() + modalHTML();
   if (!force && html === lastHTML) return;
@@ -1608,9 +1611,9 @@ function act(el) {
     case 'invest': G.invest(s, Number(id) > 0 ? Number(id) : s.clean * Number(el.dataset.share || 1)); break;
     case 'withdraw': G.withdraw(s); break;
     case 'throw': G.throwAway(s, id); ui.modal = null; break;
-    case 'story-read': G.readChapter(s); ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
-    case 'story-later': ui.storyLater = true; ui.modal = null; break;
-    case 'story-open': ui.storyLater = false; if (s.story?.queue?.length) ui.modal = { type: 'story', id: s.story.queue[0] }; break;
+    case 'story-read': G.readChapter(s); s.story.later = 0; ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
+    case 'story-later': s.story.later = s.story.queue.length; ui.modal = null; break; // remembered: only a new chapter brings the letter back
+    case 'story-open': s.story.later = 0; if (s.story?.queue?.length) ui.modal = { type: 'story', id: s.story.queue[0] }; break;
     case 'claim': G.claimSet(s, id); break;
     case 'manager-hire': case 'manager-fire': { const keep = s.cur; s.cur = Number(el.dataset.shop); if (a === 'manager-hire') G.hireManager(s, Number(el.dataset.skill)); else G.fireManager(s); s.cur = keep; break; }
     case 'cabinet': G.buyCabinet(s, Number(id)); break;
@@ -1978,17 +1981,23 @@ async function scheduleNotes() {
   } catch { /* notifications unavailable */ }
 }
 async function clearNotes() { try { const p = await Notes?.getPending(); if (p?.notifications?.length) await Notes.cancel({ notifications: p.notifications.map(x => ({ id: x.id })) }); } catch { /* ignore */ } }
+// Back (the phone's back button, or Esc on a keyboard): close whatever's on top, one thing at a time
+function goBack() {
+  if (ui.confirm) { act({ dataset: { act: 'confirm-no' } }); return true; }
+  if (ui.modal) { act({ dataset: { act: 'close' } }); return true; }
+  if (ui.design) { act({ dataset: { act: D.cartInfo()?.n ? 'd-cancel' : 'd-done' } }); return true; }
+  if (ui.tab) { act({ dataset: { act: 'dock-close' } }); return true; }
+  if (ui.panel) { act({ dataset: { act: 'panel', id: ui.panel } }); return true; }
+  if (ui.room === 'back') { act({ dataset: { act: 'room' } }); return true; }
+  return false;
+}
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || e.target.closest?.('input, textarea')) return;
+  e.preventDefault(); goBack();
+});
 if (NativeApp) {
   document.documentElement.classList.add('native');
-  NativeApp.addListener('backButton', () => {
-    if (ui.confirm) return act({ dataset: { act: 'confirm-no' } });
-    if (ui.modal) return act({ dataset: { act: 'close' } });
-    if (ui.design) return act({ dataset: { act: D.cartInfo()?.n ? 'd-cancel' : 'd-done' } });
-    if (ui.tab) return act({ dataset: { act: 'dock-close' } });
-    if (ui.panel) return act({ dataset: { act: 'panel', id: ui.panel } });
-    if (ui.room === 'back') return act({ dataset: { act: 'room' } });
-    save(); NativeApp.minimizeApp();
-  });
+  NativeApp.addListener('backButton', () => { if (!goBack()) { save(); NativeApp.minimizeApp(); } });
   NativeApp.addListener('pause', () => { save(); scheduleNotes(); });
   NativeApp.addListener('resume', () => { vt = Math.max(vt, Date.now()); clearNotes(); });
   if (settings.notify) setTimeout(askNotify, 4000); // ask once, a moment after the game opens
