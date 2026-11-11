@@ -69,9 +69,11 @@ function save() {
 const money = v => (v < 0 ? '-£' : '£') + Math.abs(Math.round(v)).toLocaleString('en-GB');
 const money2 = v => '£' + Number(v).toFixed(2);
 const ingText = r => Object.entries(r.ing).map(([k, q]) => `${q}${INGREDIENTS[k].emoji}`).join(' ');
-const mins = m => m < 60 ? `${Math.round(m)}m` : `${Math.floor(m / 60)}h${Math.round(m % 60) ? ` ${Math.round(m % 60)}m` : ''}`;
+const mins = m => m < 60 ? `${Math.round(m)}m` : m >= 1440 ? `${Math.floor(m / 1440)}d${Math.round(m % 1440 / 60) ? ` ${Math.round(m % 1440 / 60)}h` : ''}` : `${Math.floor(m / 60)}h${Math.round(m % 60) ? ` ${Math.round(m % 60)}m` : ''}`;
 const secs = sec => sec < 60 ? `${Math.ceil(sec)}s` : mins(Math.ceil(sec / 60));
 const hhmm = t => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+// When something finishes: the time, with the day too if it isn't today
+const doneAt = t => new Date(t).toDateString() === new Date(s.clock).toDateString() ? `at ${hhmm(t)}` : `${new Date(t).toLocaleDateString('en-GB', { weekday: 'short' })} at ${hhmm(t)}`;
 const dateStr = t => new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 const away = ms => ms < HOUR ? `${Math.round(ms / MIN)} minutes` : ms < 2 * DAY ? `${Math.floor(ms / HOUR)}h ${Math.round(ms % HOUR / MIN)}m` : `${Math.round(ms / DAY)} days`;
 const sumOf = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
@@ -1060,7 +1062,7 @@ function machineModal(m) {
   let status;
   if (mc.broken) status = `<div class="card alert">🔧 Wrecked by the debt collectors. It can't cook until it's fixed.
       <button class="small danger" data-act="repair" data-kind="${m.kind}" data-idx="${m.idx}" ${s.clean < G.repairCost(mc.type, lab) ? 'disabled' : ''}>Repair ${money(G.repairCost(mc.type, lab))}</button></div>`;
-  else if (busy && !v.done) status = `<div class="card">${M.verb}: ${G.recipeOf(v.item).emoji} <b>${G.recipeOf(v.item).name}</b>, ${secs(v.left)} left (done at ${hhmm(mc.job.start + mc.job.dur)})
+  else if (busy && !v.done) status = `<div class="card">${M.verb}: ${G.recipeOf(v.item).emoji} <b>${G.recipeOf(v.item).name}</b>, ${secs(v.left)} left (done ${doneAt(mc.job.start + mc.job.dur)})
       <span class="prog"><i style="width:${(v.t / v.dur * 100).toFixed(1)}%"></i></span></div>`;
   else if (busy) status = `<div class="card win">${G.recipeOf(v.item).emoji} <b>${G.recipeOf(v.item).name}</b> is ready.${lab ? '' : ` It ${M.spoil === 'burnt' ? 'burns' : 'spoils'} in ${secs(v.spoilIn)}.`}
       <button class="small primary" data-act="collect" data-kind="${m.kind}" data-idx="${m.idx}">Collect</button></div>`;

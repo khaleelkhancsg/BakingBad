@@ -274,13 +274,29 @@ export const MACHINES = {
 };
 export const MACHINE_PRICE_STEP = 0.35;
 
-// Recipes. Servings, price and ingredient amounts come from the recipe's level and cook time, so later
-// recipes always earn more per serving and make more servings per batch. Short recipes suit active play,
-// long ones cover the hours you're away.
+// Cook time and what it earns, the same for the bakery and the back room. Anything takes from a minute to two days.
+// Times stretch with the level it unlocks at (up to 4x by level 99), so the longest cooks come late; each recipe keeps
+// its place among its neighbours (a quick bake stays quick). A batch's worth then rises with its time: more servings
+// (or bags) and a premium for slow-made goods. Per hour, long cooks earn less than short ones (those suit active play),
+// but they're what keeps the counters and the back door stocked while you're away.
+export const MAX_MINUTES = 2 * 24 * 60;
+const NICE = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 420, 480, 600, 720,
+  900, 1080, 1200, 1440, 1800, 2160, 2520, 2880];
+export function stretchTime(level, minutes) {
+  const t = minutes * (1 + 3 * Math.pow(Math.min(99, level) / 99, 1.3));
+  return NICE.reduce((a, b) => Math.abs(Math.log(b / t)) < Math.abs(Math.log(a / t)) ? b : a, 1);
+}
+// How much a batch makes, and its price premium, from its time alone
+export const timeServings = minutes => 12 * (Math.pow(1 + minutes / 15, 0.62) - 1);
+export const timePremium = minutes => 0.85 + 0.2 * Math.log2(1 + minutes / 30);
+const timeWorth = minutes => (10.5 + timeServings(minutes)) * timePremium(minutes); // a batch's worth, relative
+// Recipes. Servings come from the cook time (plus a little for the level), the price per serving from the level
+// and the time; ingredient amounts follow from what the batch sells for.
 const GROUP_PRICE = { drink: 0.8, cold: 0.9, bread: 1.0, sweet: 1.0, pastry: 1.1, savory: 1.2 };
 function R(machine, name, emoji, group, level, minutes, ing) {
-  const servings = Math.round(10 + 0.5 * level + 6 * Math.log2(1 + minutes / 5));
-  const price = Math.round((1.8 + 0.09 * level) * GROUP_PRICE[group] * 10) / 10;
+  minutes = stretchTime(level, minutes);
+  const servings = Math.round(10 + 0.5 * level + timeServings(minutes));
+  const price = Math.round((1.8 + 0.09 * level) * GROUP_PRICE[group] * timePremium(minutes) * 10) / 10;
   return { machine, name, emoji, group, level, minutes, servings, price, ingList: ing,
     cost: level <= 1 ? 0 : Math.round(150 * Math.pow(level, 1.35) / 10) * 10 };
 }
@@ -563,8 +579,14 @@ export const LAB_MACHINES = {
 // what is really used for growing, sourcing, cutting, pressing or mixing, except synthesis, which stays a supplier's
 // precursor kit. share: how often buyers ask for it. heat: per cook.
 // cop: extra chance a buyer wanting it is undercover. ing: bakery stock it also uses (edibles).
+// What a cook is worth comes from its level and time, as in the bakery (rare auction stock is worth 60% more). The
+// bag count grows with time the way a bakery batch's servings do, starting from the product's usual size for an hour's
+// cook (bags: pills come in dozens, cocaine in a few), and the price per bag is whatever makes up the worth.
 function P(machine, name, emoji, family, level, minutes, bags, list, extra = {}) {
-  const price = Math.round(list * 2); // dirty money comes easier than clean (and costs more to keep)
+  minutes = stretchTime(level, minutes);
+  const worth = 450 * Math.pow(1.04, level) * timeWorth(minutes) / timeWorth(60) * (extra.rare ? 1.6 : 1);
+  bags = Math.max(2, Math.round(bags * (10.5 + timeServings(minutes)) / (10.5 + timeServings(60))));
+  const price = Math.max(3, Math.round(worth / bags));
   return { machine, name, emoji, family, level, minutes, bags, price,
     kit: Math.round(0.3 * bags * price / 10) * 10,
     heat: Math.min(6, Math.round((0.4 + price / 120) * 10) / 10),

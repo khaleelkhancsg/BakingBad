@@ -1591,6 +1591,9 @@ export function payHmrc(s) {
 
 // ---------- Special orders ----------
 export const orderCap = s => capAt(ORDERS.caps, s.level);
+// How long an order gives you: the usual 4 to 20 hours, but always time to cook what it asks for (one machine,
+// batch after batch) with two hours to spare, so long recipes can be ordered too
+const orderHours = cookMinutes => Math.max(ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours)), Math.ceil(cookMinutes / 60 + 2));
 function bakeryOrder(s, t) {
   const sellable = s.recipes.filter(id => s.shops.some(x => SHOPS[x.id].machines.includes(ITEMS[id].machine) && x.machines.some(m => m.type === ITEMS[id].machine)));
   if (!sellable.length) return null;
@@ -1598,7 +1601,7 @@ function bakeryOrder(s, t) {
   const festive = seasonal.length && rand() < 0.45;
   const id = festive ? pick(seasonal) : pick(sellable), r = ITEMS[id];
   const qty = Math.round(r.servings * (1 + rand() * 2));
-  const hours = ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours));
+  const hours = orderHours(Math.ceil(qty / r.servings) * r.minutes);
   return { id: s.nextId++, kind: 'bakery', item: id, qty, client: festive ? pick(SEASON_CLIENTS[curSeason]) : pick(CLIENTS), until: t + hours * HOUR, festive,
     pay: Math.round(qty * r.price * ORDERS.bakeryPay * (festive ? 1.4 : 1)), xp: Math.round(qty * saleXp(id) * ORDERS.xpMult) };
 }
@@ -1607,7 +1610,7 @@ function dezOrder(s, t) {
   if (!known.length) return null;
   const id = pick(known), p = PRODUCTS[id];
   const qty = Math.max(4, Math.round(p.bags * (0.8 + rand() * 1.5)));
-  const hours = ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours));
+  const hours = orderHours(Math.ceil(qty / p.bags) * p.minutes);
   return { id: s.nextId++, kind: 'dez', item: id, qty, client: pick(DEZ_CLIENTS), until: t + hours * HOUR,
     pay: Math.round(qty * p.price * ORDERS.dezPay), xp: Math.round(qty * bagXp(id) * ORDERS.xpMult) };
 }

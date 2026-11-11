@@ -41,8 +41,14 @@ Every machine has its own menu. Tap one to cook, set prices and learn recipes. E
 timer on one machine. When it's done, tap ✓ to put it on the counters. Leave it too long and it spoils: food keeps for about
 as long as it took to cook (at least 30 minutes).
 
-Recipes run from a minute or two to twelve hours. Short ones pay best per hour while you're playing; long ones make
-bigger batches and cover the hours you're out or asleep. Later recipes sell for more and make more servings.
+Anything you make, in the bakery or the back room, takes from a minute to two days, and the longer it takes the more
+a batch earns: more servings (or bags) and a higher price for slow-made goods. A 2-minute batch of cookies makes about
+£18, a 2-hour sourdough £113, an 8-hour flatbread £449, and the two-day showpieces at the top thousands. The longest
+cooks unlock late: times stretch with a recipe's level (up to four times by level 99), while each recipe keeps its place
+among its neighbours, so there are quick bakes at every level. Per hour, short cooks still pay best while you're
+playing; long ones keep the counters and the back door stocked while you're out or asleep. In the back room what a cook
+is worth comes from its level and time alone (no product is a shortcut), its bag count grows like a batch's servings,
+and the price per bag makes up the rest. Special orders always give you time to cook what they ask for.
 
 | Machines | From level |
 |---|---|
