@@ -263,7 +263,13 @@ the door (a tree, pumpkins, a heart balloon, an Easter basket, a parasol, lanter
 ## The story and the collection book
 
 Chapters turn up as you go: Rosa's letters and keepsakes, Dez's past catching up with him, and DI Harrow's case as it
-builds (14 in all). ☰ Menu → 📖 Collection keeps them to read again, and has sets to complete for prize money:
+builds (14 in all). Most end with a choice of two: pin Rosa's letter by the till or pocket what's folded behind it,
+call in Dez's old debt or let it go, make Harrow a coffee or keep the back door shut while he's there. Each one nudges
+things a little and never decides anything big: a few points of popularity or heat (which drift back anyway), a little
+evidence, a kit or two, or some cash scaled to your level. The chapter says what it did, and re-reading it in the
+Collection shows what you chose. Telling Dez you're not interested the first time puts the bakery first (popularity
++2); he comes back a few days later, leaving it a little longer each time you say no.
+☰ Menu → 📖 Collection keeps the chapters to read again, and has sets to complete for prize money:
 recipes baked, signature dishes, perfect bakes, seasonal treats, products made, chapters and bakery awards.
 
 ## Locals, managers and the rival

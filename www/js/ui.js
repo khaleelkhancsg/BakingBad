@@ -868,7 +868,7 @@ function infoFor(kind, id) {
     return T(`${a.emoji} ${a.name}`, line('Price', money(a.price)) + line('Charm', `+${a.charm}`) + line('Sells back for', money(Math.round(a.price * D.SELL_BACK)))
       + '<p class="mute">One piece per wall panel. Not over the window, menu board or door.</p>');
   }
-  if (kind === 'chapter') { const c = STORY.find(x => x.id === id); return T(`📜 ${c.title}`, `<p class="story">${c.text}</p>`); }
+  if (kind === 'chapter') { const c = STORY.find(x => x.id === id), ch = s.story?.chose?.[id]; return T(`📜 ${c.title}`, `<p class="story">${c.text}</p>${ch ? `<p class="mute">You chose: ${ch}</p>` : ''}`); }
   if (kind === 'clean') {
     const h = s.honest || { days: 0, awards: {} };
     return T('🕊️ A clean record', `<p>Every day with nothing cooked, sold or washed after dark adds a day. Any night trade starts it again from zero.</p>`
@@ -1179,7 +1179,8 @@ function modalHTML() {
     const c = STORY.find(x => x.id === m.id), n = STORY.findIndex(x => x.id === m.id) + 1;
     const more = (s.story?.queue?.length || 1) - 1;
     inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection${more ? ` · ${more} more waiting` : ''}</p>
-      <div class="row2"><button class="big primary" data-act="story-read">${more ? 'Next chapter' : 'Carry on'}</button>${more ? '<button class="big" data-act="story-later">Read later</button>' : ''}</div>` : '';
+      ${G.storyChoices(s, c).length ? `<div class="pbtns col">${G.storyChoices(s, c).map((ch, i) => `<button class="big ${i ? '' : 'primary'}" data-act="story-read" data-id="${i}">${ch.label}</button>`).join('')}</div>${more ? '<button class="big" data-act="story-later" style="margin-top:8px">Read later</button>' : ''}`
+        : `<div class="row2"><button class="big primary" data-act="story-read">${more ? 'Next chapter' : 'Carry on'}</button>${more ? '<button class="big" data-act="story-later">Read later</button>' : ''}</div>`}` : '';
     if (!c) ui.modal = null;
   }
   else if (m.type === 'loadfail') inner = `<h2>⚠️ Your save couldn't be loaded</h2><p>Something in it didn't load (${loadFailed?.why || 'unknown'}), so the game has started fresh. Your old save hasn't been lost: a copy is kept on this device, and here it is as a backup code. Copy it somewhere safe; once the game is fixed, Settings → Load a backup brings it back.</p>
@@ -1612,7 +1613,7 @@ function act(el) {
     case 'invest': G.invest(s, Number(id) > 0 ? Number(id) : s.clean * Number(el.dataset.share || 1)); break;
     case 'withdraw': G.withdraw(s); break;
     case 'throw': G.throwAway(s, id); ui.modal = null; break;
-    case 'story-read': G.readChapter(s); s.story.later = 0; ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
+    case 'story-read': G.readChapter(s, +id || 0); s.story.later = 0; ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
     case 'story-later': s.story.later = s.story.queue.length; ui.modal = null; break; // remembered: only a new chapter brings the letter back
     case 'story-open': s.story.later = 0; if (s.story?.queue?.length) ui.modal = { type: 'story', id: s.story.queue[0] }; break;
     case 'claim': G.claimSet(s, id); break;

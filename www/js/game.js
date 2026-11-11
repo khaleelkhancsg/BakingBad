@@ -542,7 +542,26 @@ function storyCheck(s) {
     s.story.queue.push(c.id);
   }
 }
-export function readChapter(s) { const id = s.story?.queue?.shift(); if (id) s.story.seen.push(id); }
+// Read the next chapter; pick is the choice made at its end (if it has any)
+export function readChapter(s, pick) {
+  const id = s.story?.queue?.shift();
+  if (!id) return;
+  s.story.seen.push(id);
+  const c = STORY.find(x => x.id === id), list = storyChoices(s, c);
+  if (!list.length) return;
+  const ch = list[pick] || list[0];
+  (s.story.chose ||= {})[id] = ch.label;
+  const fx = ch.fx, bits = [];
+  if (fx.rep) { s.rep = clamp(s.rep + fx.rep, 0, 100); bits.push(`popularity ${fx.rep > 0 ? '+' : ''}${fx.rep}`); }
+  if (fx.heat) { s.heat = clamp(s.heat + fx.heat, 0, 100); bits.push(`heat ${fx.heat > 0 ? '+' : ''}${fx.heat}`); }
+  if (fx.evidence) { s.case.evidence = clamp((s.case.evidence || 0) + fx.evidence, 0, 100); bits.push(`evidence ${fx.evidence}`); }
+  if (fx.clean) { const v = Math.round(fx.clean * s.level); s.clean = round2(Math.max(0, s.clean + v)); bits.push(`${v > 0 ? '+' : '-'}£${Math.abs(v).toLocaleString('en-GB')} clean`); }
+  if (fx.dirty) { const v = Math.round(fx.dirty * s.level); s.dirty = round2(s.dirty + v); bits.push(`+£${v.toLocaleString('en-GB')} dirty`); }
+  if (fx.kits) { s.kits.homegrown = (s.kits.homegrown || 0) + fx.kits; bits.push(`+${fx.kits} kit${fx.kits > 1 ? 's' : ''}`); }
+  say(`📜 ${ch.reply}${bits.length ? ` (${bits.join(', ')})` : ''}`, 'good');
+}
+// The choices a chapter offers right now (some only make sense once the back room is open)
+export const storyChoices = (s, c) => (c?.choices || []).filter(ch => !ch.lab || s.labUnlocked);
 export function collectionCount(s, cat) {
   if (cat === 'baked') return Object.keys(s.mastery || {}).length;
   if (cat === 'master') return Object.keys(s.mastery || {}).filter(id => starsOf(s, id) >= MASTERY.stars.length).length;
@@ -1235,7 +1254,14 @@ export function answerOffer(s, yes) {
     s.kits.homegrown = (s.kits.homegrown || 0) + 1;
     if (!s.shops[0].lab.length) s.shops[0].lab.push({ type: 'tent', ...backCellFromSpot(0), job: null, last: null, broken: false, tier: 0 });
     say('Dez drops off a kit and shows you the back room.', 'good');
-  } else s.offerAfter = s.clock + 3 * DAY;
+  } else {
+    // Turning him down puts the bakery first, which the street notices (the first time); he tries again in a few days,
+    // and leaves it longer each time
+    s.offerNo = (s.offerNo || 0) + 1;
+    if (s.offerNo === 1) { s.rep = clamp(s.rep + 2, 0, 100); say('Dez shrugs. "Your loss. I’ll come back when the bank does." You put the kettle on and open up. (Popularity +2)', 'good'); }
+    else say('Dez shakes his head and goes. He’ll try again.', 'info');
+    s.offerAfter = s.clock + Math.min(7, 2 + s.offerNo) * DAY;
+  }
 }
 
 // ---------- Laundering ----------

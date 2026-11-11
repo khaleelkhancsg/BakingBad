@@ -71,7 +71,7 @@ function randomActions(s, t) {
     () => { if (s.labUnlocked) s.lab.forEach((m, i) => { if (!m.job) { const ps = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)); if (ps.length) G.startLab(s, i, pick(ps), t, { quiet: true }); } else G.collectLab(s, i, t, { quiet: true }); }); },
     () => { const b = D.backOf(s), types = Object.keys(D.BACK_DECOR); D.startCart(s); D.placeBackDecor(s, pick(types), Math.floor(rnd() * 11), Math.floor(rnd() * 11)); D.checkoutCart(s); },
     () => { const b = D.backOf(s); if (b.decor.length) { D.startCart(s); D.moveBackDecor(s, Math.floor(rnd() * b.decor.length), Math.floor(rnd() * 11), Math.floor(rnd() * 11)); D.checkoutCart(s); } },
-    () => { if (s.story?.queue?.length) G.readChapter(s); },
+    () => { if (s.story?.queue?.length) G.readChapter(s, Math.floor(Math.random() * 2)); },
     () => { const c = pick(['bake10', 'bake30', 'perfect25', 'season3', 'story5']); G.claimSet(s, c); },
     () => { if (rnd() < 0.1) { const shopIds = Object.keys(SHOPS).filter(id => !G.ownsShop(s, id)); if (shopIds.length && G.buyShop) G.buyShop(s, pick(shopIds)); } },
     () => { if (s.shops.length > 1 && G.viewShop) G.viewShop(s, Math.floor(rnd() * s.shops.length)); },
