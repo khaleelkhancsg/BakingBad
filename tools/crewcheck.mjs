@@ -29,10 +29,12 @@ function startAll(s, t) {
   const started = [];
   G.eachShop(s, i => s.machines.forEach((m, k) => {
     const id = G.recipesFor(m.type).find(r => G.inSeason(r) && !started.some(x => x.shop === i && x.id === r));
-    if (id && G.startJob(s, k, id, t, { quiet: true })) started.push({ shop: i, k, id, type: m.type });
+    if (id && G.startJob(s, k, id, t, { quiet: true })) { m.job.start = t + HOUR - m.job.dur; started.push({ shop: i, k, id, type: m.type }); } // all done in an hour, so none spoil while others cook
   }));
   return started;
 }
+// No customers: what goes out stays out, so the counters can be checked
+const noCustomers = s => G.eachShop(s, () => { s.custAcc = -1e12; });
 const doneBy = (s, started) => Math.max(...started.map(x => { let d = 0; G.eachShop(s, i => { if (i === x.shop) d = s.machines[x.k].job.start + s.machines[x.k].job.dur; }); return d; }));
 
 // ---------- Day crew ----------
@@ -43,7 +45,7 @@ console.log('Baker (Priya): every machine in every shop goes onto the counters')
     const st = startAll(s, T0), done = doneBy(s, st);
     ok(st.length >= 10, 'started a batch on lots of machines', st.length);
     // stop customers buying it all so we can see it on the counters
-    G.eachShop(s, () => { s.rep = 0; });
+    noCustomers(s); const b0 = s.stats.batches || 0;
     G.advance(s, done + 5 * MIN);
     let collected = 0, waiting = 0, types = new Set();
     G.eachShop(s, i => s.machines.forEach((m, k) => { const x = st.find(y => y.shop === i && y.k === k); if (!x) return; if (!m.job || m.job.item !== x.id || m.job.left != null) { collected++; types.add(m.type); } else waiting++; }));
@@ -51,12 +53,12 @@ console.log('Baker (Priya): every machine in every shop goes onto the counters')
       ok(waiting === 0, 'baker collected every finished batch', `${waiting} left in machines of ${st.length}`);
       ok(types.size === new Set(st.map(x => x.type)).size, 'from every machine type', [...types].join(','));
       let onCounters = 0; G.eachShop(s, () => { onCounters += G.menuOf(s).length; });
-      ok(onCounters >= st.length - 1, 'and it is all out on the counters', `${onCounters} products on counters`);
-    } else ok(collected === 0, 'without the baker nothing is collected', collected);
+      ok(onCounters === st.length, 'and it is all out on the counters', `${onCounters} products on counters of ${st.length}`);
+    } else ok((s.stats.batches || 0) === b0, 'without the baker nothing is collected', (s.stats.batches || 0) - b0);
   }
   // More batches than counters: the baker fills what fits, the rest waits, and goes out once a counter frees
   const s = bigGame({ shops: false }); s.crew.baker = true; s.design.counters = 2; G.settleCounters(s);
-  const st = startAll(s, T0); G.eachShop(s, () => { s.rep = 0; });
+  const st = startAll(s, T0); noCustomers(s);
   G.advance(s, doneBy(s, st) + 2 * MIN);
   const waiting = s.machines.filter(m => m.job).length;
   ok(G.counterList(s).every(Boolean), 'two counters: both filled');
@@ -68,13 +70,13 @@ console.log('Baker (Priya): every machine in every shop goes onto the counters')
 console.log('Head chef (Marco): starts the same recipe again');
 {
   const s = bigGame({ shops: false }); s.crew.baker = true; s.crew.chef = true;
-  const st = startAll(s, T0); G.eachShop(s, () => { s.rep = 0; });
+  const st = startAll(s, T0); noCustomers(s);
   G.advance(s, doneBy(s, st) + 2 * MIN);
   const again = st.filter(x => s.machines[x.k].job && s.machines[x.k].job.item === x.id && s.machines[x.k].job.start > T0).length;
-  ok(again > 0, 'machines restarted their recipe', `${again} of ${st.length}`);
+  ok(again === st.length, 'every machine restarted its recipe', `${again} of ${st.length}`);
   // with the chef but no baker: the player collects, the chef restarts
   const s2 = bigGame({ shops: false }); s2.crew.chef = true;
-  const st2 = startAll(s2, T0); const x = st2[0];
+  const st2 = startAll(s2, T0); noCustomers(s2); const x = st2[0];
   G.advance(s2, doneBy(s2, st2) + MIN);
   G.collectJob(s2, x.k, s2.clock, { byYou: true });
   ok(s2.machines[x.k].job?.item === x.id && s2.machines[x.k].job.start === s2.clock, 'collecting by hand also restarts it');
@@ -85,8 +87,8 @@ console.log('Cashier (Tom): +10% on sales, fewer put off by prices');
 { const s = bigGame({ shops: false }); const a = G.itemPrice(s, 'sourdough'); s.crew.cashier = true; ok(Math.abs(G.itemPrice(s, 'sourdough') / a - 1.1) < 0.01, '+10% price', `${a} -> ${G.itemPrice(s, 'sourdough')}`); }
 console.log('PR (Mel): popularity creeps up');
 {
-  const run = pr => { const s = bigGame({ shops: false }); s.crew.pr = pr; s.rep = 40; G.advance(s, T0 + 3 * DAY); return s.rep; };
-  const a = run(false), b = run(true); ok(b > a, 'popularity higher after 3 days', `${a.toFixed(1)} vs ${b.toFixed(1)}`);
+  const run = pr => { let seed = 42; G.setRandom(() => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff)); const s = bigGame({ shops: false }); s.crew.pr = pr; s.rep = 40; noCustomers(s); G.advance(s, T0 + 3 * DAY); return s.rep; };
+  const a = run(false), b = run(true); G.setRandom(() => Math.random()); ok(b > a, 'popularity higher after 3 days (same luck both ways)', `${a.toFixed(1)} vs ${b.toFixed(1)}`);
 }
 console.log('Cleaner (Dot): fixes cracked tiles and torn panels');
 {
@@ -111,7 +113,7 @@ console.log('Accountant (Viv): cheaper wash, launders every morning');
 {
   const s = bigGame({ shops: false }); const fee = G.launderFee(s); s.crew.accountant = true;
   ok(G.launderFee(s) < fee, 'smaller cut', `${fee} -> ${G.launderFee(s)}`);
-  s.dirty = 20000; const d0 = s.dirty; G.advance(s, T0 + DAY + HOUR);
+  s.dirty = 20000; const d0 = s.dirty; G.advance(s, T0 + 21 * HOUR); s.today.sales = Math.max(s.today.sales, 30000); G.advance(s, T0 + DAY + HOUR);
   ok(s.dirty < d0, 'dirty cash went through the tills', `${d0} -> ${s.dirty}`);
 }
 console.log('Marketing director (Imogen): campaigns last 50% longer');
@@ -184,7 +186,7 @@ console.log('Upgrades: each one changes what it says');
   const base = bigGame({ shops: false }); for (const u of UPGRADES) base.upgrades[u.id] = false;
   const measure = s => ({
     cust: G.customersPerHour(s, T0 + 4 * HOUR), tray: G.trayCap(s, 'sourdough'), speed: -G.cookMs(s, 'sourdough'), keep: G.spoilMs(s, 'sourdough'),
-    price: G.itemPrice(s, 'sourdough'), purity: G.labPurity(s, { tier: 0 }), launder: G.launderLeft?.(s) ?? 0, washFee: -G.launderFee(s),
+    price: G.itemPrice(s, 'sourdough'), purity: G.labPurity(s, { tier: 0 }), launder: (() => { const k = s.today.sales; s.today.sales = 10000; const v = G.launderCap(s); s.today.sales = k; return v; })(), washFee: -G.launderFee(s),
     night: G.customersPerHour(s, new Date('2026-06-10T23:30:00').getTime()), buyers: G.buyersPerHour?.(s) ?? 0,
     tipoff: G.eff(s, 'tipoff'), audit: G.eff(s, 'audit'), smurf: G.eff(s, 'smurf'), hide: G.eff(s, 'hide'), quiet: G.eff(s, 'quiet'), bags: G.eff(s, 'bags'), income: G.eff(s, 'income'),
   });

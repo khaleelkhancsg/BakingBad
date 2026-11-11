@@ -450,6 +450,11 @@ node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 3 365
 managers, expansions, decor, branches, decisions, saving and loading) and reports any broken rule: negative or NaN
 money, two machines on one spot, stock with no counter, a counter held by nothing, decor blocking a machine, and so on.
 
+`node tools/crewcheck.mjs` runs the game with and without each crew member and each upgrade and checks it does what
+its card says: Priya collects every machine type in every shop onto the counters (and the rest waits when they're
+full), Marco restarts, Sam and Doc bag and restart cooks in every shop, Grace buys what the machines cook, Jay and Lena
+serve the back door, every upgrade moves the number it names, and so on (78 checks).
+
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
