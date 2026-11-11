@@ -842,8 +842,8 @@ export const MACHINE_WALL = { oven: 'back', fryer: 'back', grill: 'back', pizza:
   patisserie: 'left', bar: 'cart', sushi: 'island', candy: 'cart' };
 // The basement: under the shop, the same 9.2 m square, reached by stairs from a small room off the shop. Spots are in
 // the basement's own coordinates (its middle is under the middle of the shop). Digging out under the front and side
-// terraces makes it bigger. The scene draws it away from the street (BASEMENT_X) so nothing above gets in the way.
-export const BASEMENT_X = 60;
+// terraces makes it bigger. It is drawn right under the shop; going down cuts the shop away to show it.
+export const BASEMENT_X = 0;
 export const BACK_DEPTH = 0;
 export const LAB_SPOTS = [
   // the back wall

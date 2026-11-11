@@ -708,10 +708,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const DIR = V3(1, 1.15, 1).normalize();
   const RIGHT = V3(1, 0, -1).normalize();
   const UPS = V3(0, 1, 0).addScaledVector(DIR, -DIR.y).normalize();
-  const BX = BASEMENT_X; // the basement is drawn here, away from the street, so nothing above it gets in the way
+  // The basement: right under the shop (BY below the street). Everything in it hangs off one group at that depth.
+  const BX = BASEMENT_X, BY = -3.45;
+  const cellar = new THREE.Group(); cellar.position.y = BY; scene.add(cellar);
   const ZONES = {
     shop: { center: V3(0.45, 0.5, 0.75), needW: 11.6, needH: 9.8 },
-    back: { center: V3(BX, 0.5, 0.5), needW: 11.8, needH: 10.2 },
+    back: { center: V3(BX, BY + 0.5, 0.5), needW: 11.8, needH: 10.2 },
   };
   const view = { zone: 'shop', light: 'day', top: 70, bottom: 90 };
   const cam = { target: ZONES.shop.center.clone(), zoom: 1, panR: 0, panU: 0 };
@@ -730,8 +732,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   sun.position.set(4, 16, 9);
   scene.add(sun, sun.target);
   const shopLamp = new THREE.PointLight('#ffd59a', 0, 10, 2); shopLamp.position.set(0, 2.7, 1.2); scene.add(shopLamp);
-  const bulb = new THREE.PointLight('#ffcc88', 0, 12, 2); bulb.position.set(BX - 1.2, 2.6, 0.2); scene.add(bulb);
-  const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(BX + 1.0, 2.3, -3.4); scene.add(neon);
+  const bulb = new THREE.PointLight('#ffcc88', 0, 12, 2); bulb.position.set(BX - 1.2, BY + 2.6, 0.2); scene.add(bulb);
+  const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(BX + 1.0, BY + 2.3, -3.4); scene.add(neon);
   // The street and alley lamps only glow (emissive); real point lights are kept to three for speed.
   const street = { intensity: 0 }, alley = { intensity: 0 };
   const LIGHTS = {
@@ -761,10 +763,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   statics.add(box(3.15, 0.45, 3.0, '#a79f95', -6.2, -0.45, 3.1, false));
   // The basement's floor, the same size as the shop; digging out adds more (basementShell)
   const backFloor = mesh(new THREE.PlaneGeometry(9.2, 9.2), smat({ map: concreteTex, roughness: 0.95 }), BX, 0.001, 0, false);
-  backFloor.rotation.x = -PI / 2; backFloor.receiveShadow = true; scene.add(backFloor); // its own mesh so its style can change
+  backFloor.rotation.x = -PI / 2; backFloor.receiveShadow = true; backFloor.userData.keep = true; cellar.add(backFloor); // its own mesh so its style can change
   const backFloorOrig = backFloor.material, basementFloors = [backFloor];
-  // The ground it's dug into
-  statics.add(box(34, 0.6, 34, '#231d19', BX, -0.62, 1, false));
+  // The earth it's dug into: under the floor, and behind the back and left walls (in front, it's cut away so you can see in)
+  const soilM = mat('#2d241e');
+  cellar.add(box(9.8, 0.5, 9.8, soilM, BX + 1.1, -0.5, 1.1, false), box(16, 3.45, 8, soilM, BX + 1, -0.5, -8.75, false), box(8, 3.45, 9.8, soilM, BX - 8.75, -0.5, 0, false));
 
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
@@ -820,19 +823,19 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     statics.add(box(1.1, 0.14, 0.9, '#a8703f', -6.3, 0, -3.2), box(1.1, 0.14, 0.9, '#a8703f', -6.3, 0.14, -3.2)); }
 
   // ---- The basement: under the shop, down the stairs ----
-  wallX(BX - 4.5, BX + 4.6, -4.6, backWall, backWain);
-  wallZ(-4.7, 4.6, BX - 4.6, backWall, backWain);
-  statics.add(box(9.3, 0.12, 0.34, capM, BX + 0.05, 3.0, -4.6), box(0.34, 0.12, 9.3, capM, BX - 4.6, 3.0, -0.05));
+  wallX(BX - 4.5, BX + 4.6, -4.6, backWall, backWain, null, cellar);
+  wallZ(-4.7, 4.6, BX - 4.6, backWall, backWain, cellar);
+  cellar.add(box(9.3, 0.12, 0.34, capM, BX + 0.05, 3.0, -4.6), box(0.34, 0.12, 9.3, capM, BX - 4.6, 3.0, -0.05));
   // Stairs down the left wall: from the ceiling at the front to the floor
-  for (let k = 0; k < 10; k++) statics.add(box(1.1, (10 - k) * 0.3, 0.3, stepM, BX - 3.9, 0, 4.25 - k * 0.3));
-  for (let k = 0; k <= 5; k++) statics.add(box(0.05, 0.9, 0.05, railM2, BX - 3.32, (5 - k) * 0.6, 4.25 - k * 0.6, false));
-  { const r = box(0.05, 0.05, 3.3, railM2, BX - 3.32, 2.1, 2.7, false); r.rotation.x = Math.atan2(3.0, 3.0) * 0.98; statics.add(r); }
+  for (let k = 0; k < 10; k++) cellar.add(box(1.1, (10 - k) * 0.3, 0.3, stepM, BX - 3.9, 0, 4.25 - k * 0.3));
+  for (let k = 0; k <= 5; k++) cellar.add(box(0.05, 0.9, 0.05, railM2, BX - 3.32, (5 - k) * 0.6, 4.25 - k * 0.6, false));
+  { const r = box(0.05, 0.05, 3.3, railM2, BX - 3.32, 2.1, 2.7, false); r.rotation.x = Math.atan2(3.0, 3.0) * 0.98; cellar.add(r); }
   const stairsHit = mesh(new THREE.BoxGeometry(1.2, 3.0, 3.2), new THREE.MeshBasicMaterial({ visible: false }), BX - 3.9, 1.5, 2.85, false);
-  stairsHit.userData = { act: 'room' }; scene.add(stairsHit);
+  stairsHit.userData = { act: 'room', keep: true }; cellar.add(stairsHit);
   // Ceiling pipes along the back wall
-  for (const [y, z, c] of [[2.7, -4.35, '#8d939c'], [2.5, -4.35, '#b8723a']]) { const pipe = cyl(0.05, 0.05, 9.0, mat(c, { metalness: 0.5, roughness: 0.4 }), BX, y, z, 8); pipe.rotation.z = PI / 2; pipe.position.set(BX, y, z); statics.add(pipe); }
+  for (const [y, z, c] of [[2.7, -4.35, '#8d939c'], [2.5, -4.35, '#b8723a']]) { const pipe = cyl(0.05, 0.05, 9.0, mat(c, { metalness: 0.5, roughness: 0.4 }), BX, y, z, 8); pipe.rotation.z = PI / 2; pipe.position.set(BX, y, z); cellar.add(pipe); }
   // What digging out adds: more floor, the knee walls move out, the back and left walls run on (rebuilt with the expansions)
-  const basementShell = new THREE.Group(); scene.add(basementShell);
+  const basementShell = new THREE.Group(); cellar.add(basementShell);
   let basementSig = '';
   function rebuildBasement(ex) {
     const sig = `${!!ex.digfront}${!!ex.digside}`;
@@ -857,7 +860,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (ex.digfront) for (const x of [-2.0, 2.0]) basementShell.add(box(0.16, 2.9, 0.16, postM, BX + x, 0, 4.6));
     if (ex.digside) for (const z of [-2.0, 2.0]) basementShell.add(box(0.16, 2.9, 0.16, postM, BX + 4.6, 0, z));
     basementShell.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    ZONES.back.center.set(BX + (ex.digside ? 1.1 : 0), 0.5, ex.digfront ? 1.6 : 0.5);
+    ZONES.back.center.set(BX + (ex.digside ? 1.1 : 0), BY + 0.5, ex.digfront ? 1.6 : 0.5);
     ZONES.back.needW = ex.digside ? 13.6 : 11.8; ZONES.back.needH = ex.digfront ? 12.2 : 10.2;
   }
 
@@ -1013,27 +1016,28 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // The basement's fittings: an LED strip and bulbs, the bag table, the cash table, the kit boxes (filled from state)
   const ledM = smat({ color: '#2a1840', emissive: '#a46bff', emissiveIntensity: 1.2 });
   glowMats.push(ledM);
-  statics.add(box(8.6, 0.05, 0.05, ledM, BX, 2.85, -4.48, false));
+  cellar.add(box(8.6, 0.05, 0.05, ledM, BX, 2.85, -4.48, false));
   const bulbM = smat({ color: '#fff3d6', emissive: '#ffcc88', emissiveIntensity: 1 }); glowMats.push(bulbM);
-  for (const [x, z] of [[-1.2, 0.2], [2.0, 2.4], [-1.0, -2.8]]) { statics.add(cyl(0.01, 0.01, 0.5, '#222', BX + x, 2.5, z, 6, false)); statics.add(sphere(0.09, bulbM, BX + x, 2.45, z, false)); }
+  for (const [x, z] of [[-1.2, 0.2], [2.0, 2.4], [-1.0, -2.8]]) { cellar.add(cyl(0.01, 0.01, 0.5, '#222', BX + x, 2.5, z, 6, false)); cellar.add(sphere(0.09, bulbM, BX + x, 2.45, z, false)); }
   const [bagX, bagZ] = D.BACK_PROPS.bagTable, [cashX, cashZ] = D.BACK_PROPS.cashTable, [kitX, kitZ] = D.BACK_PROPS.kits;
-  statics.add(box(1.2, 0.75, 0.75, '#5a4632', BX + cashX, 0, cashZ));
+  cellar.add(box(1.2, 0.75, 0.75, '#5a4632', BX + cashX, 0, cashZ));
   const cash = [];
   for (let k = 0; k < 12; k++) {
     const c = box(0.22, 0.05, 0.12, mat('#6fbf73', { roughness: 0.9 }), BX + cashX - 0.4 + (k % 4) * 0.26, 0.75 + Math.floor(k / 4) * 0.06, cashZ - 0.05 + (k % 2) * 0.05);
-    c.visible = false; scene.add(c); cash.push(c);
+    c.visible = false; c.userData.keep = true; cellar.add(c); cash.push(c);
   }
   const kitsBoxes = [];
   for (let k = 0; k < 8; k++) {
     const b = box(0.32, 0.22, 0.28, '#c9b38a', BX + kitX - 0.17 + (k % 2) * 0.34, Math.floor(k / 2) * 0.23, kitZ + (k % 2) * 0.02);
-    b.visible = false; scene.add(b); kitsBoxes.push(b);
+    b.visible = false; b.userData.keep = true; cellar.add(b); kitsBoxes.push(b);
   }
-  statics.add(box(0.9, 0.8, 0.6, '#4f4639', BX + bagX, 0, bagZ));
+  cellar.add(box(0.9, 0.8, 0.6, '#4f4639', BX + bagX, 0, bagZ));
   const bagPile = [];
   for (let k = 0; k < 24; k++) {
     const b = box(0.11, 0.14, 0.04, mat('#c79bff', { roughness: 0.3, transparent: true, opacity: 0.88 }), BX + bagX - 0.3 + (k % 6) * 0.12, 0.8 + Math.floor(k / 12) * 0.15, bagZ - 0.15 + Math.floor((k % 12) / 6) * 0.2);
-    b.visible = false; scene.add(b); bagPile.push(b);
+    b.visible = false; b.userData.keep = true; cellar.add(b); bagPile.push(b);
   }
+  mergeStatic(cellar); // the basement's still parts, merged (floors, the stairs' tap area and the props that come and go stay apart)
   // Security camera upgrade
   const camGroup = new THREE.Group();
   camGroup.add(box(0.28, 0.14, 0.14, '#e6e6e6', 0, 0, 0)); camGroup.add(sphere(0.04, mat('#222'), 0.15, 0.07, 0, false));
@@ -1365,7 +1369,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const decorGroup = new THREE.Group(); scene.add(decorGroup);
   const artBack = new THREE.Group(); scene.add(artBack);
   const artLeft = new THREE.Group(); partition.add(artLeft);
-  const backDecorGroup = new THREE.Group(); scene.add(backDecorGroup);
+  const backDecorGroup = new THREE.Group(); backDecorGroup.position.y = BY; scene.add(backDecorGroup);
   const backFloorMats = {};
   let backSig = '';
   function syncBack(s) {
@@ -1768,6 +1772,29 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     };
     walk(scene);
   }
+  const clipCut = [new THREE.Plane(new THREE.Vector3(0, -1, 0), 50), new THREE.Plane(new THREE.Vector3(-1, 0, 0), -4.8), new THREE.Plane(new THREE.Vector3(0, 0, -1), -4.8)];
+  // The cut is set on every material (only materials can combine planes so that a point is cut only where all three
+  // agree); a sweep gives it to anything new. At rest upstairs it sits far above everything.
+  renderer.localClippingEnabled = true;
+  let clipSweep = 0;
+  function sweepClip() {
+    scene.traverse(o => {
+      if (!o.material) return;
+      for (const m of [].concat(o.material)) if (m && m.clippingPlanes !== clipCut && !m.isShaderMaterial) { m.clippingPlanes = clipCut; m.clipIntersection = true; m.needsUpdate = true; }
+    });
+  }
+  let underK = 0;
+  function updateUnder(dt) {
+    const want = view.zone === 'back' ? 1 : 0;
+    if ((clipSweep -= dt) <= 0) { clipSweep = 1; sweepClip(); }
+    underK += (want - underK) * Math.min(1, dt * 3.2);
+    if (Math.abs(want - underK) < 0.002) underK = want;
+    const e = underK * underK * (3 - 2 * underK);
+    // the cut comes down from above the roof to just under the street; at rest upstairs it's far above everything
+    // (the planes stay set, so switching never rebuilds every material's shader)
+    clipCut[0].constant = underK > 0.001 ? 4.2 + (-0.3 - 4.2) * e : 1e4;
+    cellar.visible = backDecorGroup.visible = underK > 0.001;
+  }
   // Zooming out past the normal view fades the building in; zooming back in shows the inside again
   function updateShell(s, dt) {
     // Designing the outside shows the building whatever the zoom; any other design tab shows the inside
@@ -1829,17 +1856,17 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (ex.stalls) for (const z of [-4.0, -2.5, -1.0, 0.5, 2.0]) stall(6.05, z);
     rebuildBasement(ex);
     invalidateNav();
-    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, 0, -1.7));
-    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, 0, -0.65));
-    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, BX - 0.5, 0, -1.7)); add(box(0.08, 1.9, 0.9, '#c9ccd3', BX + 0.15, 0, -1.7)); }
-    if (ex.annex) add(box(1.0, 0.02, 4.8, '#6b6f78', BX + 3.95, 0.004, -1.7));
-    if (ex.storeroom) add(box(1.2, 0.02, 1.0, '#3a3530', BX + 1.6, 0.004, -3.95));
+    if (ex.bench) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, BY, -1.7));
+    if (ex.bench3) add(box(2.6, 0.05, 1.0, steel, BX - 2.375, BY, -0.65));
+    if (ex.bench2) { add(box(1.2, 0.05, 1.0, steel, BX - 0.5, BY, -1.7)); add(box(0.08, 1.9, 0.9, '#c9ccd3', BX + 0.15, BY, -1.7)); }
+    if (ex.annex) add(box(1.0, 0.02, 4.8, '#6b6f78', BX + 3.95, BY + 0.004, -1.7));
+    if (ex.storeroom) add(box(1.2, 0.02, 1.0, '#3a3530', BX + 1.6, BY + 0.004, -3.95));
   }
 
   // Design overlay for the back room: green where decor can go
   const BCOLS = D.BACK_GRID.cols + D.BACK_GRID.dig, BROWS = D.BACK_GRID.rows + D.BACK_GRID.dig;
   const ovBack = canvasOf(BCOLS * TS, BROWS * TS);
-  const ovBackMesh = mesh(new THREE.PlaneGeometry(BCOLS, BROWS), ovMatB(ovBack), BX + D.BACK_GRID.x0 - 0.5 + BCOLS / 2, 0.02, D.BACK_GRID.z0 - 0.5 + BROWS / 2, false);
+  const ovBackMesh = mesh(new THREE.PlaneGeometry(BCOLS, BROWS), ovMatB(ovBack), BX + D.BACK_GRID.x0 - 0.5 + BCOLS / 2, BY + 0.02, D.BACK_GRID.z0 - 0.5 + BROWS / 2, false);
   ovBackMesh.rotation.x = -PI / 2; ovBackMesh.visible = false; scene.add(ovBackMesh);
   function ovMatB(t) { return new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthWrite: false }); }
   let ovBackSig = '';
@@ -1933,7 +1960,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (sig !== ovBackSig) { ovBackSig = sig; paintBackOverlay(s); }
       const sel = bdv.sel != null ? d.back?.decor?.[bdv.sel] : null;
       selRing.visible = !!sel;
-      if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(BX + x, 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
+      if (sel) { const { x, z } = D.backCellCenter(sel.bx, sel.bz); selRing.position.set(BX + x, BY + 0.06 + Math.abs(Math.sin(now * 4)) * 0.05, z); }
       overlay.visible = false;
       return;
     }
@@ -2044,7 +2071,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       }
       st.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       mergeStation(st, kind, m.type);
-      st.group.position.set(pl.x, 0, pl.z);
+      st.group.position.set(pl.x, kind === 'night' ? BY : 0, pl.z);
       st.group.rotation.y = pl.ry;
       st.group.userData = { act: 'machine', kind, idx };
       scene.add(st.group);
@@ -2112,7 +2139,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const browsers = []; let browserId = 1;
 
   // You: the baker. Walks to whatever you tap.
-  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(BX - 2.6, 0, 1.6) };
+  const BAKER_HOME = { shop: V3(0.7, 0, -1.4), back: V3(BX - 2.6, BY, 1.6) };
   const baker = new Agent(scene, { skin: 1, shirt: 0, hair: 1, pants: 0, h: 1.02 }, 'baker', BAKER_HOME.shop.clone());
   baker.face = PI / 4;
   let bakerZone = 'shop', bakerJob = null, bakerIdle = 0;
@@ -2169,7 +2196,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     return true;
   }
   function findPath(from, to) {
-    useNav(from.x > BX - 20 ? BNAV : SNAV);
+    useNav(from.y < -1 ? BNAV : SNAV);
     if (!navGrid) buildNav();
     const a = nearestFree(...cellOf(from.x, from.z)), b = nearestFree(...cellOf(to.x, to.z));
     if (!a || !b) return null;
@@ -2283,8 +2310,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (view.zone !== bakerZone) {
       bakerZone = view.zone;
       bakerJob = null;
-      if (baker.group.position.distanceTo(BAKER_HOME[bakerZone]) > 12) { baker.group.position.copy(BAKER_HOME[bakerZone]); baker.target.copy(BAKER_HOME[bakerZone]); baker.path = null; }
-      else walkTo(baker, BAKER_HOME[bakerZone]);
+      // between floors the baker takes the stairs off camera
+      baker.group.position.copy(BAKER_HOME[bakerZone]); baker.target.copy(BAKER_HOME[bakerZone]); baker.path = null;
     }
     const bakerThere = baker.update(dt);
     if (bakerJob && bakerThere) { baker.work = 0.6; bakerJob = null; bakerIdle = 0; }
@@ -2388,12 +2415,12 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         else if (e.stage === 1 && flat(e.agent.group.position, DOOR_IN) < 0.1) e.stage = 2;
       }
       const arrived = e.agent.update(dt);
-      e.agent.group.position.y = stairY(e.agent.group.position);
+      e.agent.group.position.y = BY + stairY(e.agent.group.position);
       if (e.agent.leaving && e.stage === 2 && arrived) { scene.remove(e.agent.group); buyers.delete(id); }
     }
     // The back door upstairs opens while someone is on the stairs
     let near = false;
-    for (const e of buyers.values()) if (e.agent.group.position.y > 1.5) near = true;
+    for (const e of buyers.values()) if (e.agent.group.position.y > BY + 1.5) near = true;
     const want = near ? -1.5 : 0;
     backDoorPivot.rotation.y += (want - backDoorPivot.rotation.y) * Math.min(1, dt * 6);
     updateFlyers(dt);
@@ -2402,7 +2429,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   // ---------- Overlay bubbles (HTML positioned over the 3D scene) ----------
   const bubbleEls = new Map();
   let bubbleScale = 1;
-  const DOOR_BUB = V3(-4.6, 1.6, 3.1), STAIRS_BUB = V3(BX - 3.9, 3.4, 3.6);
+  const DOOR_BUB = V3(-4.6, 1.6, 3.1), STAIRS_BUB = V3(BX - 3.9, BY + 3.4, 3.6);
   const tmp = new THREE.Vector3();
   function toScreen(v) {
     tmp.copy(v).project(camera);
@@ -2433,7 +2460,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         if (b) want.set(`s-${st.kind}-${st.idx}`, { ...b, pos: st.anchorW });
       }
       const nowMs = Date.now();
-      for (const [, e] of customers) {
+      if (view.zone === 'shop') for (const [, e] of customers) {
         const c = e.c;
         if (!c || e.shown || !e.inside || !ITEMS[c.want]) continue;
         want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
@@ -2462,6 +2489,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (let k = reactions.length - 1; k >= 0; k--) {
       const r = reactions[k];
       if (now > r.until || !r.agent.group.parent) { reactions.splice(k, 1); continue; }
+      if ((r.agent.group.position.y < -1) !== (view.zone === 'back')) continue; // only bubbles on the floor you're looking at
       want.set(r.id, { html: r.text, cls: `bub react ${r.kind}`, at: '', pos: r.agent.group.position.clone().setY(r.agent.height + 0.3) });
     }
     for (const [key, el] of bubbleEls) if (!want.has(key)) { el.remove(); bubbleEls.delete(key); }
@@ -2691,6 +2719,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       updateShell(s, dt);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
       if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
+      updateUnder(dt);
       renderer.render(scene, camera);
       updateOverlay(s, now);
     },

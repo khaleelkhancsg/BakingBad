@@ -83,7 +83,8 @@ again whenever its tray has room, and Grace the manager keeps the ingredients to
 The back room is a small room off the shop with the back door and a stairwell. The stairs go down to the **basement**,
 which runs under the whole shop: that's where the machines, the bag and cash tables, the kit boxes and the decor are,
 and where buyers come (in at the back door and down the stairs). Tap the 🪜 Basement bubble on the door, or the stairs,
-to go down; ☀️ Upstairs to come back. Digging out under the front and side terraces (Design → Layout, once you own
+to go down: the shop and the street in front of it are cut away from the top down and the view sinks to the basement
+right underneath (the buildings behind stay in view). ☀️ Upstairs brings it all back. Digging out under the front and side terraces (Design → Layout, once you own
 those terraces) makes it 2 m bigger each way.
 
 Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own with its own
