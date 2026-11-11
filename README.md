@@ -493,7 +493,7 @@ serve the back door, every upgrade moves the number it names, and so on (78 chec
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
-- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). Almost everything is built from simple shapes in code; the cars are ready-made models (`www/models/cars/`, loaded by `www/js/carModels.js`, see Credits).
+- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). Almost everything is built from simple shapes in code; the cars are ready-made models (`www/models/cars/`, loaded by `www/js/carModels.js`, see Credits). The shop is lit bright, warm and steady at every hour; the back room keeps its own bulb (with the odd flicker) and purple neon. Each room's lights are only on while that room is showing, since light passes through the floor between them.
 - `www/js/design.js` holds the design catalogue and rules (squares, charm, expansions); `www/js/world.js` the neighbourhood.
 - `www/style.css` is the look, in one layer (one rule per selector), kept low-key to sit with the scene's lighting: warm espresso panels with cream text, serif headings and a thin copper-and-cream awning stripe along the top; in the back room the panels turn plum with a violet stripe. Each card's first line under its name is the thing that matters (the effect, the pay, the price), and recipes show their time, servings and what a batch takes as labels. Sections open as a two-column grid that scrolls up and down.
 - `www/js/data.js` holds the numbers and content, `www/js/game.js` the rules on the real clock (no DOM), and `www/js/ui.js` the screens and input.

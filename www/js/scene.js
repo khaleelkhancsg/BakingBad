@@ -784,7 +784,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   sun.target.position.set(-3.5, 0, 0);
   sun.position.set(4, 16, 9);
   scene.add(sun, sun.target);
-  const shopLamp = new THREE.PointLight('#ffd59a', 0, 10, 2); shopLamp.position.set(0, 2.7, 1.2); scene.add(shopLamp);
+  const shopLamp = new THREE.PointLight('#ffc987', 0, 18, 1.1); shopLamp.position.set(0, 2.7, 1.2); scene.add(shopLamp);
   const bulb = new THREE.PointLight('#ffcc88', 0, 12, 2); bulb.position.set(BX - 1.2, BY + 2.6, 0.2); scene.add(bulb);
   const neon = new THREE.PointLight('#9b5cff', 0, 11, 2); neon.position.set(BX + 1.0, BY + 2.3, -3.4); scene.add(neon);
   // The street and alley lamps only glow (emissive); real point lights are kept to three for speed.
@@ -794,7 +794,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     evening: { nightK: 0.55, hemi: 1.0, hemiC: '#ffd2b0', sun: 1.5, sunC: '#ff9a5a', bg: '#43304f', lamp: 10, bulb: 5, neon: 6, street: 10, alley: 4, lampI: 1.6, win: '#ff9e6b', winI: 0.9, glow: 1 },
     night:   { nightK: 1, hemi: 0.75, hemiC: '#9aa4ff', sun: 0.6, sunC: '#8c9aff', bg: '#191428', lamp: 3, bulb: 26, neon: 34, street: 14, alley: 14, lampI: 2.4, win: '#1a2240', winI: 0.6, glow: 1.8 },
   };
-  const cur = { ...LIGHTS.day, bgC: new THREE.Color(LIGHTS.day.bg), winC: new THREE.Color(LIGHTS.day.win), hemiCC: new THREE.Color(LIGHTS.day.hemiC), sunCC: new THREE.Color(LIGHTS.day.sunC) };
+  // The shop's own lighting: bright, warm and steady, whatever the hour (the back room keeps its own mood)
+  const SHOP_LAMP = { day: 9, evening: 16, night: 18 };
+  const SHOP_WARM = new THREE.Color('#ffc987'), BACK_LAMP = new THREE.Color('#ffd59a'); // the back room's view keeps the old lamp
+  const cur = { ...LIGHTS.day, shopLampI: SHOP_LAMP.day, backK: 0, bgC: new THREE.Color(LIGHTS.day.bg), winC: new THREE.Color(LIGHTS.day.win), hemiCC: new THREE.Color(LIGHTS.day.hemiC), sunCC: new THREE.Color(LIGHTS.day.sunC) };
 
   const pickables = [];
   const glowMats = [];
@@ -3032,8 +3035,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const a = -0.9 + 1.8 * frac;
     const wantPos = V3(-3.5 + Math.sin(a) * 11, 16 - Math.abs(a) * 4, 9 - Math.abs(a) * 2);
     sun.position.lerp(wantPos, 1 - Math.exp(-dt * 2));
-    shopLamp.intensity = cur.lamp; neon.intensity = cur.neon; street.intensity = cur.street; alley.intensity = cur.alley;
-    bulb.intensity = cur.bulb * (view.light === 'night' && Math.sin(now * 23) > 0.97 ? 0.6 : 1); // the odd flicker
+    // Light passes through floors, so each room's lights are only on while that room is showing: upstairs, the shop's
+    // warm lamp; downstairs, the back room's bulb (with its odd flicker) and neon, and the lamp as it always was there
+    cur.shopLampI += ((SHOP_LAMP[view.light] ?? SHOP_LAMP.day) - cur.shopLampI) * k;
+    cur.backK += ((shownBack ? 1 : 0) - cur.backK) * (1 - Math.exp(-dt * 6));
+    const bk = cur.backK;
+    shopLamp.intensity = cur.shopLampI * (1 - bk) + cur.lamp * bk;
+    shopLamp.color.copy(SHOP_WARM).lerp(BACK_LAMP, bk); shopLamp.distance = bk > 0.5 ? 10 : 18; shopLamp.decay = bk > 0.5 ? 2 : 1.1; shopLamp.position.y = bk > 0.5 ? 2.7 : 3.6;
+    neon.intensity = cur.neon * bk; street.intensity = cur.street; alley.intensity = cur.alley;
+    bulb.intensity = cur.bulb * bk * (view.light === 'night' && Math.sin(now * 23) > 0.97 ? 0.6 : 1); // the odd flicker
     for (const m of lampGlows) m.emissiveIntensity = cur.lampI;
     scene.background.copy(cur.bgC);
     for (const m of windows) { m.emissive.copy(cur.winC); m.emissiveIntensity = cur.winI; }
