@@ -4,6 +4,7 @@
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
+import { makeCar } from './cars.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
 const GX = -45, GZ = -40, GSIZE = 84, GPX = 2560 / GSIZE;
@@ -345,121 +346,17 @@ export function buildWorld(scene) {
   root.add(cyl(0.2, 0.2, 1.05, '#c8323c', -9.5, -0.09, 11.9, 14)); root.add(sphere(0.2, '#c8323c', -9.5, 0.96, 11.9));
 
   // ---------- Cars ----------
-  // Each body is a smooth side profile, extruded across the car's width with rounded edges, then given glass, arches,
-  // alloy wheels and lights. The shapes borrow the proportions of European sports saloons, coupés, estates and SUVs;
-  // there are no badges or makers' grilles, just plain generic details.
+  // Real-looking saloons and sports cars (cars.js); parked along the kerb and now and then driving past
   const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
   const tailM = night(smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
-  const glassM = smat({ color: '#1f2735', roughness: 0.1, metalness: 0.4, side: THREE.DoubleSide });
-  const tyreM = mat('#1a1a1f'), rimM = mat('#d4d8de', { roughness: 0.25, metalness: 0.6 }), darkRimM = mat('#3a3d44', { roughness: 0.3, metalness: 0.5 });
-  const trimCar = mat('#16161b'), plateM = mat('#f4f1e8'), plateBackM = mat('#f2c94c'), archM = mat('#0e0e12');
   const CAR_COLOURS = ['#b3122a', '#1f4f9a', '#e8e6e0', '#2b2d36', '#8a9aa6', '#2f5a45', '#d9822b', '#4a2b5a', '#c9b48a', '#14161c', '#6b7f8f', '#a8282a'];
-  // x runs rear (-1) to front (+1), scaled to half the car's length; y is height in metres
-  const CAR_TYPES = {
-    // a sporty four-door saloon: short tail, steeply raked screen, a long bonnet
-    saloon: { L: 2.1, W: 0.92, clr: 0.14, wheels: [-0.62, 0.64], r: 0.2,
-      body: [[-0.98, 0.14], [-1.0, 0.3], [-0.97, 0.47], [-0.8, 0.53], [-0.62, 0.56], [-0.4, 0.76], [0.0, 0.83], [0.18, 0.8], [0.46, 0.58], [0.8, 0.5], [0.98, 0.42], [1.0, 0.28], [0.97, 0.14]],
-      glass: [[-0.53, 0.59], [-0.37, 0.74], [0.0, 0.8], [0.17, 0.77], [0.41, 0.59]], screen: [[0.18, 0.8], [0.46, 0.58]], rear: [[-0.62, 0.56], [-0.4, 0.76]],
-      head: [0.97, 0.43], tail: [-0.99, 0.45] },
-    // a rear-engined sports coupé: round nose, a roof that falls in one curve to a rounded tail, a ducktail spoiler
-    coupe: { L: 1.95, W: 0.94, clr: 0.13, wheels: [-0.62, 0.62], r: 0.2, ducktail: true,
-      body: [[-0.97, 0.13], [-1.0, 0.3], [-0.97, 0.44], [-0.84, 0.54], [-0.56, 0.7], [-0.2, 0.8], [0.05, 0.8], [0.3, 0.62], [0.5, 0.5], [0.85, 0.44], [0.99, 0.34], [0.97, 0.13]],
-      glass: [[-0.5, 0.6], [-0.2, 0.76], [0.03, 0.76], [0.27, 0.6]], screen: [[0.05, 0.8], [0.3, 0.62]], rear: [[-0.56, 0.7], [-0.2, 0.8]],
-      head: [0.93, 0.42], tail: [-0.98, 0.43], tailBar: true },
-    // a long, low estate: the roof runs straight back to an upright tailgate, with roof rails
-    estate: { L: 2.15, W: 0.92, clr: 0.14, wheels: [-0.63, 0.64], r: 0.2, rails: true,
-      body: [[-0.98, 0.14], [-1.0, 0.32], [-0.99, 0.55], [-0.94, 0.76], [-0.72, 0.81], [0.0, 0.82], [0.18, 0.79], [0.46, 0.58], [0.8, 0.5], [0.98, 0.42], [1.0, 0.28], [0.97, 0.14]],
-      glass: [[-0.9, 0.6], [-0.87, 0.74], [0.0, 0.78], [0.16, 0.76], [0.41, 0.59]], screen: [[0.18, 0.79], [0.46, 0.58]], rear: [[-0.99, 0.55], [-0.94, 0.76]],
-      head: [0.97, 0.43], tail: [-0.995, 0.52], tailBar: true },
-    // a sporty SUV: high, short overhangs, dark cladding round the arches
-    suv: { L: 2.1, W: 0.96, clr: 0.2, wheels: [-0.63, 0.64], r: 0.24, rails: true, cladding: true,
-      body: [[-0.97, 0.2], [-1.0, 0.38], [-0.98, 0.66], [-0.9, 0.9], [-0.7, 0.95], [0.05, 0.96], [0.22, 0.92], [0.5, 0.7], [0.85, 0.64], [0.99, 0.56], [1.0, 0.36], [0.96, 0.2]],
-      glass: [[-0.86, 0.72], [-0.82, 0.88], [0.05, 0.92], [0.2, 0.89], [0.45, 0.71]], screen: [[0.22, 0.92], [0.5, 0.7]], rear: [[-0.98, 0.66], [-0.9, 0.9]],
-      head: [0.98, 0.58], tail: [-0.99, 0.62] },
-    // a grand tourer: a very long bonnet, the cabin set well back, a short fastback
-    gt: { L: 2.15, W: 0.93, clr: 0.13, wheels: [-0.64, 0.66], r: 0.2,
-      body: [[-0.98, 0.13], [-1.0, 0.3], [-0.96, 0.46], [-0.76, 0.52], [-0.5, 0.6], [-0.26, 0.76], [0.0, 0.78], [0.12, 0.76], [0.4, 0.55], [0.85, 0.47], [0.99, 0.38], [0.98, 0.13]],
-      glass: [[-0.46, 0.58], [-0.26, 0.73], [0.0, 0.75], [0.1, 0.73], [0.35, 0.56]], screen: [[0.12, 0.76], [0.4, 0.55]], rear: [[-0.5, 0.6], [-0.26, 0.76]],
-      head: [0.97, 0.39], tail: [-0.98, 0.45], tailBar: true },
-    // a compact sporty hatchback
-    hatch: { L: 1.85, W: 0.9, clr: 0.14, wheels: [-0.64, 0.66], r: 0.19,
-      body: [[-0.97, 0.14], [-1.0, 0.32], [-0.98, 0.56], [-0.88, 0.78], [-0.6, 0.83], [0.0, 0.83], [0.15, 0.8], [0.45, 0.6], [0.8, 0.53], [0.98, 0.44], [1.0, 0.3], [0.96, 0.14]],
-      glass: [[-0.83, 0.62], [-0.8, 0.76], [0.0, 0.79], [0.13, 0.77], [0.4, 0.61]], screen: [[0.15, 0.8], [0.45, 0.6]], rear: [[-0.98, 0.56], [-0.88, 0.78]],
-      head: [0.97, 0.45], tail: [-0.99, 0.52] },
-  };
-  CAR_TYPES.taxi = { ...CAR_TYPES.saloon, sign: true };
-  const BEVEL = 0.045;
-  const carGeo = (type, part) => geo(`car-${type}-${part}`, () => {
-    const T = CAR_TYPES[type], sx = T.L / 2, pts = (part === 'body' ? T.body : T.glass).map(([x, y]) => new THREE.Vector2(x * sx, y));
-    const sh = new THREE.Shape();
-    if (part === 'body') { sh.moveTo(pts[0].x, pts[0].y); sh.splineThru(pts.slice(1)); sh.lineTo(pts[0].x, pts[0].y); }
-    else { sh.moveTo(pts[0].x, pts[0].y); for (const p of pts.slice(1)) sh.lineTo(p.x, p.y); sh.lineTo(pts[0].x, pts[0].y); }
-    const depth = part === 'body' ? T.W - 2 * BEVEL : T.W + 0.012;
-    const g = new THREE.ExtrudeGeometry(sh, part === 'body'
-      ? { depth, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: 0.035, bevelSegments: 3, curveSegments: 10 }
-      : { depth, bevelEnabled: false });
-    g.translate(0, 0, -depth / 2);
-    g.computeVertexNormals();
-    return g;
-  });
-  // A thin pane laid along one edge of the profile (the windscreen or the back window), standing just proud of the body
-  function pane(T, [a, b], m, wid) {
-    const sx = T.L / 2, ax = a[0] * sx, ay = a[1], bx = b[0] * sx, by = b[1];
-    const len = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
-    const p = new THREE.Mesh(geo(`pane${len.toFixed(3)}|${wid}`, () => new THREE.PlaneGeometry(len * 0.92, wid).rotateX(-PI / 2)), m);
-    p.rotation.z = ang;
-    p.position.set((ax + bx) / 2 - Math.sin(ang) * 0.042, (ay + by) / 2 + Math.cos(ang) * 0.042, 0);
-    return p;
+  const signM = night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5);
+  function car(color, parent = root, own = false, type = 'three') {
+    const c = makeCar(type, color, { own, headM, tailM, signM });
+    parent.add(c.group);
+    return c;
   }
-  function car(color, parent = root, ownPaint = false, type = 'hatch') {
-    const T = CAR_TYPES[type] || CAR_TYPES.hatch, sx = T.L / 2, hw = T.W / 2;
-    const g = new THREE.Group(); g.userData.noTex = true; // paint stays paint
-    const paint = ownPaint ? smat({ color, roughness: 0.22, metalness: 0.35 }) : mat(color, { roughness: 0.22, metalness: 0.35 });
-    const tail = ownPaint ? smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }) : tailM;
-    g.add(new THREE.Mesh(carGeo(type, 'body'), paint));
-    g.add(new THREE.Mesh(carGeo(type, 'glass'), glassM));
-    g.add(pane(T, T.screen, glassM, T.W - 0.1), pane(T, T.rear, glassM, T.W - 0.14));
-    // the pillar between the doors, and a thin dark seam for the doors
-    const gl = T.glass, bx = ((gl[1][0] + gl[gl.length - 2][0]) / 2) * sx, beltY = gl[0][1];
-    for (const z of [-hw - 0.008, hw + 0.008]) {
-      g.add(box(0.06, (gl[2][1] - beltY) * 0.95, 0.01, trimCar, bx, beltY, z, false));
-      g.add(box(0.012, beltY - T.clr - 0.12, 0.01, trimCar, bx, T.clr + 0.08, z, false));
-      g.add(box((gl[gl.length - 1][0] - gl[0][0]) * sx, 0.018, 0.012, mat('#c9ccd3', { metalness: 0.6, roughness: 0.3 }), (gl[0][0] + gl[gl.length - 1][0]) / 2 * sx, beltY - 0.03, z, false)); // a bright waistline trim
-    }
-    // mirrors at the foot of the windscreen
-    for (const z of [-hw - 0.05, hw + 0.05]) g.add(rbox(0.09, 0.06, 0.08, paint, gl[gl.length - 1][0] * sx - 0.02, beltY + 0.01, z, 0.02));
-    // lights: slim swept headlamps, tail lamps (or a full-width light bar), a plain grille and intake, number plates
-    const hx = T.head[0] * sx + BEVEL, tx = T.tail[0] * sx - BEVEL;
-    for (const s of [-1, 1]) { const h = box(0.05, 0.05, 0.22, headM, hx - 0.01, T.head[1] - 0.025, s * (hw - 0.17), false); h.rotation.y = s * 0.25; g.add(h); }
-    if (T.tailBar) g.add(box(0.04, 0.045, T.W * 0.86, tail, tx + 0.005, T.tail[1] - 0.02, 0, false));
-    else for (const s of [-1, 1]) g.add(box(0.04, 0.07, 0.2, tail, tx + 0.005, T.tail[1] - 0.035, s * (hw - 0.15), false));
-    g.add(rbox(0.05, 0.07, T.W * 0.42, trimCar, hx - 0.03, T.head[1] - 0.15, 0, 0.02));
-    g.add(rbox(0.05, 0.05, T.W * 0.7, trimCar, hx - 0.06, T.clr + 0.04, 0, 0.02));
-    g.add(box(0.02, 0.07, 0.24, plateM, hx - 0.01, T.clr + 0.11, 0, false));
-    g.add(box(0.02, 0.07, 0.24, plateBackM, tx + 0.01, T.tail[1] - 0.15, 0, false));
-    g.add(rbox(0.06, 0.05, T.W * 0.8, trimCar, tx + 0.02, T.clr + 0.03, 0, 0.02)); // diffuser
-    for (const s of [-1, 1]) { const ex = cyl(0.025, 0.025, 0.06, '#8d939c', 0, 0, 0, 8, false); ex.rotation.z = PI / 2; ex.position.set(tx, T.clr + 0.04, s * 0.25); g.add(ex); } // exhausts
-    if (T.ducktail) g.add(rbox(0.22, 0.04, T.W - 0.1, paint, -0.84 * sx, 0.55, 0, 0.015));
-    if (T.rails) for (const z of [-hw + 0.08, hw - 0.08]) g.add(rbox(T.L * 0.42, 0.035, 0.035, mat('#2b2d36'), (T.glass[2][0] - 0.25) * sx, T.body[5][1] + 0.03, z, 0.012));
-    if (T.cladding) for (const z of [-hw - 0.004, hw + 0.004]) g.add(box(T.L * 0.98, 0.1, 0.01, trimCar, 0, T.clr + 0.02, z, false));
-    if (T.sign) { g.add(rbox(0.3, 0.1, 0.17, mat('#2b2d36'), 0, T.body[6][1] + 0.03, 0, 0.02)); g.add(box(0.28, 0.07, 0.15, night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5), 0, T.body[6][1] + 0.05, 0, false)); }
-    // wheels: dark arches, tyres, five-spoke alloys
-    const wheels = [], tyreGeo = geo(`tyre${T.r}`, () => new THREE.CylinderGeometry(T.r, T.r, 0.2, 18).rotateX(PI / 2));
-    const rimGeo = geo(`rim${T.r}`, () => new THREE.CylinderGeometry(T.r * 0.66, T.r * 0.66, 0.205, 16).rotateX(PI / 2));
-    const archGeo = geo(`arch${T.r}`, () => new THREE.CircleGeometry(T.r + 0.05, 16, 0, PI));
-    for (const wx of T.wheels) for (const s of [-1, 1]) {
-      const arch = new THREE.Mesh(archGeo, archM); arch.position.set(wx * sx, T.r, s * (hw + 0.003)); if (s < 0) arch.rotation.y = PI; g.add(arch);
-      const w = mesh(tyreGeo, tyreM, wx * sx, T.r, s * (hw - 0.08)); // stands a touch proud of the body
-      w.add(new THREE.Mesh(rimGeo, rimM));
-      for (let k = 0; k < 5; k++) { const sp = new THREE.Mesh(geo('spoke' + T.r, () => new THREE.BoxGeometry(T.r * 0.55, 0.035, 0.02).translate(T.r * 0.28, 0, 0)), darkRimM); sp.position.set(0, 0, s * 0.105); sp.rotation.z = k * PI * 2 / 5; w.add(sp); }
-      w.add(mesh(geo('hubcap', () => new THREE.CylinderGeometry(0.035, 0.035, 0.215, 10).rotateX(PI / 2)), darkRimM, 0, 0, 0));
-      g.add(w); wheels.push(w);
-    }
-    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-    parent.add(g);
-    return { group: g, wheels, paint, tail, len: T.L };
-  }
-  const PARKED_TYPES = ['hatch', 'saloon', 'estate', 'coupe', 'suv', 'gt'];
+  const PARKED_TYPES = ['three', 'four', 'avant', 'giulia', 'nine', 'three'];
   for (const [x, z, ry, k] of [[-10.2, 7.5, 0, 0], [-5.6, 7.5, PI, 1], [-2.6, 7.5, 0, 2], [13.6, 7.5, PI, 3], [7.65, -2.4, PI / 2, 4], [7.65, 2.2, -PI / 2, 5]]) {
     const c = car(CAR_COLOURS[k], root, false, PARKED_TYPES[k]); c.group.position.set(x, -0.09, z); c.group.rotation.y = ry;
   }
@@ -468,7 +365,7 @@ export function buildWorld(scene) {
   const beamTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); g.addColorStop(0, 'rgba(255,240,190,0.9)'); g.addColorStop(1, 'rgba(255,240,190,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
   const LANES = [{ lane: 8.45 + ROAD_SHIFT, dir: 1 }, { lane: 9.85 + ROAD_SHIFT, dir: -1 }];
   const CROSS = { x0: 2.0, x1: 5.0 }; // the zebra (x 2.3 to 4.7) and a little room either side
-  const movers = ['hatch', 'taxi', 'saloon', 'suv', 'coupe', 'estate', 'gt'].map((type, i) => {
+  const movers = ['three', 'taxi', 'four', 'giulia', 'nine', 'avant'].map((type, i) => {
     const m = { ...LANES[i % 2], x: 0, v: 0, speed: 3.2, active: false, wait: 6 + i * 9, type };
     const c = car(type === 'taxi' ? '#f2c94c' : CAR_COLOURS[(i * 3 + 1) % CAR_COLOURS.length], scene, true, type);
     c.group.visible = false;
