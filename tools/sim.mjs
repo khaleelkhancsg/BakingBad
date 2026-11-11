@@ -70,7 +70,7 @@ function checkIn(s, st, t, next) {
   // Repairs
   s.machines.forEach((m, i) => { if (m.broken && spare() > G.repairCost(m.type)) G.repairMachine(s, i); });
   // Menu: the best-paying things we know, with variety across machines
-  const known = s.recipes.filter(id => s.machines.some(m => m.type === ITEMS[id].machine && !m.broken));
+  const known = s.recipes.filter(id => G.inSeason(id) && s.machines.some(m => m.type === ITEMS[id].machine && !m.broken)); // only what can be cooked today
   known.sort((a, b) => ITEMS[b].price * ITEMS[b].servings - ITEMS[a].price * ITEMS[a].servings);
   const byMachine = {};
   const picked = [];
