@@ -735,7 +735,7 @@ export const CREW = {
   chef:    { name: 'Marco',   role: 'Head chef',     emoji: '👨‍🍳', level: 22, wage: 120, cash: 'clean', shift: 'day',
              desc: 'When a machine is emptied, starts the same recipe again (buying ingredients if he must). Works while you\'re away.' },
   manager: { name: 'Grace',   role: 'Manager',       emoji: '📋', level: 32, wage: 90,  cash: 'clean', shift: 'day',
-             desc: 'Keeps the ingredients for everything on sale topped up every morning.' },
+             desc: 'Keeps the ingredients for everything on your counters topped up every morning.' },
   accountant: { name: 'Viv',  role: 'Accountant',    emoji: '🧮', level: 42, wage: 100, cash: 'clean', shift: 'day',
              desc: 'Puts the safe amount of dirty cash through the tills every morning, takes a smaller cut for the wash, and tax inspectors fine you less.' },
   dealer:  { name: 'Jay',     role: 'Street dealer', emoji: '🧢', level: 1,  wage: 0,   cash: 'dirty', shift: 'night', lab: true,
@@ -864,7 +864,7 @@ export const LAB_SPOTS = [
 ];
 export const labSpotAt = spot => spot;
 
-// Display counters by the till: each one holds one product, and what's on sale is whatever fits on your counters.
+// Display counters by the till: each one holds one product; cooked food fills them by itself.
 // Every branch starts with 2 and can have up to 7. The first sit nearest the till.
 export const COUNTERS = [
   { level: 1, price: 0 }, { level: 1, price: 0 },

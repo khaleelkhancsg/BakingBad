@@ -29,7 +29,7 @@ There's no in-game day. The clock in the corner is your clock.
 
 ## Buying things
 
-- **Ingredients**: use − and + to fill the basket (Stock up adds three batches of everything on sale), then Checkout.
+- **Ingredients**: use − and + to fill the basket (Stock up adds three batches of everything on the counters), then Checkout.
 - **Design**: tiles, wallpaper, decor and wall art show in the shop as you place them but are only paid for when you
   press Checkout; Cancel puts everything back.
 - **Big purchases** (machines, tiers, expansions, shops, vans, fronts, corners, property, upgrades and recipes) ask
@@ -37,8 +37,8 @@ There's no in-game day. The clock in the corner is your clock.
 
 ## The kitchen
 
-Every machine has its own menu. Tap one to cook, set prices, choose what's on sale and learn recipes. Each batch is one
-timer on one machine. When it's done, tap ✓ to put it in the case. Leave it too long and it spoils: food keeps for about
+Every machine has its own menu. Tap one to cook, set prices and learn recipes. Each batch is one
+timer on one machine. When it's done, tap ✓ to put it on the counters. Leave it too long and it spoils: food keeps for about
 as long as it took to cook (at least 30 minutes).
 
 Recipes run from a minute or two to twelve hours. Short ones pay best per hour while you're playing; long ones make
@@ -64,17 +64,18 @@ wall; clearing the coal store (level 14) adds one more there, then the bench row
 the right-hand wall, and digging out under the front and side terraces (once you have them) adds 3 more each. At the limit the buy
 button says "Reach level N to unlock additional ovens".
 
-**Display counters.** What's on sale is whatever is on the glass counters by the till: one product per counter, and each
-counter holds 4 batches of it. Every branch starts with 2 counters and can buy up to 7 (levels 2–22, £250 to
-£12,000); bare ones have a green card on them, tap one to buy it. Tap a stocked counter to see how many servings are
-left, its price and how many it holds; a full counter means finished food waits in the machine. Every recipe has its
-own little model on the counter, and the more of the counter is stocked the more customers come (variety, up to +40%
-with 7 stocked). Counters running low show an amber ⚠️, empty ones a red 🚫. The counter window has **Restock** (starts a
-free machine on it), **today's special** (one per shop: 20% dearer and twice as many people ask for it, with a gold star
-over the counter), **Give it another counter** (when one is free: a product can take as many counters as you like, its
-stock is shared between them, filling the first one first, and each shows its own share) and, from level 10, a **bigger
-cabinet** for that counter (+2 batches, £1,500). A full counter only holds back that product: anything else still goes
-on its own counter.
+**Display counters.** There's no menu to manage: anything you've learned (and is in season) can be cooked, and when
+it's collected it goes onto the glass counters by the till by itself. Each counter holds one product, 4 batches of it.
+A batch first tops up a counter already showing that product; if that would go over, it fills it to the top and the
+rest goes onto a free counter; with no free counter left, what didn't fit waits in the machine (✓ still showing) until
+there's room, and spoils on its usual timer. A counter that sells out is free again, and so is a product's extra counter
+once what's left fits on fewer. Every branch starts with 2 counters and can buy up to 7 (levels 2–22, £250 to £12,000);
+bare ones have a green card on them, tap one to buy it. Tap a stocked counter to see how many servings are on it (and
+on all its counters), its price and how many it holds. Every recipe has its own little model on the counter, and the
+more different things are out the more customers come (variety, up to +40% with 7). Counters running low show an amber
+⚠️. The counter window has **Restock** (starts a free machine on it), **today's special** (one per shop: 20% dearer and
+twice as many people ask for it, with a gold star over the counter), **Throw away** (all of it, freeing its counters)
+and, from level 10, a **bigger cabinet** for that counter (+2 batches, £1,500).
 
 The same level caps go for how many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
@@ -227,16 +228,13 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
   a sharp baker half the time.
 - **Mastery**: every batch of a recipe counts. Stars at 15, 50, 120, 250 and 500 batches each add 3% servings and 2%
   to the price; five stars make it a signature dish, with a gold sparkle over its counter.
-- **Throwing food away**: tap a counter and throw its food away (it stays on that counter, empty), or throw it away and
-  free the counter for something else (on a product with several counters, **Free this counter** gives one back and
-  keeps the rest). A finished batch with no counter of its own takes a free one, or one whose product has sold out; only
-  when every counter still has something on it does it stay in its machine until you make room.
+- **Throwing food away**: tap a counter and throw its product away; its counters go free for whatever you cook next.
 
 ## Seasons
 
 Seasons follow the real calendar: Valentine's (1–14 Feb), Easter (20 Mar–20 Apr), summer (15 Jun–31 Aug), Halloween
 (15–31 Oct), Bonfire Night (1–7 Nov) and Christmas (1–26 Dec). Each brings three to five limited recipes on the
-stall's machines (learned free when it starts, on sale only until it ends, and a bit dearer), shifts what people want
+stall's machines (learned free when it starts, cookable only until it ends, and a bit dearer), shifts what people want
 (ice cream in summer, pastries at Christmas), and decorates the shop: a garland along the back wall and something by
 the door (a tree, pumpkins, a heart balloon, an Easter basket, a parasol, lanterns).
 
@@ -450,7 +448,7 @@ node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 3 365
 
 `node tools/fuzz.mjs [runs] [days]` plays games with random actions (cooking, counters, specials, cabinets,
 managers, expansions, decor, branches, decisions, saving and loading) and reports any broken rule: negative or NaN
-money, two machines on one spot, more on sale than counters, decor blocking a machine, and so on.
+money, two machines on one spot, stock with no counter, a counter held by nothing, decor blocking a machine, and so on.
 
 ## Layout
 

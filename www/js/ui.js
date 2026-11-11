@@ -166,7 +166,7 @@ function machineState(m, lab) {
   const v = G.jobView(s, m, s.clock, lab);
   return !v.item ? 'idle' : v.done ? 'ready' : 'busy';
 }
-// What the "stock up" button would buy: three batches of everything on sale
+// What the "stock up" button would buy: three batches of everything on the counters
 function stockUpNeeds() {
   const need = {};
   for (const id of G.menuOf(s)) for (const [k, q] of Object.entries(ITEMS[id].ing)) need[k] = (need[k] || 0) + q * 3;
@@ -181,7 +181,7 @@ function suppliesTab() {
   let cards = pcard(`<div class="ptop"><span class="em">🛒</span><div><b>Basket</b><small>${items ? `${items} items · ${money2(total)}` : 'Add ingredients with + and check out here'}</small></div></div>
     <div class="pbtns"><button class="small primary" data-act="checkout" ${items && s.clean >= total ? '' : 'disabled'}>${items && s.clean < total ? 'Not enough cash' : `Checkout${items ? ' · ' + money2(total) : ''}`}</button>
       <button class="small" data-act="basket-clear" ${items ? '' : 'disabled'}>Clear</button></div>`, '', 'wide hired');
-  cards += pcard(`<div class="ptop"><span class="em">🧺</span><div><b>Stock up</b><small>3 batches of all ${G.menuOf(s).length} things on sale${cost ? ` · ${money2(cost)}` : ''}</small></div></div>
+  cards += pcard(`<div class="ptop"><span class="em">🧺</span><div><b>Stock up</b><small>3 batches of all ${G.menuOf(s).length} things on the counters${cost ? ` · ${money2(cost)}` : ''}</small></div></div>
     <div class="pbtns"><button class="small" data-act="stockup" ${cost ? '' : 'disabled'}>${cost ? 'Add to basket' : 'All stocked'}</button></div>`, ibtn('stockup', 'x'), 'wide');
   for (const [id, c] of Object.entries(SUPPLIERS)) {
     if (c.level > s.level + 10) continue;
@@ -225,7 +225,7 @@ function kitchenTab() {
   }).join('');
   cards += elsewhere(false);
   const spots = G.freeSpots(s).length;
-  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} Counters in use: ${G.counterList(s).length} of ${G.menuSlots(s)} (one per counter; tap a bare counter by the till for another).${G.currentSeason() ? ` ${SEASONS[G.currentSeason()].emoji} ${SEASONS[G.currentSeason()].name}: seasonal recipes are on the machines.` : ''} Locals here like ${Object.entries(TASTES[s.shops[s.cur || 0].id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}. Collect a batch yourself within a few minutes of it finishing for a ✨ perfect bake. Tap a machine to cook, choose what's on sale and set prices.` };
+  return { cards, hint: `${G.shopDef(s).name}: ${s.machines.length} machines, room for ${spots} more.${s.shops.length < Object.keys(SHOPS).length ? ' Other machines go in other shops (🏪 Shops).' : ''} Counters in use: ${G.counterList(s).filter(Boolean).length} of ${G.menuSlots(s)} (cooked food fills them by itself; tap a bare counter by the till for another).${G.currentSeason() ? ` ${SEASONS[G.currentSeason()].emoji} ${SEASONS[G.currentSeason()].name}: seasonal recipes are on the machines.` : ''} Locals here like ${Object.entries(TASTES[s.shops[s.cur || 0].id].like).filter(([, v]) => v > 1).map(([g]) => GROUPS[g] || g).join(', ')}. Collect a batch yourself within a few minutes of it finishing for a ✨ perfect bake. Tap a machine to cook, choose what's on sale and set prices.` };
 }
 
 function shopTab(lab = false) {
@@ -633,7 +633,7 @@ function infoFor(kind, id) {
       + `<p class="mute">When you're away the game plays the time forward: customers buy from the case, food left in a machine spoils, interest builds, crew do their jobs and buyers come and go. Up to ${CFG.maxCatchUpDays} days are played; anything longer is skipped.</p>`);
   }
   if (kind === 'event') return T('Today', `<p>${s.event?.text || 'An ordinary day.'}</p><p class="mute">A new day's market and weather come at 6am.</p>`);
-  if (kind === 'stockup') return T('🧺 Stock up', '<p>Buys what\'s missing for three batches of everything on sale, at today\'s prices. You don\'t have to: starting a batch buys any missing ingredients itself.</p><p class="mute">Grace the manager does this every morning once you hire her.</p>');
+  if (kind === 'stockup') return T('🧺 Stock up', '<p>Buys what\'s missing for three batches of everything on the counters, at today\'s prices. You don\'t have to: starting a batch buys any missing ingredients itself.</p><p class="mute">Grace the manager does this every morning once you hire her.</p>');
   if (kind === 'quick') return T('⚡ Quick jobs', '<p><b>Collect all</b> moves every finished batch into the case. <b>Cook again</b> starts the last recipe again on every idle machine.</p><p class="mute">Priya the baker collects for you, and Marco the head chef cooks again for you, even while you\'re away.</p>');
   if (kind === 'ing') {
     const ing = INGREDIENTS[id], p = G.ingPrice(s, id);
@@ -876,25 +876,22 @@ function infoFor(kind, id) {
   if (kind === 'tray') {
     const k = Number(id), menu = G.counterList(s), item = menu[k], nc = G.nextCounter(s);
     const more = nc ? line('Another counter', G.unlocked(s, nc.level) ? money(nc.price) : `level ${nc.level}`) + '<p class="mute">Tap a bare counter by the till to buy it.</p>' : '<p class="mute">All 7 counters are yours.</p>';
-    if (!item) return T(`🧺 Counter ${k + 1}: empty`, `<p>Nothing on this counter. Put something on sale from a machine (tap it, then the ✓ on a recipe).</p>`
-      + line('Counters', `${G.countersOf(s.design)} of 7 (one thing each; a product can take more than one)`) + more);
+    if (!item) return T(`🧺 Counter ${k + 1}: empty`, `<p>Nothing on this counter yet. Cook anything and it goes onto the counters by itself: on top of its own counter first, then onto a free one like this.</p>`
+      + line('Counters', `${G.countersOf(s.design)} of 7`) + more);
     const it = ITEMS[item], have = Math.floor(s.display[item] || 0), cap = G.trayCap(s, item);
-    const here = G.counterStock(s, k), mine = G.countersFor(s, item).length, freeSlot = menu.length < G.countersOf(s.design);
+    const here = G.counterStock(s, k), mine = G.countersFor(s, item).length;
     const pctFull = Math.round(100 * here.have / Math.max(1, here.cap));
     const nx = G.nextStarAt(s, item), stars = G.starsOf(s, item);
     return T(`${it.emoji} ${stars >= MASTERY.stars.length ? 'Signature ' : ''}${it.name}${starTag(item)}`, `<div class="bar"><i style="width:${pctFull}%"></i></div>`
       + line('Mastery', `${G.masteryOf(s, item)} batches${nx ? ` · next ★ at ${nx}` : ' · signature dish'}`)
       + (mine > 1 ? line('On this counter', `${Math.floor(here.have)} of ${here.cap}`) + line(`On all ${mine} of its counters`, `${have} of ${cap}`, have ? '' : 'bad') : line('Servings left', `${have} of ${cap}`, have ? '' : 'bad')) + line('Price', money2(G.itemPrice(s, item)))
       + line('Made in', MACHINES[it.machine].name.toLowerCase()) + line('A batch makes', `${G.servingsFor(s, item, G.maxTier(s, it.machine))} servings`)
-      + `<p class="mute">A counter holds ${here.cap} servings (${CFG.trayBatches} batches); when ${mine > 1 ? 'all its counters are' : 'it is'} full, a finished batch waits in the machine. Other products still go on their own counters.</p>`
+      + `<p class="mute">A counter holds ${here.cap} servings (${CFG.trayBatches} batches). When it's full, the next batch fills it to the top and the rest goes onto a free counter; with none free, it waits in the machine. A counter that sells out is free again.</p>`
       + line('Counters', `${G.countersOf(s.design)} of 7`)
       + `<div class="pbtns col" style="margin-top:8px">
         <button class="small primary" data-act="restock" data-id="${item}">🔁 Restock (${MACHINES[it.machine].name.toLowerCase()})</button>
         <button class="small ${s.design.special === item ? 'on' : ''}" data-act="special" data-id="${item}">${s.design.special === item ? '⭐ Today\'s special (tap to stop)' : `⭐ Make it today's special (+${Math.round(SPECIAL.price * 100)}% price, more asks)`}</button>
-        <button class="small" data-act="counter-more" data-id="${item}" ${freeSlot ? '' : 'disabled'}>➕ Give it another counter${freeSlot ? ` (+${here.cap} servings)` : ' (none free)'}</button>
-        <div class="row2"><button class="small" data-act="throw" data-id="${item}" ${have ? '' : 'disabled'}>🗑️ Throw away ${have}</button>${mine > 1
-          ? `<button class="small danger" data-act="counter-free" data-id="${k}">↩️ Free this counter (keep the rest)</button>`
-          : `<button class="small danger" data-act="throwfree" data-id="${item}">🗑️ Throw away and free the counter</button>`}</div>
+        <button class="small danger" data-act="throw" data-id="${item}">🗑️ Throw away all ${have} and free ${mine > 1 ? `its ${mine} counters` : 'the counter'}</button>
         ${G.cabinetOn(s, k) ? '<small class="good">🧊 Bigger cabinet fitted</small>' : G.unlocked(s, CABINET.level) ? `<button class="small" data-act="cabinet" data-id="${k}" ${s.clean < CABINET.price ? 'disabled' : ''}>🧊 Bigger cabinet: +${CABINET.batches} batches · ${money(CABINET.price)}</button>` : `<small class="mute">Bigger cabinets at level ${CABINET.level}</small>`}
       </div>` + more);
   }
@@ -963,7 +960,7 @@ const GUIDE = [
   { text: '⏲️ Baking runs on the real clock. When the timer\'s done, tap the machine: the food goes on a <b>counter</b> by the till.', done: s => (s.stats.batches || 0) > 0 },
   { text: '🧺 Customers buy from the counters. Tap a <b>counter</b> to see how many servings are left.', done: s => s.guide.seen?.tray },
   { text: '🛒 Ingredients run out. Open <b>☰ Menu → Supplies</b> to stock up.', done: s => s.guide.seen?.supplies },
-  { text: '➕ One counter = one thing on sale. Tap a <b>bare counter</b> (green card) to buy another once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
+  { text: '➕ Each counter holds one thing; what you cook fills them by itself. Tap a <b>bare counter</b> (green card) to buy another once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
   { text: '🎨 Make it yours: <b>Design</b> has floors, decor and expansions that bring more customers.', done: s => s.guide.seen?.design },
   { text: '🏦 The stall came with a debt. <b>☰ Menu → Bank & tax</b> shows what\'s due and when.', done: s => s.guide.seen?.bank },
   { text: '🌙 That\'s the basics. At level 3 a door at the back opens up... the rest you can find out yourself.', done: () => false, last: true },
@@ -1064,28 +1061,26 @@ function machineModal(m) {
   else if (busy) status = `<div class="card win">${G.recipeOf(v.item).emoji} <b>${G.recipeOf(v.item).name}</b> is ready.${lab ? '' : ` It ${M.spoil === 'burnt' ? 'burns' : 'spoils'} in ${secs(v.spoilIn)}.`}
       <button class="small primary" data-act="collect" data-kind="${m.kind}" data-idx="${m.idx}">Collect</button></div>`;
   else if (lab && G.sealed(s, s.clock)) status = `<div class="card alert">🚧 Police tape. Sealed for ${mins((s.sealedUntil - s.clock) / MIN)}.</div>`;
-  else status = lab ? `<p class="mute">Pick something to make.</p>` : `<p class="mute">Pick something to make. Counters in use: ${G.counterList(s).length} of ${G.menuSlots(s)}.</p>`;
+  else status = lab ? `<p class="mute">Pick something to make.</p>` : `<p class="mute">Pick something to make: when it's done it goes onto a counter by the till. Counters in use: ${G.counterList(s).filter(Boolean).length} of ${G.menuSlots(s)}.</p>`;
   const tier = mc.tier || 0, tcost = G.tierCost(mc.type, tier, lab), tcash = G.machineCash(mc.type, lab);
   const tierRow = `<div class="mrow tierrow"><span class="em">⬆️</span><div class="grow"><b>Tier ${tier}/${TIERS.max}</b>
       <small>${lab ? `-${pct(TIERS.labSpeed * tier)} time, +${pct(TIERS.labPurity * tier)} purity` : `-${pct(TIERS.speed * tier)} time, +${pct(TIERS.servings * tier)} servings`}</small></div>
     <div class="mright">${tier >= TIERS.max ? '<span class="lock good">Maxed</span>' : `<button class="small ${tcash === 'dirty' ? 'violet' : 'primary'}" data-act="tier" data-kind="${m.kind}" data-idx="${m.idx}" ${s[tcash] < tcost ? 'disabled' : ''}>${tcash === 'dirty' ? '💜' : '💷'} ${money(tcost)}</button>`}</div></div>`;
   let rows;
   if (!lab) {
-    const menu = G.menuOf(s);
     rows = G.recipesFor(mc.type).sort((a, b) => ITEMS[a].level - ITEMS[b].level).filter(id => ITEMS[id].level <= s.level + 10).map(id => {
-      const r = ITEMS[id], known = s.recipes.includes(id), open = G.unlocked(s, r.level), on = menu.includes(id);
+      const r = ITEMS[id], known = s.recipes.includes(id), open = G.unlocked(s, r.level), nc = G.countersFor(s, id).length;
       const batches = known ? G.batchesPossible(s, id) : 0, miss = known && !batches ? G.missingCost(s, id) : 0;
       let right;
       if (!open) right = `<span class="lock">🔒 Lv ${r.level}</span>`;
       else if (!known) right = `<button class="small" data-act="learn" data-id="${id}" ${s.clean < r.cost ? 'disabled' : ''}>Learn ${money(r.cost)}</button>`;
-      else right = `<button class="small primary" data-act="cook" data-id="${id}" ${busy || mc.broken || (miss && s.clean < miss) ? 'disabled' : ''}>${miss ? `Cook +${money2(miss)}` : 'Cook'}</button>
-        <button class="small menutoggle ${on ? 'on' : ''}" data-act="menu-toggle" data-id="${id}">${on ? '✓ On sale' : '+ Sell'}</button>`;
+      else right = `<button class="small primary" data-act="cook" data-id="${id}" ${busy || mc.broken || (miss && s.clean < miss) ? 'disabled' : ''}>${miss ? `Cook +${money2(miss)}` : 'Cook'}</button>`;
       const priceRow = known ? `<div class="seg">${Object.entries(PRICE_LEVELS).map(([k, L]) =>
         `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>` : '';
       return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
         <span class="em">${r.emoji}</span>
         <div class="grow"><b>${r.name}${starTag(id)}</b><small>×${G.servingsFor(s, id, mc.tier || 0)} · ${mins(G.cookMs(s, id, mc.tier || 0) / MIN)} · ${money2(G.itemPrice(s, id))} each</small>
-          <small>${ingText(r)}${known ? ` · stock for ${batches} · case ${s.display[id] || 0}/${G.trayCap(s, id)}` : ''}</small>${priceRow}</div>
+          <small>${ingText(r)}${known ? ` · stock for ${batches}${nc ? ` · ${Math.floor(s.display[id] || 0)} out on ${nc} counter${nc === 1 ? '' : 's'}` : ''}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
   } else {
@@ -1479,11 +1474,10 @@ function confirmText(a, d) {
   const id = d.id;
   if (a === 'buymachine') return `Buy another ${MACHINES[id].name.toLowerCase()} for ${money(G.machinePrice(s, id))}?`;
   if (a === 'buylab') return `Buy a ${LAB_MACHINES[id].name.toLowerCase()} for 💜 ${money(G.machinePrice(s, id, true))}?`;
-  if (a === 'throw') return `Throw away ${Math.floor(s.display[id] || 0)} ${ITEMS[id].name.toLowerCase()}? It stays on its counter, empty.`;
-  if (a === 'throwfree') return `Throw away the ${ITEMS[id].name.toLowerCase()} and take it off its counter, so something else can go there?`;
+  if (a === 'throw') return `Throw away all the ${ITEMS[id].name.toLowerCase()} and free its counters?`;
   if (a === 'manager-hire') return `Hire a ${MANAGER.skills[Number(d.skill)].name.toLowerCase()} manager for ${money(MANAGER.skills[Number(d.skill)].wage)} a day?`;
   if (a === 'landmark') return `Buy ${LANDMARKS[id].name} for ${money(LANDMARKS[id].price)}?`;
-  if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? It holds one more thing on sale.` : null) : null; }
+  if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? Cooked food fills it by itself.` : null) : null; }
   if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
   if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
   if (a === 'front-buy') return `Buy the ${FRONTS[id].name.toLowerCase()} for ${money(FRONTS[id].price)}?`;
@@ -1537,10 +1531,7 @@ function act(el) {
     case 'landmark': G.buyLandmark(s, id); break;
     case 'invest': G.invest(s, Number(id) > 0 ? Number(id) : s.clean * Number(el.dataset.share || 1)); break;
     case 'withdraw': G.withdraw(s); break;
-    case 'throw': G.throwAway(s, id, false); break;
-    case 'throwfree': G.throwAway(s, id, true); ui.modal = null; break;
-    case 'counter-more': G.addCounterFor(s, id); break;
-    case 'counter-free': G.freeCounter(s, Number(id)); ui.modal = null; break;
+    case 'throw': G.throwAway(s, id); ui.modal = null; break;
     case 'story-read': G.readChapter(s); ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
     case 'story-later': ui.storyLater = true; ui.modal = null; break;
     case 'story-open': ui.storyLater = false; if (s.story?.queue?.length) ui.modal = { type: 'story', id: s.story.queue[0] }; break;
@@ -1636,7 +1627,6 @@ function act(el) {
     case 'buymachine': G.buyMachine(s, id); break;
     case 'buylab': G.buyMachine(s, id, true); break;
     case 'repair': G.repairMachine(s, Number(el.dataset.idx), el.dataset.kind === 'night'); break;
-    case 'menu-toggle': G.toggleMenu(s, id); break;
     case 'price': G.setPriceLevel(s, id, el.dataset.lvl); break;
     case 'basket': { const n = Math.max(0, (ui.basket[id] || 0) + Number(el.dataset.n)); if (n) ui.basket[id] = n; else delete ui.basket[id]; break; }
     case 'basket-clear': ui.basket = {}; break;

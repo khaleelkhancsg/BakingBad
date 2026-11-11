@@ -20,15 +20,17 @@ const STRATS = {
 
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
+const picks = [];
 const profit = (s, id) => ITEMS[id].servings * G.itemPrice(s, id) - G.batchCost(s, id);
 // Pick what to cook on a machine so it's ready (and not spoiled) by the next check-in
 function chooseRecipe(s, m, t, next) {
   const gap = next - t;
   let best = null, bestScore = -Infinity;
-  for (const id of G.menuOf(s)) {
+  for (const id of picks[s.cur || 0] || []) {
     const r = ITEMS[id];
     if (r.machine !== m.type) continue;
-    if ((s.display[id] || 0) >= G.trayCap(s, id) - r.servings) continue;
+    // room on its own counters, or a free counter if it has none yet (don't spill one thing over several counters)
+    if ((G.countersFor(s, id).length ? G.trayCap(s, id) - (s.display[id] || 0) : G.roomFor(s, id)) < r.servings) continue;
     const cook = G.cookMs(s, id), keep = G.spoilMs(s, id);
     const auto = s.crew.baker; // Priya collects as soon as it's done
     let score;
@@ -75,7 +77,7 @@ function checkIn(s, st, t, next) {
   for (const id of known) { const k = ITEMS[id].machine; if ((byMachine[k] || 0) < 2) { picked.push(id); byMachine[k] = (byMachine[k] || 0) + 1; } }
   for (const id of known) if (!picked.includes(id)) picked.push(id);
   for (let c = G.nextCounter(s); c && G.unlocked(s, c.level) && c.price < spare() * 0.4; c = G.nextCounter(s)) if (!G.buyCounter(s)) break;
-  s.onMenu = picked.slice(0, G.menuSlots(s));
+  picks[s.cur || 0] = picked.slice(0, G.menuSlots(s)); // what we'll cook here
   // Growth: machines, recipes, expansions, upgrades, property, crew, marketing, decor
   for (const type of Object.keys(MACHINES)) if (!G.machineBlock(s, type) && G.machinePrice(s, type) < spare() * 0.35) G.buyMachine(s, type);
   for (const [id, e] of Object.entries(D.EXPANSIONS)) if (!s.design.expansions[id] && D.levelOk(s, e) && (!e.needs || s.design.expansions[e.needs]) && e.price < spare() * 0.3 && (e.cells || e.spots || (e.labSpots && st.crook && !s.cur))) D.buyExpansion(s, id);

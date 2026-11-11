@@ -2574,7 +2574,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const t of trays) for (const o of t.group.children) if (o.userData.spin) o.rotation.y += dt * 2;
     syncSeason(s);
     const menu = G.counterList(s);
-    const fill = k => Math.min(6, Math.ceil(G.counterStock(s, k).have / ITEMS[menu[k]].servings * 3)); // what's on that counter
+    const fill = k => (menu[k] ? Math.min(6, Math.ceil(G.counterStock(s, k).have / ITEMS[menu[k]].servings * 3)) : 0); // what's on that counter
     const sig5 = id => (G.starsOf(s, id) >= 5 ? '*' : '');
     const tsig = menu.map((id, k) => id + fill(k) + sig5(id)).join(',');
     if (tsig !== traySig) {

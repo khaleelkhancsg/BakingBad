@@ -467,13 +467,17 @@ export const nextStarAt = (s, id) => MASTERY.stars.find(n => masteryOf(s, id) < 
 export const servingsFor = (s, id, tier = 0) => Math.round(ITEMS[id].servings * (1 + TIERS.servings * tier) * (s.crew?.souschef ? 1.1 : 1) * (1 + MASTERY.servings * starsOf(s, id)));
 export const maxTier = (s, type) => Math.max(0, ...(s.machines || []).filter(m => m.type === type).map(m => m.tier || 0));
 export const spoilMs = (s, id) => Math.max(CFG.spoilMin, ITEMS[id].minutes) * MIN * (1 + eff(s, 'keep'));
-// Which counter an item is first on (or -1), and how much its counters hold together. A product can take
-// several counters; its stock is shared between them, filling the first one first.
+// Display counters are filled by what you cook: a batch tops up its product's counters, then takes free ones; a
+// counter that sells out is free again. s.onMenu is the counters in order (a product, or null for an empty one), and a
+// product's stock (s.display) is shared between its counters, filling the first one first.
 export const counterOf = (s, id) => counterList(s).indexOf(id);
 export const countersFor = (s, id) => counterList(s).reduce((a, x, k) => (x === id ? [...a, k] : a), []);
 export const cabinetOn = (s, k) => !!s.design?.cabinets?.[k];
 const oneCounterCap = (s, id, k) => Math.round(servingsFor(s, id, maxTier(s, ITEMS[id].machine)) * (CFG.trayBatches + eff(s, 'tray') + (cabinetOn(s, k) ? CABINET.batches : 0)));
+// What a product's counters hold together (one counter's worth if it has none yet)
 export const trayCap = (s, id) => { const ks = countersFor(s, id); return ks.length ? ks.reduce((a, k) => a + oneCounterCap(s, id, k), 0) : oneCounterCap(s, id, -1); };
+// How many more servings of a product would fit: the room left on its counters, plus every free counter
+export const roomFor = (s, id) => counterList(s).reduce((a, x, k) => a + (x === id || !x ? oneCounterCap(s, id, k) : 0), 0) - (s.display[id] || 0);
 // What one counter shows: its product, how many servings are on it and how many it holds
 export function counterStock(s, k) {
   const list = counterList(s), id = list[k];
@@ -483,32 +487,30 @@ export function counterStock(s, k) {
   const cap = oneCounterCap(s, id, k);
   return { id, have: Math.max(0, Math.min(cap, left)), cap };
 }
-// Give a product on sale one more counter (if there's a free one)
-export function addCounterFor(s, id) {
-  if (!menuOf(s).includes(id)) return say('Put it on sale first.', 'bad');
-  if (counterList(s).length >= menuSlots(s)) return say('Every counter is in use. Free one first, or buy another counter by the till.', 'bad');
-  s.onMenu.push(id);
-  say(`${ITEMS[id].emoji} ${ITEMS[id].name} now has ${countersFor(s, id).length} counters (${trayCap(s, id)} servings).`, 'good');
-  return true;
+// Put the counters right after stock changes: each product keeps as many of its counters (first ones first) as its
+// stock needs, the rest go free, and stock with no counter yet takes free ones
+export function settleCounters(s) {
+  const a = counterList(s), left = {};
+  for (const id in s.display) if (s.display[id] > 0 && ITEMS[id]) left[id] = s.display[id];
+  for (let k = 0; k < a.length; k++) { const id = a[k]; if (id && left[id] > 0) left[id] -= oneCounterCap(s, id, k); else a[k] = null; }
+  for (const id in left) while (left[id] > 1e-9) {
+    const k = a.indexOf(null);
+    if (k < 0) { s.display[id] = Math.max(0, s.display[id] - left[id]); break; } // no counter for it at all (old saves)
+    a[k] = id; left[id] -= oneCounterCap(s, id, k);
+  }
+  s.onMenu = a;
 }
-// Take one counter away from a product: if it has others, it keeps them (and what still fits on them)
-export function freeCounter(s, k) {
-  const list = counterList(s), id = list[k];
-  if (!id) return;
-  if (list.filter(x => x === id).length <= 1) return throwAway(s, id, true);
-  const nth = list.slice(0, k).filter(x => x === id).length; // which of its counters this is
-  let seen = -1; const i = s.onMenu.findIndex(x => x === id && ++seen === nth);
-  s.onMenu.splice(i, 1);
-  const cap = trayCap(s, id), over = Math.max(0, Math.floor((s.display[id] || 0) - cap));
-  s.display[id] = Math.min(s.display[id] || 0, cap);
-  say(`Counter ${k + 1} is free${over ? ` (${over} ${ITEMS[id].name.toLowerCase()} that didn't fit elsewhere thrown away)` : ''}.`, 'info');
+// After a sale: a counter frees up when its product sells out, or when one of its several counters empties
+function afterSale(s, id) {
+  const l = counterList(s);
+  if (!(s.display[id] > 0) || l.indexOf(id) !== l.lastIndexOf(id)) settleCounters(s);
 }
-// Throw what's on a counter away; with free, take it off the counter too so something else can go there
-export function throwAway(s, id, free = false) {
+// Throw a product away: all of it, and its counters go free
+export function throwAway(s, id) {
   const n = Math.floor(s.display[id] || 0);
   s.display[id] = 0;
-  if (free) { s.onMenu = s.onMenu.filter(x => x !== id); if (s.design.special === id) s.design.special = null; }
-  say(`🗑️ ${n ? `${n} ${ITEMS[id].name.toLowerCase()} thrown away` : `${ITEMS[id].name} taken off`}${free ? ': that counter is free for something else.' : '.'}`, 'info');
+  settleCounters(s);
+  say(`🗑️ ${n} ${ITEMS[id].name.toLowerCase()} thrown away: its counters are free for something else.`, 'info');
 }
 // A manager runs the shop they're in when you're elsewhere: collects, and keeps the counters stocked
 export const managerWages = s => s.shops.reduce((a, x) => a + (x.manager ? MANAGER.skills[x.manager.skill].wage : 0), 0);
@@ -521,11 +523,11 @@ export function hireManager(s, skill) {
 export function fireManager(s) { s.manager = null; say('The manager has gone.', 'info'); }
 function manage(s, t) {
   s.machines.forEach((m, i) => { if (m.job && t >= m.job.start + m.job.dur) collectJob(s, i, t, { quiet: true, crew: true }); });
-  const menu = menuOf(s);
+  const fill = id => (countersFor(s, id).length ? (s.display[id] || 0) / trayCap(s, id) : 0.5); // out already and running low first
   s.machines.forEach((m, i) => {
     if (m.job || m.broken) return;
-    const pickId = menu.filter(id => ITEMS[id].machine === m.type && (s.display[id] || 0) + servingsFor(s, id, m.tier || 0) <= trayCap(s, id))
-      .sort((a, b) => (s.display[a] || 0) / trayCap(s, a) - (s.display[b] || 0) / trayCap(s, b))[0];
+    const pickId = s.recipes.filter(id => ITEMS[id].machine === m.type && inSeason(id) && roomFor(s, id) >= servingsFor(s, id, m.tier || 0))
+      .sort((a, b) => fill(a) - fill(b) || ITEMS[b].price * ITEMS[b].servings - ITEMS[a].price * ITEMS[a].servings)[0];
     if (pickId) startJob(s, i, pickId, t, { quiet: true });
   });
 }
@@ -559,7 +561,7 @@ export function claimSet(s, id) {
   say(`📖 ${c.name}: +£${prize.toLocaleString('en-GB')}.`, 'good');
 }
 export function setSpecial(s, id) {
-  if (!menuOf(s).includes(id)) return;
+  if (!s.recipes.includes(id)) return;
   s.design.special = s.design.special === id ? null : id;
   say(s.design.special ? `${ITEMS[id].emoji} ${ITEMS[id].name} is today's special: ${Math.round(SPECIAL.price * 100)}% dearer, and more people ask for it.` : 'No special today.', 'good');
 }
@@ -688,16 +690,11 @@ function seasonCheck(s, t) {
 export const recipesFor = type => Object.keys(ITEMS).filter(id => ITEMS[id].machine === type && inSeason(id));
 export const productsFor = type => Object.keys(PRODUCTS).filter(id => PRODUCTS[id].machine === type);
 const ownedAnywhere = (s, type) => s.shops.some(x => x.machines.some(m => m.type === type));
-function addToMenus(s, id) {
-  for (const x of s.shops) if (SHOPS[x.id].machines.includes(ITEMS[id].machine) && x.machines.some(m => m.type === ITEMS[id].machine)
-    && !x.onMenu.includes(id) && x.onMenu.filter(k => s.recipes.includes(k)).length < countersOf(x.design) * PER_COUNTER) x.onMenu.push(id);
-}
 export function learnFree(s) {
   for (const id in ITEMS) {
     const r = ITEMS[id];
     if (r.cost || s.recipes.includes(id) || !unlocked(s, r.level) || !ownedAnywhere(s, r.machine)) continue;
     s.recipes.push(id);
-    addToMenus(s, id);
   }
 }
 export function buyRecipe(s, id) {
@@ -708,10 +705,7 @@ export function buyRecipe(s, id) {
   s.clean = round2(s.clean - r.cost);
   s.today.upgradesSpent += r.cost;
   s.recipes.push(id);
-  const before = s.shops.reduce((a, x) => a + x.onMenu.length, 0);
-  addToMenus(s, id);
-  if (s.shops.reduce((a, x) => a + x.onMenu.length, 0) > before) say(`Learned ${r.name}. It's on sale.`, 'good');
-  else say(`Learned ${r.name}. Put it on sale from its machine's menu.`, 'info');
+  say(`Learned ${r.name}. Cook it and it goes straight onto a counter.`, 'good');
 }
 // What a machine is doing at time t (for the UI and the 3D scene). Times in seconds.
 export function jobView(s, m, t, lab = false) {
@@ -740,35 +734,35 @@ export const perfectWindow = (s, id) => clamp(ITEMS[id].minutes * PERFECT.window
 export function collectJob(s, idx, t, { quiet = false, byYou = false, crew = false } = {}) {
   const m = s.machines[idx];
   if (!m?.job || t < m.job.start + m.job.dur) return false;
-  const id = m.job.item, r = ITEMS[id], doneAt = m.job.start + m.job.dur;
-  // Not on a counter yet: it takes a free counter, or one that's standing empty
-  if (!menuOf(s).includes(id) && counterList(s).length >= menuSlots(s) && !emptyCounterFor(s)) {
-    if (!quiet) say(`Every counter has something on it. Tap a counter and free it to make room for the ${r.name.toLowerCase()}.`, 'bad');
+  const id = m.job.item, r = ITEMS[id], doneAt = m.job.start + m.job.dur, first = m.job.left == null;
+  // Room for it: on top of its own counters, then on free counters
+  const room = Math.floor(roomFor(s, id));
+  if (room <= 0) {
+    if (!quiet) say(`No room for the ${r.name.toLowerCase()}: every counter has something on it. Sell some, throw something away, or buy another counter.`, 'bad');
     return false;
   }
-  const sharp = crew && s.crew.baker && staffOf(s, 'baker').trait === 'sharp' && rand() < 0.5;
-  const perfect = (byYou || sharp) && t - doneAt <= perfectWindow(s, id);
-  const n = Math.round(servingsFor(s, id, m.tier || 0) * (perfect ? 1 + PERFECT.servings : 1));
-  if ((s.display[id] || 0) > 0 && (s.display[id] || 0) + n > trayCap(s, id)) {
-    if (!quiet) say(`The ${r.name.toLowerCase()} ${countersFor(s, id).length > 1 ? 'counters are' : 'counter is'} full. Sell some first, throw some away${counterList(s).length < menuSlots(s) ? ', or give it another counter (tap its counter)' : ''}.`, 'bad');
-    return false;
+  let n = m.job.left;
+  if (first) {
+    const sharp = crew && s.crew.baker && staffOf(s, 'baker').trait === 'sharp' && rand() < 0.5;
+    const perfect = (byYou || sharp) && t - doneAt <= perfectWindow(s, id);
+    n = Math.round(servingsFor(s, id, m.tier || 0) * (perfect ? 1 + PERFECT.servings : 1));
+    const starsBefore = starsOf(s, id);
+    (s.mastery ||= {})[id] = (s.mastery[id] || 0) + 1;
+    if (r.season) (s.collect ||= {}).seasonal = { ...(s.collect?.seasonal || {}), [id]: 1 };
+    if (perfect) { s.stats.perfect = (s.stats.perfect || 0) + 1; addXp(s, batchXp(id) * PERFECT.xp); if (!quiet) say(`✨ Perfect bake! ${r.emoji} ${n} servings (+${Math.round(PERFECT.servings * 100)}%).`, 'good'); }
+    if (starsOf(s, id) > starsBefore) note(s, `⭐ ${r.emoji} ${r.name}: ${'★'.repeat(starsOf(s, id))}${starsOf(s, id) === MASTERY.stars.length ? ' (a signature dish!)' : ''} More servings and a better price.`, 'good', t);
+    addXp(s, batchXp(id));
+    s.today.batches++; s.stats.batches = (s.stats.batches || 0) + 1;
   }
-  if (!menuOf(s).includes(id) && counterList(s).length >= menuSlots(s)) { // swap it onto a counter standing empty
-    const old = emptyCounterFor(s), i = s.onMenu.indexOf(old);
-    s.onMenu.splice(i, 1);
-    if (s.design.special === old && !s.onMenu.includes(old)) s.design.special = null;
+  const put = Math.min(n, room);
+  s.display[id] = (s.display[id] || 0) + put;
+  settleCounters(s);
+  if (put < n) { // what doesn't fit waits in the machine (and still spoils on time)
+    m.job.left = n - put;
+    if (!quiet) say(`${r.emoji} ${put} ${r.name.toLowerCase()} on the counters; ${n - put} more wait in the machine until there's room.`, 'info');
+    return true;
   }
-  s.display[id] = (s.display[id] || 0) + n;
-  const starsBefore = starsOf(s, id);
-  (s.mastery ||= {})[id] = (s.mastery[id] || 0) + 1;
-  if (r.season) (s.collect ||= {}).seasonal = { ...(s.collect?.seasonal || {}), [id]: 1 };
-  if (perfect) { s.stats.perfect = (s.stats.perfect || 0) + 1; addXp(s, batchXp(id) * PERFECT.xp); if (!quiet) say(`✨ Perfect bake! ${r.emoji} ${n} servings (+${Math.round(PERFECT.servings * 100)}%).`, 'good'); }
-  if (starsOf(s, id) > starsBefore) note(s, `⭐ ${r.emoji} ${r.name}: ${'★'.repeat(starsOf(s, id))}${starsOf(s, id) === MASTERY.stars.length ? ' (a signature dish!)' : ''} More servings and a better price.`, 'good', t);
-  if (!s.onMenu.includes(id) && counterList(s).length < menuSlots(s)) s.onMenu.push(id);
   m.job = null;
-  addXp(s, batchXp(id));
-  s.today.batches++; s.stats.batches = (s.stats.batches || 0) + 1;
-  if (!quiet && !s.onMenu.includes(id)) say(`${r.name} isn't on sale: put it on the menu to sell it.`, 'info');
   // The head chef starts the same thing again straight away, if there's room for it
   if (s.crew.chef && m.last) chefRestart(s, idx, t);
   return true;
@@ -776,7 +770,7 @@ export function collectJob(s, idx, t, { quiet = false, byYou = false, crew = fal
 // Marco only cooks again what's on sale and will fit in its tray once it's done
 function chefRestart(s, idx, t) {
   const m = s.machines[idx], id = m.last;
-  if (!id || !menuOf(s).includes(id) || (s.display[id] || 0) + servingsFor(s, id, m.tier || 0) > trayCap(s, id)) return false;
+  if (!id || roomFor(s, id) < servingsFor(s, id, m.tier || 0)) return false;
   return startJob(s, idx, id, t, { quiet: true });
 }
 export const tierCost = (type, tier, lab = false) => Math.round(TYPES(lab)[type].price * TIERS.costMult * Math.pow(TIERS.costGrow, tier) / 10) * 10;
@@ -927,27 +921,12 @@ export function buyCounter(s) {
   if (s.clean < c.price) return say('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - c.price); s.today.capex += c.price;
   s.design.counters = countersOf(s.design) + 1;
-  say(`New display counter: room for ${menuSlots(s)} things on sale.`, 'good');
+  say(`New display counter: ${menuSlots(s)} by the till now.`, 'good');
   return true;
 }
-// Counter by counter (a product on two counters appears twice), and what's on sale (each product once)
-export const counterList = s => s.onMenu.filter(id => s.recipes.includes(id) && inSeason(id) && shopDef(s).machines.includes(ITEMS[id].machine)).slice(0, menuSlots(s));
-export const menuOf = s => [...new Set(counterList(s))];
-// A counter whose product has sold out (the last of it, if it has several), free for something else
-function emptyCounterFor(s) {
-  const list = counterList(s);
-  for (let k = list.length - 1; k >= 0; k--) if (!(s.display[list[k]] > 0) && list[k] !== s.design.special) return list[k];
-  return null;
-}
-export function toggleMenu(s, id) {
-  if (!s.recipes.includes(id)) return;
-  if (s.onMenu.includes(id)) { s.onMenu = s.onMenu.filter(x => x !== id); if (s.design?.special === id) s.design.special = null; return; }
-  if (counterList(s).length >= menuSlots(s)) {
-    const nc = nextCounter(s);
-    return say(`Your counters hold ${menuSlots(s)} things${nc ? ` (another counter: tap a bare one by the till${unlocked(s, nc.level) ? '' : `, level ${nc.level}`})` : ''}. Take something off first.`, 'bad');
-  }
-  s.onMenu.push(id);
-}
+// The counters in order (a product, or null for an empty one), and the products on them (each once)
+export const counterList = s => { const n = menuSlots(s), a = (s.onMenu || []).slice(0, n).map(id => (id && ITEMS[id] ? id : null)); while (a.length < n) a.push(null); return a; };
+export const menuOf = s => [...new Set(counterList(s).filter(Boolean))];
 export function setPriceLevel(s, id, lvl) { if (PRICE_LEVELS[lvl]) s.priceLevel[id] = lvl; }
 export function buyIngredient(s, ing, qty, silent = false) {
   if (!unlocked(s, INGREDIENTS[ing].level)) { if (!silent) say(`${INGREDIENTS[ing].name} unlocks at level ${INGREDIENTS[ing].level}.`, 'bad'); return false; }
@@ -1034,12 +1013,13 @@ function customerVisit(s, t, showIt) {
   let qty = 1 + (rand() < 0.45 ? 1 : 0) + ((g === 'sweet' || g === 'cold') && rand() < 0.3 ? 1 : 0);
   qty = Math.min(qty, s.display[id]);
   s.display[id] -= qty;
+  afterSale(s, id);
   let rev = qty * itemPrice(s, id), xp = qty * saleXp(id), combo = false;
   if (TAX.vatGroups.includes(g)) td.vatSales += rev;
   // Plenty of people grab a drink with their food
   if (g !== 'drink' && rand() < CFG.drinkAddOn) {
     const drinks = stock.filter(x => ITEMS[x].group === 'drink' && s.display[x] > 0);
-    if (drinks.length) { const d = pick(drinks), dp = itemPrice(s, d) * 1.1; s.display[d]--; rev += dp; td.vatSales += dp; xp += saleXp(d); td.itemsSold++; combo = true; }
+    if (drinks.length) { const d = pick(drinks), dp = itemPrice(s, d) * 1.1; s.display[d]--; afterSale(s, d); rev += dp; td.vatSales += dp; xp += saleXp(d); td.itemsSold++; combo = true; }
   }
   const regular = rand() < 0.2;
   if (regular) rev *= 1.1;
@@ -1559,6 +1539,7 @@ export function deliverOrder(s, oid, t = s.clock, quiet = false) {
   } else {
     let left = o.qty;
     for (const x of s.shops) { const n = Math.min(left, x.display[o.item] || 0); x.display[o.item] -= n; left -= n; }
+    eachShop(s, () => settleCounters(s));
     s.clean = round2(s.clean + o.pay); s.today.sales = round2(s.today.sales + o.pay); s.stats.totalSales = round2(s.stats.totalSales + o.pay);
     if (TAX.vatGroups.includes(ITEMS[o.item].group)) s.today.vatSales += o.pay;
     s.rep = clamp(s.rep + 1, 0, 100);
@@ -1719,9 +1700,9 @@ export function newGame(t = Date.now(), prestige = null) {
   };
   bindShops(s);
   s.machines = [{ type: 'oven', spot: 0, job: null, last: null }, { type: 'oven', spot: 2, job: null, last: null }, { type: 'mixer', spot: 5, job: null, last: null }];
-  s.onMenu = [...START_RECIPES];
   for (const id in ITEMS) s.priceLevel[id] = 'normal';
   s.display.sourdough = 20; s.display.croissant = 16; // Aunt Rosa's last bake
+  s.onMenu = []; settleCounters(s);
   rollMarket(s); s.event = null;
   s.prestige = prestige || { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
   if (prestige) { applyPerks(s); learnFree(s); }
@@ -1774,6 +1755,7 @@ export function migrate(s, t = Date.now()) {
     for (const k in INGREDIENTS) { s.inv[k] ??= 0; s.market[k] ??= 1; }
     for (const id in ITEMS) s.priceLevel[id] ||= 'normal';
     for (const r in CREW) s.crew[r] ??= false;
+    eachShop(s, () => settleCounters(s)); // counters follow stock now (older saves had a menu)
     return s;
   }
   const n = newGame(t);
@@ -1840,6 +1822,7 @@ function span(s, t0, t1, showIt) {
   if (s.hmrc > 0) s.hmrc += s.hmrc * TAX.interestDaily * mins / 1440;
 }
 function shopSpan(s, t0, t1, mins, showIt) {
+  settleCounters(s); // counters hold more after upgrades, cabinets and stars: a second counter may no longer be needed
   // Kitchen: crew collect, food spoils if left too long
   s.machines.forEach((m, i) => {
     if (!m.job) { if (s.crew.chef && !m.broken && m.last) chefRestart(s, i, t1); return; }
@@ -2084,7 +2067,7 @@ function rollover(s, t) {
   });
   // A new day's market (the manager stocks up after it)
   rollMarket(s);
-  if (s.crew.manager) eachShop(s, () => { for (const id of menuOf(s)) for (const [k, q] of Object.entries(ITEMS[id].ing)) {
+  if (s.crew.manager) eachShop(s, () => { for (const id of new Set([...menuOf(s), ...s.machines.map(m => m.last).filter(Boolean)])) for (const [k, q] of Object.entries(ITEMS[id].ing)) {
     const want = q * 3; if (s.inv[k] < want && s.clean > 300) buyIngredient(s, k, want - s.inv[k], true);
   } });
   // Safety net: broke with nothing to bake
