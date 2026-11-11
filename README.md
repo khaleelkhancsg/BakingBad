@@ -83,21 +83,23 @@ again whenever its tray has room, and Grace the manager keeps the ingredients to
 Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own with its own
 machines, but only the stall has buyers: branch back rooms pack what they make into Rosa's vans, which drive it to
 the stall under the bakery's own deliveries (see Logistics). Bags, kits, heat, turf and laundering are shared. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
-buyers at the back door after dark. The products are parodies of real ones; the "chemistry" is all game mechanics.
+buyers at the back door after dark. The products are real drugs with serious names. How they're made is abstracted to
+a machine and a timer, but each supply kit lists what really goes in for growing, sourcing, cutting, pressing or
+mixing (methamphetamine's chemistry stays a supplier's "precursor kit"), and each product says what it's usually cut with.
 
-| Machine (level) | Products |
-|---|---|
-| 🌿 Grow tent (1) | Grandad's Green, Stinky Skunk, Kush Puppy, Sour Deez, Northern Fright, Purple Hays |
-| ♨️ Burner (4) | Crystal Blue, Glass, Ice Queen, Cobalt Clear |
-| 💊 Pill press (12) | Smileys, Mollies, Loved-Up Hearts, Rave Blues |
-| 🍄 Drying rack (16) | Magic Mushies, Golden Caps |
-| 🧱 Brick press (22) | Bricks, Snowman, Avalanche, Pure Paradise |
-| ⚗️ Still (28) | Purple Sip, Double Cup |
-| 🏺 Curing oven (30) | Rocky Road Hash, Moonrock |
-| 🧁 Edibles oven (34) | Space Cakes, Giggle Gummies, Happy Brownies (these also use bakery flour, butter and sugar) |
-| 🧪 Lab bench (42) | Rainbow Tabs, Blotter Art |
-| 🛢️ Mixing vat (50) | Donkey Dust, Party Balloons |
-| 🔮 Clean room (68) | Diamond Dust, Unicorn Tears, The Gold Standard |
+| Machine (level) | Products | A supply kit holds |
+|---|---|---|
+| 🌿 Grow tent (1) | Homegrown cannabis, Skunk, OG Kush, Sour Diesel, Northern Lights, Purple Haze | seeds and clones, coco coir and pots, nutrients, grow lights |
+| ♨️ Cook lab (4) | Methamphetamine (street grade), Crystal meth, Ice, Methamphetamine (high purity) | precursor kit from Dez's supplier, lab glassware, extraction fans and filters |
+| 💊 Pill press (12) | Ecstasy pills, MDMA crystal, High-strength ecstasy, Branded ecstasy pills | imported MDMA powder, binder and dye, press dies |
+| 🍄 Drying rack (16) | Magic mushrooms, Golden Teacher mushrooms | spore syringes, grain spawn, coir and vermiculite substrate, humidity tent |
+| 🧱 Brick press (22) | Cocaine (street grade, high purity, by the ounce), Uncut cocaine | imported cocaine, cutting agents (benzocaine, mannitol) |
+| ⚗️ Mixing station (28) | Lean (codeine syrup), Promethazine-codeine syrup | prescription promethazine-codeine syrup, soft drinks, boiled sweets |
+| 🏺 Hash press (30) | Hashish, Moonrocks | cannabis trim, ice-water extraction bags, rosin press |
+| 🧁 Edibles oven (34) | Cannabis cakes, THC gummies, Cannabis brownies | cannabis butter, plus bakery flour, butter and sugar |
+| 🧪 Dosing bench (42) | LSD tabs, LSD blotter sheets | liquid LSD from a chemist, blotter paper, printed artwork |
+| 🛢️ Bagging table (50) | Ketamine, Nitrous oxide balloons | diverted veterinary ketamine, nitrous oxide canisters, balloons |
+| 🔮 Cutting room (68) | Heroin (street grade, high purity), Uncut heroin | imported heroin, cutting agents (caffeine, paracetamol) |
 
 - **Purity** decides what a bag is worth (60% sells at the list price). It comes from the machine's tier, back-room
   upgrades (scales, extractor hood, filters, purity tester), Doc and Pip.
@@ -317,8 +319,8 @@ included) starts again.
 - **Customers come in types**: regulars tip, commuters fill the station branch at rush hour, the café has a lunch rush,
   tourists come in summer (the gelateria most of all) and the maison is busiest at weekends. A food customer who also
   buys a drink pays a little extra for the combo.
-- **The black-market auction**: once a week Dez auctions a few kits of a rare product (Blue Moon Crystal, Dragon's
-  Breath, Golden Brick, Stardust) you can't get any other way.
+- **The black-market auction**: once a week Dez auctions a few kits of a rare product (blue crystal methamphetamine,
+  a rare Gelato strain, a stamped Colombian kilo, China White heroin) you can't get any other way.
 - **Daily and weekly goals** (Orders): three a day and two a week, for cash and XP; weekly goals also pay a prestige token.
 - **Weekly report card**: an A–F grade for the bakery, the back room and the books with every tax bill.
 - **Prestige challenges**: when you start again, pick a harder run (no back room, doubled tax or doubled debt) for
