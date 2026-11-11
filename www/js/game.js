@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -344,6 +344,7 @@ function shopRush(s, t) {
   if (id === 'cafe' && h >= 12 && h < 14) k *= 1.3;
   if (id === 'gelateria') k *= (m >= 5 && m <= 7) ? 1.4 : (m <= 1 || m === 11) ? 0.8 : 1;
   if (id === 'maison' && (wd === 0 || wd === 6)) k *= 1.3;
+  if (rushNow(s, t)) k *= RUSH.mult;
   return k;
 }
 
@@ -404,7 +405,48 @@ export function eff(s, key) { // the sum of every owned upgrade's and property's
   let v = 0;
   for (const u of UPGRADES) if (s.upgrades[u.id] && u.eff[key]) v += u.eff[key];
   for (const [id, p] of Object.entries(PROPERTY)) if (s.property?.[id] && p.eff[key]) v += p.eff[key];
+  for (const [id, p] of Object.entries(LANDMARKS)) if (s.landmarks?.[id] && p.eff[key]) v += p.eff[key];
   return v;
+}
+// ---------- Landmarks and the investment fund ----------
+export function buyLandmark(s, id) {
+  const L = LANDMARKS[id];
+  if (!L || s.landmarks?.[id]) return;
+  if (!unlocked(s, L.level)) return say(`${L.name} comes at level ${L.level}.`, 'bad');
+  if (s.clean < L.price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - L.price); s.today.capex += L.price;
+  (s.landmarks ||= {})[id] = true;
+  say(`${L.emoji} ${L.name}: done. ${L.desc}`, 'good');
+}
+export function invest(s, amount) {
+  if (!unlocked(s, INVEST.level)) return say(`The investment fund opens at level ${INVEST.level}.`, 'bad');
+  amount = Math.min(Math.floor(amount), Math.floor(s.clean));
+  if (amount < 1) return;
+  s.clean = round2(s.clean - amount); s.invest = round2((s.invest || 0) + amount);
+  say(`£${amount.toLocaleString('en-GB')} into the fund. It grows ${(INVEST.daily * 100).toFixed(1)}% a day.`, 'good');
+}
+export function withdraw(s) {
+  const n = Math.floor(s.invest || 0); if (!n) return;
+  s.invest = 0; s.clean = round2(s.clean + n);
+  say(`£${n.toLocaleString('en-GB')} back out of the fund.`, 'good');
+}
+// ---------- Rush hour ----------
+export const rushNow = (s, t) => !!(s.rush && t >= s.rush.from && t < s.rush.until);
+function planRush(s, t) {
+  const start = new Date(dayStart(t)); start.setHours(RUSH.from + Math.floor(rand() * (RUSH.to - RUSH.from)), Math.floor(rand() * 4) * 15, 0, 0);
+  s.rush = { from: start.getTime(), until: start.getTime() + RUSH.minutes * MIN, started: false, ended: false };
+}
+function rushTick(s, t) {
+  const r = s.rush; if (!r) return;
+  if (!r.started && t >= r.from) { r.started = true; r.served0 = s.stats.served || 0; r.missed0 = s.stats.missed || 0; toast(`🔔 Rush hour! For the next hour twice as many customers come. Keep the counters stocked.`, 'info'); }
+  if (r.started && !r.ended && t >= r.until) {
+    r.ended = true;
+    const served = (s.stats.served || 0) - r.served0, missed = (s.stats.missed || 0) - r.missed0;
+    if (served > 20 && missed <= (served + missed) * RUSH.goodShare) {
+      const prize = Math.round(RUSH.reward * s.level); s.clean = round2(s.clean + prize); s.rep = clamp(s.rep + 3, 0, 100);
+      note(s, `🏅 You handled the rush: ${served} served, hardly anyone turned away. +£${prize.toLocaleString('en-GB')} and popularity +3.`, 'good', t);
+    } else note(s, `🔔 The rush came and went: ${served} served, ${missed} left empty-handed.`, missed > served ? 'bad' : 'info', t);
+  }
 }
 export const unlocked = (s, level) => (s.level || 1) >= (level || 1);
 export const feature = (s, id) => unlocked(s, FEATURES.find(f => f.id === id)?.level);
@@ -755,7 +797,7 @@ export function collectLab(s, idx, t, { quiet = false } = {}) {
   (s.collect ||= {}).products = { ...(s.collect?.products || {}), [id]: 1 };
   const n = Math.round(p.bags * (1 + eff(s, 'bags')) * cut.bags);
   const pur = clamp(labPurity(s, m) * cut.purity * (0.96 + rand() * 0.08), 0.2, 0.99);
-  if (s.cur) {
+  if (s.cur && !s.design.expansions?.backdoor) {
     const k = s.stock[id] ||= { n: 0, pur };
     k.pur = round2((k.pur * k.n + pur * n) / (k.n + n)); k.n += n;
   } else {
@@ -1437,11 +1479,13 @@ export const orderCap = s => capAt(ORDERS.caps, s.level);
 function bakeryOrder(s, t) {
   const sellable = s.recipes.filter(id => s.shops.some(x => SHOPS[x.id].machines.includes(ITEMS[id].machine) && x.machines.some(m => m.type === ITEMS[id].machine)));
   if (!sellable.length) return null;
-  const id = pick(sellable), r = ITEMS[id];
+  const seasonal = curSeason ? sellable.filter(k => ITEMS[k].season === curSeason) : [];
+  const festive = seasonal.length && rand() < 0.45;
+  const id = festive ? pick(seasonal) : pick(sellable), r = ITEMS[id];
   const qty = Math.round(r.servings * (1 + rand() * 2));
   const hours = ORDERS.minHours + Math.floor(rand() * (ORDERS.maxHours - ORDERS.minHours));
-  return { id: s.nextId++, kind: 'bakery', item: id, qty, client: pick(CLIENTS), until: t + hours * HOUR,
-    pay: Math.round(qty * r.price * ORDERS.bakeryPay), xp: Math.round(qty * saleXp(id) * ORDERS.xpMult) };
+  return { id: s.nextId++, kind: 'bakery', item: id, qty, client: festive ? pick(SEASON_CLIENTS[curSeason]) : pick(CLIENTS), until: t + hours * HOUR, festive,
+    pay: Math.round(qty * r.price * ORDERS.bakeryPay * (festive ? 1.4 : 1)), xp: Math.round(qty * saleXp(id) * ORDERS.xpMult) };
 }
 function dezOrder(s, t) {
   const known = knownProducts(s);
@@ -1638,6 +1682,9 @@ export function newGame(t = Date.now(), prestige = null) {
   if (prestige) { applyPerks(s); learnFree(s); }
   s.today = freshLedger(s, t);
   forecastPatrols(s, t);
+  planRush(s, t);
+  if (s.invest > 0) { const gain = round2(s.invest * INVEST.daily); s.invest = round2(s.invest + gain); s.investEarned = round2((s.investEarned || 0) + gain); }
+  if (s.landmarks?.foundation) s.rep = Math.max(s.rep, 60);
   scheduleNight(s, t);
   return s;
 }
@@ -1734,6 +1781,7 @@ export function advance(s, now, { live: watching = false } = {}) {
 function span(s, t0, t1, showIt) {
   const mins = (t1 - t0) / MIN;
   s.clock = t1;
+  rushTick(s, t1);
   const watching = s.cur || 0;
   eachShop(s, i => shopSpan(s, t0, t1, mins, showIt && i === watching));
   shared(s, t0, t1, mins);
@@ -1770,8 +1818,8 @@ function shopSpan(s, t0, t1, mins, showIt) {
   while (s.custAcc >= 1) { s.custAcc -= 1; customerVisit(s, t0 + rand() * (t1 - t0), showIt); }
   // This shop's back room: the night cook bags finished cooks; buyers come to its back door after dark
   if (s.crew.cook) s.lab.forEach((m, i) => { if (m.job && t1 >= m.job.start + m.job.dur) collectLab(s, i, t1, { quiet: true }); });
-  if (s.labUnlocked && !s.cur && isNight(t0) && !sealed(s, t0)) {
-    s.buyAcc += buyersPerHour(s) / 60 * mins;
+  if (s.labUnlocked && (!s.cur || s.design.expansions?.backdoor) && isNight(t0) && !sealed(s, t0)) {
+    s.buyAcc += buyersPerHour(s) * (s.cur ? CFG.branchBuyers : 1) / 60 * mins;
     while (s.buyAcc >= 1) { s.buyAcc -= 1; buyerArrives(s, t0 + rand() * (t1 - t0)); }
   } else s.buyAcc = 0;
   for (const b of [...s.door]) if (t1 >= b.arrive + b.patience) unattended(s, b, t1);

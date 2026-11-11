@@ -872,6 +872,27 @@ export const COUNTERS = [
 ];
 export const PER_COUNTER = 1;
 
+// ---------- Late game: landmarks to spend on, and somewhere to put money to work ----------
+export const LANDMARKS = {
+  school:     { name: "Rosa's baking school", emoji: '🎓', level: 50, price: 750000, eff: { tray: 1 }, desc: 'Train your own bakers: every counter holds a batch more.' },
+  flagship:   { name: 'Flagship renovation', emoji: '🏛️', level: 55, price: 2000000, eff: { cust: 0.15 }, desc: 'Rebuild the stall as a landmark shop: +15% customers everywhere.' },
+  brand:      { name: 'Rosa\'s in the supermarkets', emoji: '🛒', level: 60, price: 5000000, eff: { income: 6000 }, desc: 'Packaged loaves on every high street: +£6,000 a day.' },
+  tv:         { name: 'A baking show', emoji: '📺', level: 70, price: 12000000, eff: { cust: 0.2, price: 0.05 }, desc: 'Prime time, every Tuesday: +20% customers, and prices 5% higher.' },
+  foundation: { name: 'The Rosa Foundation', emoji: '❤️', level: 75, price: 25000000, eff: { quiet: 0.15 }, desc: 'A charity in her name: popularity never falls below 60, and heat from cooking rises 15% slower.' },
+  tower:      { name: 'Rosa Tower', emoji: '🏙️', level: 90, price: 80000000, eff: { income: 60000, cust: 0.1 }, desc: 'Your own building in the capital: +£60,000 a day and +10% customers.' },
+};
+export const INVEST = { daily: 0.003, level: 30 }; // 0.3% a day on what's in the fund
+
+// ---------- Rush hour: once a day, for an hour, everyone wants something ----------
+export const RUSH = { from: 11, to: 18, minutes: 60, mult: 2.2, reward: 150, goodShare: 0.1 };
+
+// ---------- Seasonal customers: special orders for the season's recipes ----------
+export const SEASON_CLIENTS = {
+  valentine: ["A couple's anniversary dinner", "The singles' night at the Crown"], easter: ['The church fete', 'An Easter egg hunt on the green'],
+  summer: ['A street party', "The cricket club's tea"], halloween: ['A Halloween party', 'The trick-or-treat parade'],
+  bonfire: ['The bonfire on the common', 'The fireworks display'], christmas: ['The office Christmas party', 'The carol singers', 'Christmas lunch at the care home'],
+};
+
 // ---------- Seasons on the real calendar (month 1-12, day): demand shifts, limited recipes, decorations ----------
 export const SEASONS = {
   valentine: { name: "Valentine's", emoji: '💘', from: [2, 1], to: [2, 14], want: { sweet: 1.35, drink: 1.1 }, decor: 'hearts' },

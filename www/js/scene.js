@@ -2472,6 +2472,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         if (have >= cap * 0.25) return;
         want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k].x, 1.85, 0.95) });
       });
+      // In the basement: kits running low, nothing bagged to sell
+      if (view.zone === 'back' && s.labUnlocked) {
+        const kitsN = Object.values(s.kits).reduce((a, b) => a + b, 0), bagsN = Object.values(s.bags).reduce((a, b) => a + b, 0);
+        const [kx, kz] = D.BACK_PROPS.kits, [bx2, bz2] = D.BACK_PROPS.bagTable;
+        if (kitsN < 2) want.set('lowkits', { html: `<span>📦</span><small>${kitsN ? 'kits low' : 'no kits'}</small>`, cls: `bub low ${kitsN ? '' : 'out'}`, at: 'data-act="tab" data-id="stash"', pos: V3(BX + kx, BY + 1.3, kz) });
+        if (!bagsN) want.set('nobags', { html: '<span>🛍️</span><small>no bags</small>', cls: 'bub low out', at: 'data-act="tab" data-id="back"', pos: V3(BX + bx2, BY + 1.4, bz2) });
+      }
       // The door between the shop and the back room
       if (s.labUnlocked) want.set('door', { pos: view.zone === 'shop' ? DOOR_BUB : STAIRS_BUB, html: view.zone === 'shop' ? '<span>🪜</span><small>Basement</small>' : '<span>☀️</span><small>Upstairs</small>', cls: 'bub door', at: 'data-act="room"' });
       if (view.zone === 'back') {
@@ -2647,7 +2654,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   canvas.addEventListener('pointerdown', e => {
     try { canvas.setPointerCapture(e.pointerId); } catch { /* not a live pointer (e.g. synthetic) */ }
     ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (ptrs.size === 1) drag = { x: e.clientX, y: e.clientY, r: cam.panR, u: cam.panU, moved: false };
+    if (ptrs.size === 1) {
+      drag = { x: e.clientX, y: e.clientY, r: cam.panR, u: cam.panU, moved: false };
+      const d0 = drag;
+      d0.hold = setTimeout(() => { if (drag === d0 && !d0.moved && ptrs.size === 1 && !view.design) { d0.long = true; pick(d0.x, d0.y, true); } }, 550);
+    }
     if (ptrs.size === 2) {
       const [a, b] = [...ptrs.values()];
       pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.zoom };
@@ -2662,12 +2673,13 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       cam.zoom = Math.max(0.4, Math.min(2.6, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
     } else if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-      if (Math.hypot(dx, dy) > 8) drag.moved = true;
+      if (Math.hypot(dx, dy) > 8) { drag.moved = true; clearTimeout(drag.hold); }
       if (drag.moved) { cam.panR = drag.r - dx * unit; cam.panU = drag.u + dy * unit; }
     }
   });
   const end = e => {
-    const wasTap = drag && !drag.moved && ptrs.size === 1;
+    if (drag) clearTimeout(drag.hold);
+    const wasTap = drag && !drag.moved && !drag.long && ptrs.size === 1;
     ptrs.delete(e.pointerId);
     if (ptrs.size < 2) pinch = null;
     if (wasTap && e.type === 'pointerup') pick(e.clientX, e.clientY);
@@ -2677,8 +2689,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   canvas.addEventListener('pointercancel', end);
   canvas.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(0.4, Math.min(2.6, cam.zoom * Math.exp(-e.deltaY * 0.0015))); }, { passive: false });
 
-  function pick(x, y) {
-    if (view.design) { designPick(x, y); return; }
+  function pick(x, y, long = false) {
+    if (view.design) { if (!long) designPick(x, y); return; }
     ray.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
     const hits = ray.intersectObjects(pickables, true);
     for (const h of hits) {
@@ -2686,6 +2698,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (view.zone === 'back' ? h.point.y > BY + 3.1 : h.point.y < -0.5) continue;
       let o = h.object;
       while (o && !o.userData?.act) o = o.parent;
+      if (o && long) { if (o.userData.act === 'machine') onPick({ ...o.userData, long: '1' }); return; } // held: only machines care
       if (o) { onPick({ ...o.userData }); return; }
     }
   }

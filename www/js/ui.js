@@ -15,7 +15,7 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 import * as SFX from './sound.js';
-import { SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
+import { LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
 const SETTINGS_KEY = 'bakingbad.settings';
 const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
@@ -75,15 +75,27 @@ const sumOf = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
 const pct = v => `${Math.round(v * 100)}%`;
 const nowPrice = id => Math.round(PRODUCTS[id].price * purityMult(s.purity[id] ?? 0.6));
 
+let toastBatch = [], toastTimer = 0;
 function showToast(text, kind = 'info') {
+  toastBatch.push({ text, kind });
+  if (!toastTimer) toastTimer = setTimeout(flushToasts, 150);
+}
+// Up to two at once as they are; three or more become one notice that lists them
+function flushToasts() {
+  const b = toastBatch; toastBatch = []; toastTimer = 0;
+  if (b.length <= 2) { for (const x of b) putToast(x.text, x.kind); return; }
+  const kind = b.some(x => x.kind === 'bad') ? 'bad' : b.some(x => x.kind === 'good') ? 'good' : 'info';
+  putToast(b.slice(0, 3).map(x => x.text).join('\n') + (b.length > 3 ? `\n…and ${b.length - 3} more` : ''), kind, 4200);
+}
+function putToast(text, kind = 'info', ms = 2300) {
   if (kind === 'bad') SFX.sfx.bad(); else if (kind === 'good') SFX.sfx.coin();
   const el = document.createElement('div');
   el.className = `toast ${kind}`;
   el.textContent = text;
   toastBox.appendChild(el);
   while (toastBox.children.length > 3) toastBox.firstChild.remove();
-  setTimeout(() => el.classList.add('out'), 2300);
-  setTimeout(() => el.remove(), 2700);
+  setTimeout(() => el.classList.add('out'), ms);
+  setTimeout(() => el.remove(), ms + 400);
 }
 G.onToast(showToast);
 
@@ -97,6 +109,15 @@ const doorShop = () => Math.max(0, s.shops.findIndex(x => x.door.length));
 const doorOpen = t => s.labUnlocked && G.isNight(t) && !G.sealed(s, t);
 const unseenReport = () => s.reports.length && s.reports.at(-1).day > (s.seenReportDay || 0);
 
+// Batches done and waiting, here and in every shop (kitchen and basement)
+function readyCounts() {
+  const t = s.clock; let total = 0, here = 0, first = -1;
+  s.shops.forEach((x, i) => {
+    const n = x.machines.filter(m => m.job && t >= m.job.start + m.job.dur).length + x.lab.filter(m => m.job && t >= m.job.start + m.job.dur).length;
+    total += n; if (i === (s.cur || 0)) here = n; else if (n && first < 0) first = i;
+  });
+  return { total, here, first };
+}
 function hudHTML() {
   const t = s.clock, d = G.daysToPayment(s);
   const heatCls = s.heat >= 60 ? 'hot' : s.heat >= 35 ? 'warm' : '';
@@ -123,6 +144,8 @@ function hudHTML() {
       ${s.hmrc > 1 ? chip(`🧾 ${money(s.hmrc)}`, 'data-act="tab" data-id="bank" title="Owed to HMRC"', 'warn') : ''}
       ${camp.length ? chip(`📣${camp.length}`, 'data-act="tab" data-id="marketing" title="Campaigns running"') : ''}
       ${s.review && s.review.until > t ? chip(`📝${s.review.stars}`, 'data-act="info" data-kind="review" data-id="x" title="Latest review"') : ''}
+      ${(() => { const r = readyCounts(); return r.total ? chip(`✅ ${r.total}`, `data-act="ready" title="${r.total} batch${r.total === 1 ? '' : 'es'} ready${r.here ? ' (tap to collect here)' : ' in another shop'}"`, 'good') : ''; })()}
+      ${G.rushNow(s, t) ? chip('🔔 Rush', 'title="Rush hour: twice the customers for an hour"', 'warn') : s.rush && !s.rush.started && s.rush.from - t < 30 * 60000 && s.rush.from > t ? chip(`🔔 ${hhmm(s.rush.from)}`, 'title="Rush hour soon: stock the counters"') : ''}
       ${s.orders.length ? chip(`📦 ${s.orders.length}`, 'data-act="tab" data-id="orders" title="Special orders"') : ''}
       ${unseenReport() ? chip('📋', 'data-act="report" title="Daily report"', 'ok') : ''}
     </div>
@@ -492,6 +515,13 @@ function shopsTab() {
     cards += pcard(`<div class="ptop"><span class="em">${p.emoji}</span><div><b>${p.name}</b><small>${p.desc}</small></div></div>
       ${owned ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(p.level) : `<div class="pbtns"><button class="small primary" data-act="property" data-id="${id}" ${s.clean < p.price ? 'disabled' : ''}>${money(p.price)}</button></div>`}`,
       ibtn('property', id), `wide ${open ? '' : 'locked'} ${owned ? 'hired' : ''}`);
+  }
+  if (G.unlocked(s, INVEST.level)) cards += pcard(`<div class="ptop"><span class="em">📈</span><div><b>Investment fund: ${money(s.invest || 0)}</b><small>Grows ${(INVEST.daily * 100).toFixed(1)}% a day${s.investEarned ? ` · earned ${money(s.investEarned)} so far` : ''}</small></div></div>
+    <div class="pbtns"><button class="small" data-act="invest" data-share="0.1" ${s.clean < 10 ? 'disabled' : ''}>Put in 10%</button><button class="small" data-act="invest" data-share="0.5" ${s.clean < 10 ? 'disabled' : ''}>Put in half</button><button class="small" data-act="withdraw" ${s.invest ? '' : 'disabled'}>Take it all out</button></div>`, '', 'wide');
+  for (const [id, L] of Object.entries(LANDMARKS)) {
+    const own = s.landmarks?.[id], open = G.unlocked(s, L.level);
+    cards += pcard(`<div class="ptop"><span class="em">${L.emoji}</span><div><b>${L.name}</b><small>${L.desc}</small></div></div>
+      ${own ? '<span class="lock good">✓ Yours</span>' : !open ? lockTag(L.level) : `<div class="pbtns"><button class="small primary" data-act="landmark" data-id="${id}" ${s.clean < L.price ? 'disabled' : ''}>${money(L.price)}</button></div>`}`, '', own ? 'hired' : '');
   }
   return { cards, hint: `Each shop runs four machine types (up to three of each) front and back; every branch costs ${SHOP_GROW}× the last, runs its own (more profitable) machines, charges more, and lets you launder more. Each shop you own brings ${pct(CFG.prestigeCust)} more customers to all of them. Rent: ${money(G.shopRent(s))} a day.` };
 }
@@ -902,6 +932,8 @@ function collectionTab() {
       return `<button class="small ${ready && !done ? 'primary' : ''}" data-act="claim" data-id="${c.id}" ${ready && !done ? '' : 'disabled'}>${done ? '✓' : `${c.n}`} · ${c.name}${done ? '' : ` · ${money(Math.round(c.reward * (1 + s.level / 25)))}`}</button>`; }).join('');
     cards += pcard(`<div class="ptop"><span class="em">${emoji}</span><div><b>${name}</b><small>${have}${total ? ` of ${total()}` : ''}</small></div></div><div class="pbtns col">${btns}</div>`, '', 'wide');
   }
+  if (s.story?.queue?.length) cards = pcard(`<div class="ptop"><span class="em">📜</span><div><b>${s.story.queue.length} new chapter${s.story.queue.length === 1 ? '' : 's'}</b><small>Saved for later</small></div></div>
+    <div class="pbtns"><button class="small primary" data-act="story-open">Read now</button></div>`, '', 'wide') + cards;
   const read = STORY.filter(c => s.story?.seen?.includes(c.id));
   cards += pcard(`<div class="ptop"><span class="em">📜</span><div><b>The story so far</b><small>${read.length ? 'Tap a chapter to read it again' : 'Nothing yet'}</small></div></div>
     <div class="pbtns col">${read.map(c => `<button class="small" data-act="info" data-kind="chapter" data-id="${c.id}">${c.title}</button>`).join('')}</div>`, '', 'wide');
@@ -1142,7 +1174,9 @@ function modalHTML() {
   if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">Close</button>`; }
   else if (m.type === 'story') {
     const c = STORY.find(x => x.id === m.id), n = STORY.findIndex(x => x.id === m.id) + 1;
-    inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection</p><button class="big primary" data-act="story-read">Carry on</button>` : '';
+    const more = (s.story?.queue?.length || 1) - 1;
+    inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection${more ? ` · ${more} more waiting` : ''}</p>
+      <div class="row2"><button class="big primary" data-act="story-read">${more ? 'Next chapter' : 'Carry on'}</button>${more ? '<button class="big" data-act="story-later">Read later</button>' : ''}</div>` : '';
     if (!c) ui.modal = null;
   }
   else if (m.type === 'loadfail') inner = `<h2>⚠️ Your save couldn't be loaded</h2><p>Something in it didn't load (${loadFailed?.why || 'unknown'}), so the game has started fresh. Your old save hasn't been lost: a copy is kept on this device, and here it is as a backup code. Copy it somewhere safe; once the game is fixed, Settings → Load a backup brings it back.</p>
@@ -1286,7 +1320,7 @@ function designScreen() {
       + ` <span class="mute">(the outside adds ✨ ${D.outsideCharm(s)} charm)</span>`;
   } else if (dv.cat === 'expand') {
     hint = dv.back ? `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more back-room machines.` : 'Expansions add squares to decorate and room for more machines.';
-    items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots : !e.labSpots).map(([id, e]) => {
+    items = Object.entries(D.EXPANSIONS).filter(([, e]) => dv.back ? e.labSpots || (e.branch && s.cur) : !e.labSpots && !e.back).map(([id, e]) => {
       const owned = s.design.expansions[id];
       const what = e.cells ? `${e.cells} squares` : e.spots ? `${e.spots} machine spots` : `${e.labSpots} back-room spots`;
       const btn = owned ? '<span class="good">✓ Yours</span>' : !D.levelOk(s, e) ? `<span class="lock">🔒 Lv ${e.level}</span>`
@@ -1296,7 +1330,7 @@ function designScreen() {
     }).join('');
   }
   return `<div class="designbar">
-    <div class="drow"><div class="dcats">${cats.map(([id, label, act]) => `<button class="small ${(act ? (dv.part || 'paint') : dv.cat) === id ? 'on' : ''}" data-act="${act || 'd-cat'}" data-id="${id}">${label}</button>`).join('')}</div>
+    <div class="drow"><div class="dcats ${dv.cat === 'outside' ? 'wrap' : ''}">${cats.map(([id, label, act]) => `<button class="small ${(act ? (dv.part || 'paint') : dv.cat) === id ? 'on' : ''}" data-act="${act || 'd-cat'}" data-id="${id}">${label}</button>`).join('')}</div>
       ${D.cartInfo()?.n ? `<button class="small" data-act="d-cancel">Cancel</button><button class="primary small" data-act="d-checkout" ${s.clean >= D.cartInfo().cost ? '' : 'disabled'}>${D.cartInfo().cost >= 0 ? `Checkout · ${money(D.cartInfo().cost)}` : `Done · +${money(-D.cartInfo().cost)}`}</button>` : '<button class="primary small" data-act="d-done">Done</button>'}</div>
     <div class="dinfo"><span>${hint}${D.cartInfo()?.n ? ` <b>· ${D.cartInfo().n} change${D.cartInfo().n === 1 ? '' : 's'} in the basket</b>` : ''}</span><span class="charm">✨ Charm ${D.charm(s)} · +${bonus}% customers</span></div>
     ${sel}
@@ -1329,12 +1363,12 @@ function backDesignScreen() {
       <button class="small danger" data-act="b-sell">Sell 💜 ${money(Math.round(d.price * D.SELL_BACK))}</button><button class="small" data-act="d-deselect">✕</button></div>`; }
   } else {
     hint = `More benches and rooms for ${G.shopDef(s).short}'s back room: room for more machines.`;
-    items = Object.entries(D.EXPANSIONS).filter(([, e]) => e.labSpots).map(([id, e]) => {
+    items = Object.entries(D.EXPANSIONS).filter(([, e]) => e.labSpots || (e.branch && s.cur)).map(([id, e]) => {
       const owned = s.design.expansions[id];
       const btn = owned ? '<span class="good">✓ Yours</span>' : !D.levelOk(s, e) ? `<span class="lock">🔒 Lv ${e.level}</span>`
         : e.needs && !s.design.expansions[e.needs] ? `<span class="lock">needs ${D.EXPANSIONS[e.needs].name.toLowerCase()}</span>`
         : `<button class="small primary" data-act="d-buyexp" data-id="${id}" ${s.clean < e.price ? 'disabled' : ''}>${money(e.price)}</button>`;
-      return `<div class="dexp ${owned ? 'owned' : ''}">${ibtn('exp', id)}<b>${e.name}</b><small>${e.labSpots} back-room spots</small>${btn}</div>`;
+      return `<div class="dexp ${owned ? 'owned' : ''}">${ibtn('exp', id)}<b>${e.name}</b><small>${e.labSpots ? `${e.labSpots} back-room spots` : 'buyers come here'}</small>${btn}</div>`;
     }).join('');
   }
   const c = D.cartInfo();
@@ -1397,7 +1431,7 @@ function render(force = false) {
     if (s.levelUps?.length) ui.modal = { type: 'levelup', level: s.levelUps[0] };
     else if (s.offerPending) ui.modal = { type: 'offer' };
     else if (s.decisions.length) ui.modal = { type: 'decision', id: s.decisions[0].id };
-    else if (s.story?.queue?.length && s.introSeen) ui.modal = { type: 'story', id: s.story.queue[0] };
+    else if (s.story?.queue?.length && s.introSeen && !ui.storyLater) ui.modal = { type: 'story', id: s.story.queue[0] };
   }
   const html = hudHTML() + (ui.design ? designScreen() : dockHTML()) + guideHTML() + modalHTML();
   if (!force && html === lastHTML) return;
@@ -1444,6 +1478,7 @@ function confirmText(a, d) {
   if (a === 'throw') return `Throw away ${Math.floor(s.display[id] || 0)} ${ITEMS[id].name.toLowerCase()}? It stays on its counter, empty.`;
   if (a === 'throwfree') return `Throw away the ${ITEMS[id].name.toLowerCase()} and take it off its counter, so something else can go there?`;
   if (a === 'manager-hire') return `Hire a ${MANAGER.skills[Number(d.skill)].name.toLowerCase()} manager for ${money(MANAGER.skills[Number(d.skill)].wage)} a day?`;
+  if (a === 'landmark') return `Buy ${LANDMARKS[id].name} for ${money(LANDMARKS[id].price)}?`;
   if (a === 'counter-buy') { const c = G.nextCounter(s); return c ? (G.unlocked(s, c.level) ? `Buy another display counter for ${money(c.price)}? It holds one more thing on sale.` : null) : null; }
   if (a === 'd-buyexp') return `Buy the ${D.EXPANSIONS[id].name.toLowerCase()} for ${money(D.EXPANSIONS[id].price)}?`;
   if (a === 'shop-buy') return `Open ${SHOPS[id].name} for ${money(G.shopPrice(s))}? Its rent is ${money(SHOPS[id].rent)} a day.`;
@@ -1485,9 +1520,24 @@ function act(el) {
       ui.modal = null; break;
     }
     case 'special': G.setSpecial(s, id); break;
+    case 'ready': {
+      const r = readyCounts();
+      if (r.here) {
+        let n = 0;
+        s.machines.forEach((m, i) => { const item = m.job?.item; if (machineState(m) === 'ready' && G.collectJob(s, i, t, { quiet: true, byYou: true })) { n++; world.poke(s, 'day', i, item); } });
+        s.lab.forEach((m, i) => { const item = m.job?.item; if (m.job && t >= m.job.start + m.job.dur && G.collectLab(s, i, t, { quiet: true })) { n++; world.poke(s, 'night', i, item); } });
+        showToast(n ? `Collected ${n} batch${n === 1 ? '' : 'es'}.` : 'Nothing could go anywhere: counters full?', n ? 'good' : 'bad');
+      } else if (r.first >= 0) { G.viewShop(s, r.first); ui.room = 'shop'; showToast(`${G.shopDef(s).short}: ${r.total} ready.`, 'info'); }
+      break;
+    }
+    case 'landmark': G.buyLandmark(s, id); break;
+    case 'invest': G.invest(s, Number(id) > 0 ? Number(id) : s.clean * Number(el.dataset.share || 1)); break;
+    case 'withdraw': G.withdraw(s); break;
     case 'throw': G.throwAway(s, id, false); break;
     case 'throwfree': G.throwAway(s, id, true); ui.modal = null; break;
-    case 'story-read': G.readChapter(s); ui.modal = null; break;
+    case 'story-read': G.readChapter(s); ui.modal = s.story?.queue?.length ? { type: 'story', id: s.story.queue[0] } : null; break;
+    case 'story-later': ui.storyLater = true; ui.modal = null; break;
+    case 'story-open': ui.storyLater = false; if (s.story?.queue?.length) ui.modal = { type: 'story', id: s.story.queue[0] }; break;
     case 'claim': G.claimSet(s, id); break;
     case 'manager-hire': case 'manager-fire': { const keep = s.cur; s.cur = Number(el.dataset.shop); if (a === 'manager-hire') G.hireManager(s, Number(el.dataset.skill)); else G.fireManager(s); s.cur = keep; break; }
     case 'cabinet': G.buyCabinet(s, Number(id)); break;
@@ -1539,6 +1589,16 @@ function act(el) {
     // Kitchen
     case 'machine': {
       const kind = el.dataset.kind || 'day', idx = Number(el.dataset.idx);
+      if (el.dataset.long) { // held down: cook the same again
+        const lab = kind === 'night', m = (lab ? s.lab : s.machines)[idx];
+        if (!m) break;
+        if (m.job) { showToast(t >= m.job.start + m.job.dur ? 'It\'s done: tap to collect it first.' : 'Still cooking.', 'info'); break; }
+        if (!m.last) { showToast('Nothing cooked here yet: tap it to choose.', 'info'); break; }
+        const ok = lab ? G.startLab(s, idx, m.last, t, { quiet: true }) : G.startJob(s, idx, m.last, t, { quiet: true });
+        showToast(ok ? `${(lab ? PRODUCTS : ITEMS)[m.last].emoji} ${(lab ? PRODUCTS : ITEMS)[m.last].name} again.` : 'Couldn\'t start it: check ingredients, kits and cash.', ok ? 'good' : 'bad');
+        if (ok) world.poke(s, kind, idx, null);
+        break;
+      }
       if (el.closest?.('.bub') || !el.closest) tapMachine(kind, idx); // a bubble or the 3D machine: collect if it's done
       else ui.modal = { type: 'machine', kind, idx };
       if (kind === 'night' && ui.room !== 'back') ui.room = 'back';

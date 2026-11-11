@@ -103,6 +103,7 @@ export const EXPANSIONS = {
   stalls:  { level: 36, name: 'Side stalls',   desc: 'Room for 5 machines on stalls down the side terrace.', price: 12000, spots: 5, needs: 'side' },
   bench2:  { level: 50, name: 'The cellar',    desc: 'A cold store at the end of the bench row: room for 1 more machine.', price: 25000, labSpots: 1, needs: 'bench' },
   bench3:  { level: 32, name: 'More benches',  desc: 'A second row of benches, back to back with the first: room for 2 more machines.', price: 14000, labSpots: 2, needs: 'bench' },
+  backdoor: { level: 25, name: 'Open a back door here', desc: 'A branch only: buyers come to this branch\'s own back door after dark, and what its basement makes goes straight into your bags instead of the vans.', price: 20000, back: true, branch: true },
   digfront: { level: 20, name: 'Dig out under the front terrace', desc: 'Extend the basement 2 m out under the front terrace: room for 3 more machines and more space for decor.', price: 15000, labSpots: 3, needs: 'front' },
   digside:  { level: 30, name: 'Dig out under the side terrace', desc: 'Extend the basement 2 m out under the side terrace: room for 3 more machines and more space for decor.', price: 25000, labSpots: 3, needs: 'side' },
   annex:   { level: 44, name: 'The far wall',     desc: 'Line the basement\'s right-hand wall: room for 4 more machines along it.', price: 40000, labSpots: 4, needs: 'bench3' },

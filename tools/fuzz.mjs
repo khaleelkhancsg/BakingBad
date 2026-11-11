@@ -31,6 +31,8 @@ function check(s) {
   for (const [id, v] of Object.entries(s.bags)) if (!Number.isFinite(v) || v < 0) flag('bags negative or NaN', s, `${id}=${v}`);
   for (const [id, v] of Object.entries(s.kits)) if (!Number.isFinite(v) || v < 0) flag('kits negative or NaN', s, `${id}=${v}`);
   if (s.case && !Number.isFinite(s.case.evidence)) flag('evidence NaN', s);
+  if (s.invest != null && (!Number.isFinite(s.invest) || s.invest < 0)) flag('investment fund negative or NaN', s, s.invest);
+  if (s.rush && !(s.rush.until > s.rush.from)) flag('rush hour window broken', s);
   if (s.story?.queue?.some(id => s.story.seen.includes(id))) flag('chapter both queued and seen', s);
 }
 
@@ -57,6 +59,9 @@ function randomActions(s, t) {
     () => { const c = pick(['bake10', 'bake30', 'perfect25', 'season3', 'story5']); G.claimSet(s, c); },
     () => { if (rnd() < 0.1) { const shopIds = Object.keys(SHOPS).filter(id => !G.ownsShop(s, id)); if (shopIds.length && G.buyShop) G.buyShop(s, pick(shopIds)); } },
     () => { if (s.shops.length > 1 && G.viewShop) G.viewShop(s, Math.floor(rnd() * s.shops.length)); },
+    () => G.buyLandmark(s, pick(['school', 'flagship', 'brand', 'tv', 'foundation', 'tower'])),
+    () => { if (rnd() < 0.5) G.invest(s, s.clean * rnd() * 0.5); else G.withdraw(s); },
+    () => { if (s.cur) D.buyExpansion(s, 'backdoor'); },
   ];
   for (let k = 0; k < 6; k++) { try { pick(acts)(); } catch (e) { flag(`an action threw: ${e.message}`, s, e.stack.split('\n')[1]?.trim()); } }
 }

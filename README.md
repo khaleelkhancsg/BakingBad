@@ -264,6 +264,32 @@ recipes baked, signature dishes, perfect bakes, seasonal treats, products made, 
 - **Informants**: night crew with low loyalty may start talking to Harrow, feeding his case every day until their
   loyalty is won back (a bonus) or you let them go. You only learn who it is with a lawyer or a bent copper.
 
+## Handy touches
+
+- **Ready chip** (✅ in the top bar): how many batches are done across every shop, kitchen and basement. Tap it to collect
+  everything here, or to go to the shop where they're waiting.
+- **Hold a machine** to cook its last recipe again without opening it.
+- **Notices** that arrive together come as one, listing them.
+- **Chapters** that pile up show in one window (Next chapter, or Read later; saved ones wait in 📖 Collection).
+- **Basement warnings**: an amber or red marker on the kit boxes when kits run low, and on the bag table when there's
+  nothing bagged to sell.
+- The outside design tabs wrap onto two rows.
+
+## Rush hour, seasonal customers and the late game
+
+- **Rush hour**: once a day, at a random time between 11am and 6pm, twice as many customers come for an hour. The top bar
+  warns 30 minutes before (🔔 and the time). Keep the counters stocked: serve plenty with hardly anyone turned away and
+  you get a prize (grows with level) and popularity.
+- **Seasonal customers**: during a season, special orders often ask for the season's recipes (the bonfire on the common,
+  the office Christmas party...) and pay 40% more.
+- **Landmarks** (Shops & property, from level 50): Rosa's baking school (+1 batch on every counter), a flagship
+  renovation (+15% customers), Rosa's in the supermarkets (+£6,000 a day), a baking show (+20% customers, prices 5% up),
+  the Rosa Foundation (popularity never below 60, heat from cooking rises 15% slower) and Rosa Tower (+£60,000 a day,
+  +10% customers).
+- **Investment fund** (from level 30): put clean cash in and it grows 0.3% a day; take it out whenever you like.
+- **Branch back doors**: in a branch's basement layout, "Open a back door here" (level 25) brings buyers to that branch
+  after dark (fewer than at the stall), and what its basement makes goes straight into your bags instead of the vans.
+
 ## A clean record
 
 Days in a row with nothing cooked, sold or washed after dark count as a clean record (Bank & tax shows it). Every 3
