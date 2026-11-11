@@ -71,7 +71,10 @@ left, its price and how many it holds; a full counter means finished food waits 
 own little model on the counter, and the more of the counter is stocked the more customers come (variety, up to +40%
 with 7 stocked). Counters running low show an amber ⚠️, empty ones a red 🚫. The counter window has **Restock** (starts a
 free machine on it), **today's special** (one per shop: 20% dearer and twice as many people ask for it, with a gold star
-over the counter) and, from level 10, a **bigger cabinet** for that counter (+2 batches, £1,500).
+over the counter), **Give it another counter** (when one is free: a product can take as many counters as you like, its
+stock is shared between them, filling the first one first, and each shows its own share) and, from level 10, a **bigger
+cabinet** for that counter (+2 batches, £1,500). A full counter only holds back that product: anything else still goes
+on its own counter.
 
 The same level caps go for how many kits Dez sells you a day, how many decorations you can place, how many campaigns you can run and how much the bank lends.
 
@@ -225,8 +228,9 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
 - **Mastery**: every batch of a recipe counts. Stars at 15, 50, 120, 250 and 500 batches each add 3% servings and 2%
   to the price; five stars make it a signature dish, with a gold sparkle over its counter.
 - **Throwing food away**: tap a counter and throw its food away (it stays on that counter, empty), or throw it away and
-  free the counter for something else. If every counter is taken, a finished batch of something else stays in its
-  machine until you make room.
+  free the counter for something else (on a product with several counters, **Free this counter** gives one back and
+  keeps the rest). A finished batch with no counter of its own takes a free one, or one whose product has sold out; only
+  when every counter still has something on it does it stay in its machine until you make room.
 
 ## Seasons
 

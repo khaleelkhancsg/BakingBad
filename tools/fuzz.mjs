@@ -22,7 +22,8 @@ function check(s) {
     const lused = new Set();
     s.lab.forEach(m => { if (lused.has(m.spot)) flag('two lab machines on one spot', s); lused.add(m.spot); const sp = LAB_SPOTS[m.spot]; if (!sp) flag('lab machine on a missing spot', s); else if (sp.need && !s.design.expansions[sp.need]) flag('lab machine on a spot not yet opened', s, sp.need); });
     for (const [id, v] of Object.entries(s.display)) { if (!Number.isFinite(v) || v < 0) flag('display stock negative or NaN', s, `${id}=${v}`); }
-    if (G.menuOf(s).length > G.menuSlots(s)) flag('more on sale than counters', s);
+    if (G.counterList(s).length > G.menuSlots(s)) flag('more on sale than counters', s);
+    for (const id of G.menuOf(s)) if ((s.display[id] || 0) - G.trayCap(s, id) > ITEMS[id].servings * 3) flag('far more on display than its counters hold', s, id);
     const b = s.design.back;
     if (b) for (const d of b.decor) if (D.backCellBlocked(d.bx, d.bz, s.design.expansions)) flag('basement decor on a blocked square', s, `${d.type}@${d.bx},${d.bz}`);
     if (b && !D.backPathsOk(s, b.decor)) flag('basement decor cuts off a machine or the stairs', s);
@@ -50,6 +51,8 @@ function randomActions(s, t) {
     () => { const e = pick(Object.keys(D.EXPANSIONS)); D.buyExpansion(s, e); },
     () => { const id = pick(Object.keys(ITEMS)); if (!s.recipes.includes(id) && G.unlocked(s, ITEMS[id].level)) G.buyRecipe?.(s, id); },
     () => { const id = pick(Object.keys(ITEMS)); G.toggleMenu(s, id); },
+    () => { const m = G.menuOf(s); if (m.length) G.addCounterFor(s, pick(m)); },
+    () => { const n = G.counterList(s).length; if (n) G.freeCounter(s, Math.floor(rnd() * n)); },
     () => { if (s.decisions.length) G.answerDecision(s, s.decisions[0].id, rnd() < 0.5, t); },
     () => { if (s.labUnlocked) { const p = pick(Object.keys(PRODUCTS)); G.buyKit(s, 'dirty', p, { quiet: true }); } },
     () => { if (s.labUnlocked) s.lab.forEach((m, i) => { if (!m.job) { const ps = G.productsFor(m.type).filter(id => G.unlocked(s, PRODUCTS[id].level)); if (ps.length) G.startLab(s, i, pick(ps), t, { quiet: true }); } else G.collectLab(s, i, t, { quiet: true }); }); },

@@ -981,7 +981,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   let counterSig = '';
   const starM = smat({ color: '#ffd447', emissive: '#ffb400', emissiveIntensity: 0.6, roughness: 0.4 });
   function syncCounters(s) {
-    const n = G.countersOf(s.design), menu = G.menuOf(s), spk = menu.indexOf(s.design.special);
+    const n = G.countersOf(s.design), menu = G.counterList(s), spk = menu.indexOf(s.design.special);
     const sig = `${n}|${spk}|${(s.design.cabinets || []).map(Boolean).join('')}`;
     if (sig === counterSig) return;
     counterSig = sig;
@@ -2313,7 +2313,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (PRODUCTS[collected]) {
       for (let k = 0; k < 3; k++) launch(rbox(0.1, 0.13, 0.04, mat('#c79bff', { roughness: 0.3 }), 0, 0, 0, 0.02), from, V3(-6.0, 0.95, -1.2), { delay: k * 0.09 });
     } else {
-      const ti = Math.min(13, Math.max(0, G.menuOf(s).indexOf(collected)));
+      const ti = Math.min(trays.length - 1, Math.max(0, G.counterList(s).indexOf(collected)));
       for (let k = 0; k < 3; k++) launch(itemModel(collected), from, V3(trays[ti].x, 1.08, 0.95), { delay: k * 0.09 });
     }
   }
@@ -2348,7 +2348,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     const WALK = 3.2, BROWSE = 1.4;
     const nowMs = Date.now();
     G.live.customers = G.live.customers.filter(c => nowMs - c.at < 12000);
-    const menu = G.menuOf(s), live = new Set(), lines = new Map();
+    const menu = G.counterList(s), live = new Set(), lines = new Map();
     const crowd = G.live.customers.slice(-14);
     for (const c of crowd) {
       if ((nowMs - c.at) / 1000 > WALK + BROWSE) continue;
@@ -2488,8 +2488,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
         want.set(`t-${c.id}`, { html: `${ITEMS[c.want].emoji}`, cls: 'bub think', at: '', pos: e.agent.group.position.clone().setY(e.agent.height + 0.25) });
       }
       // Counters running low (amber) or empty (red): tap one to see it and restock
-      if (view.zone === 'shop') G.menuOf(s).forEach((id, k) => {
-        const have = s.display[id] || 0, cap = G.trayCap(s, id);
+      if (view.zone === 'shop') G.counterList(s).forEach((id, k) => {
+        const { have, cap } = G.counterStock(s, k);
         if (have >= cap * 0.25) return;
         want.set(`low-${k}`, { html: have > 0 ? '<span>⚠️</span><small>low</small>' : '<span>🚫</span><small>empty</small>', cls: `bub low ${have > 0 ? '' : 'out'}`, at: `data-act="counter" data-id="${k}"`, pos: V3(trays[k].x, 1.85, 0.95) });
       });
@@ -2573,15 +2573,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     for (const o of counterGroup.children) if (o.userData.spin) o.rotation.y += dt * 1.5;
     for (const t of trays) for (const o of t.group.children) if (o.userData.spin) o.rotation.y += dt * 2;
     syncSeason(s);
-    const menu = G.menuOf(s);
-    const fill = id => Math.min(6, Math.ceil((s.display[id] || 0) / ITEMS[id].servings * 3));
+    const menu = G.counterList(s);
+    const fill = k => Math.min(6, Math.ceil(G.counterStock(s, k).have / ITEMS[menu[k]].servings * 3)); // what's on that counter
     const sig5 = id => (G.starsOf(s, id) >= 5 ? '*' : '');
-    const tsig = menu.map(id => id + fill(id) + sig5(id)).join(',');
+    const tsig = menu.map((id, k) => id + fill(k) + sig5(id)).join(',');
     if (tsig !== traySig) {
       traySig = tsig;
       trays.forEach((t, k) => {
         const id = menu[k];
-        const n = id ? fill(id) : 0;
+        const n = id ? fill(k) : 0;
         const tsg = id + n + (id ? sig5(id) : '');
         if (t.sig === tsg) return;
         t.sig = tsg;
