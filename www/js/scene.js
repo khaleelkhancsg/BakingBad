@@ -1142,22 +1142,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   planter(frontWall, -3.2, 4.6, true); planter(frontWall, -0.2, 4.6, true); planter(frontWall, 2.8, 4.6, true);
   planter(sideWall, 4.6, -3.2, false); planter(sideWall, 4.6, 0.3, false);
   scene.add(frontWall, sideWall);
-  for (const z of [2.85, 4.55]) { statics.add(box(0.24, 1.05, 0.24, '#7a4a2e', 4.62, 0, z)); statics.add(sphere(0.13, '#7a4a2e', 4.62, 1.12, z)); }
-  // The shop door: two café-style leaves hung on the posts (low, so you can still see in), swinging in as people pass
-  const doorLeaves = [];
-  { const woodM = tmat('#8a5534', 'wood'), paneM = smat({ color: '#d8f0ff', transparent: true, opacity: 0.45, roughness: 0.1 }), brass = tmat('#d4af37', 'metal', { metalness: 0.6, roughness: 0.3 });
-    for (const [hz, dir] of [[2.97, 1], [4.43, -1]]) {
-      const leaf = new THREE.Group(); leaf.position.set(4.62, 0, hz);
-      const w = 0.72, mid = dir * w / 2;
-      leaf.add(box(0.05, 0.12, w, woodM, 0, 0.12, mid), box(0.05, 0.1, w, woodM, 0, 0.9, mid), box(0.05, 0.1, w, woodM, 0, 0.52, mid));
-      leaf.add(box(0.05, 0.88, 0.06, woodM, 0, 0.12, dir * 0.03), box(0.05, 0.88, 0.06, woodM, 0, 0.12, dir * (w - 0.03)));
-      leaf.add(box(0.02, 0.28, w - 0.12, paneM, 0, 0.62, mid, false), box(0.03, 0.27, w - 0.12, tmat('#a8703f', 'wood'), 0, 0.24, mid));
-      leaf.add(box(0.07, 0.04, 0.1, brass, 0, 0.7, dir * (w - 0.1)));
-      leaf.userData.dir = dir;
-      leaf.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      scene.add(leaf); doorLeaves.push(leaf);
-    }
-  }
+  // The shop door is the shop front's own (built with the outside, seen when zoomed out); close up, the doorway is open
   let doorT = 0; // 0 shut, 1 open
   const openTex = canvasTex(128, 64, (c, w, h) => {
     c.fillStyle = '#fff4e0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#b8485e'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6);
@@ -1168,7 +1153,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     c.fillStyle = '#e9d8b4'; c.font = 'bold 26px Georgia, serif'; c.textAlign = 'center'; c.fillText('CLOSED', w / 2, 34); c.font = '13px Georgia, serif'; c.fillText('back at 6am', w / 2, 52);
   });
   const openSignM = smat({ map: openTex, side: THREE.DoubleSide });
-  { const sign = mesh(new THREE.PlaneGeometry(0.62, 0.31), openSignM, 4.76, 0.78, 2.85, false); sign.rotation.y = PI / 2; scene.add(sign); }
   let signOpen = true;
   function syncOpenSign(s) {
     const open = G.customersPerHour(s, s.clock) >= 3;
@@ -1785,7 +1769,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (E.benchout) { const g = new THREE.Group(); g.add(box(1.2, 0.06, 0.38, '#a8703f', 0, 0.42, 0)); g.add(box(1.2, 0.32, 0.05, '#a8703f', 0, 0.5, -0.18)); for (const dx of [-0.5, 0.5]) g.add(box(0.06, 0.42, 0.34, '#2b2d36', dx, 0, 0)); g.position.set(5.85, 0, 6.45); g.rotation.y = PI; add(g); }
     if (E.bikes) { for (let k = 0; k < 3; k++) { const r = mesh(geo('bikeloop', () => new THREE.TorusGeometry(0.3, 0.025, 6, 14, PI)), mat('#8d939c', { metalness: 0.6 }), -6.6 + k * 0.45, 0, 5.6); r.rotation.y = PI / 2; add(r); } }
     if (E.bunting) { const cols = ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a', '#ffffff']; for (let k = 0; k < 18; k++) { const f = mesh(geo('flag', () => new THREE.ConeGeometry(0.11, 0.22, 3)), mat(cols[k % 5]), -4.3 + k * 0.5, 2.78, -4.35); f.rotation.x = PI; add(f); } }
-    if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); outGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); }
+    if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); outGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); add(box(0.05, 1.3, 0.05, '#2b2d36', 4.62, 0, z)); add(box(0.2, 0.04, 0.2, '#2b2d36', 4.62, 1.52, z)); } // each on its own iron post, with a cap
     if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); outGlows.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
   }
   // ---------- Zoomed out: the whole building from outside ----------
@@ -2844,7 +2828,6 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     let atDoor = false;
     for (const e of customers.values()) { const p = e.agent.group.position; if (Math.abs(p.x - 4.65) < 1.25 && Math.abs(p.z - 3.7) < 0.9) { atDoor = true; break; } }
     doorT += ((atDoor ? 1 : 0) - doorT) * Math.min(1, dt * (atDoor ? 9 : 4));
-    for (const l of doorLeaves) { l.rotation.y = -l.userData.dir * 1.35 * doorT; l.visible = !revolving; }
     if (shellDoor) shellDoor.rotation.y = -1.25 * doorT;
     updateFlyers(dt);
   }
@@ -3041,7 +3024,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     cur.backK += ((shownBack ? 1 : 0) - cur.backK) * (1 - Math.exp(-dt * 6));
     const bk = cur.backK;
     shopLamp.intensity = cur.shopLampI * (1 - bk) + cur.lamp * bk;
-    shopLamp.color.copy(SHOP_WARM).lerp(BACK_LAMP, bk); shopLamp.distance = bk > 0.5 ? 10 : 18; shopLamp.decay = bk > 0.5 ? 2 : 1.1; shopLamp.position.y = bk > 0.5 ? 2.7 : 3.6;
+    shopLamp.color.copy(SHOP_WARM).lerp(BACK_LAMP, bk); shopLamp.distance = bk > 0.5 ? 10 : 18; shopLamp.decay = bk > 0.5 ? 2 : 1.1; shopLamp.position.y = bk > 0.5 ? 2.7 : 2.55; // under the roof, which it would otherwise light from above
     neon.intensity = cur.neon * bk; street.intensity = cur.street; alley.intensity = cur.alley;
     bulb.intensity = cur.bulb * bk * (view.light === 'night' && Math.sin(now * 23) > 0.97 ? 0.6 : 1); // the odd flicker
     for (const m of lampGlows) m.emissiveIntensity = cur.lampI;
