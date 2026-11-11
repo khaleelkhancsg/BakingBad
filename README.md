@@ -82,7 +82,7 @@ whatever you've put down; customers queue in front of the counter they want, whe
 
 **The street.** Customers walk into town from its faded edges along the pavements (along the front, down the side
 street, or over the zebra crossing from the far side), go in, queue at the counter they want, come out and walk off
-into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars brake for anyone on the zebra crossing. The cars are ready-made low-poly models (a GT-R, a Charger, a Rolls-Royce, a Camaro, a hatchback, an SUV and a sports car; see Credits) in random colours, with spinning wheels, brake lights and lamps that glow at night; until they load, code-built stand-ins (`cars.js`) take their place. The town around the shop is 84 m across: a taller street behind, blocks to either side and low shops across the main road. Up to nine
+into the distance again. Window-shoppers do the same without buying, and a few passers-by just walk through. The shop's door (café doors inside, the front door from outside) swings open as people come and go, and passing cars brake for anyone on the zebra crossing. The cars are ready-made low-poly models (a GT-R, a Charger, a Rolls-Royce, a Camaro, a hatchback, an SUV and a sports car; see Credits) in random colours, with spinning wheels, brake lights and lamps that glow at night; they appear a moment after the town does. The town around the shop is 84 m across: a taller street behind, blocks to either side and low shops across the main road. Up to nine
 customers are shown walking at once; the sales themselves happen in the engine whether or not anyone is drawn.
 Everything solid in the scene carries a simple generated prototype texture (`three-helpers.js`): wood grain, floorboards,
 bark, brushed steel, chequer plate, card, fabric, velvet, fur, leaves, stone, concrete, plaster, tiles, rubber, epoxy,
@@ -493,9 +493,9 @@ serve the back door, every upgrade moves the number it names, and so on (78 chec
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.
-- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). Almost everything is built from simple shapes in code; the cars are ready-made models (`www/models/cars/`, loaded by `www/js/carModels.js`, see Credits), with code-built stand-ins (`www/js/cars.js`) until they load.
+- `www/js/scene.js` is the 3D scene (Three.js, kept in `www/vendor/` so the game works offline). Almost everything is built from simple shapes in code; the cars are ready-made models (`www/models/cars/`, loaded by `www/js/carModels.js`, see Credits).
 - `www/js/design.js` holds the design catalogue and rules (squares, charm, expansions); `www/js/world.js` the neighbourhood.
-- `www/style.css` is the look, kept low-key to sit with the scene's lighting: warm espresso panels with cream text, serif headings and a thin copper-and-cream awning stripe along the top; in the back room the panels turn plum with a violet stripe. Each card's first line under its name is the thing that matters (the effect, the pay, the price), and recipes show their time, servings and what a batch takes as labels. Sections open as a two-column grid that scrolls up and down.
+- `www/style.css` is the look, in one layer (one rule per selector), kept low-key to sit with the scene's lighting: warm espresso panels with cream text, serif headings and a thin copper-and-cream awning stripe along the top; in the back room the panels turn plum with a violet stripe. Each card's first line under its name is the thing that matters (the effect, the pay, the price), and recipes show their time, servings and what a batch takes as labels. Sections open as a two-column grid that scrolls up and down.
 - `www/js/data.js` holds the numbers and content, `www/js/game.js` the rules on the real clock (no DOM), and `www/js/ui.js` the screens and input.
 - `tools/sim.mjs` is the balance simulator.
 

@@ -279,7 +279,6 @@ export const MACHINE_PRICE_STEP = 0.35;
 // its place among its neighbours (a quick bake stays quick). A batch's worth then rises with its time: more servings
 // (or bags) and a premium for slow-made goods. Per hour, long cooks earn less than short ones (those suit active play),
 // but they're what keeps the counters and the back door stocked while you're away.
-export const MAX_MINUTES = 2 * 24 * 60;
 const NICE = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 45, 60, 75, 90, 120, 150, 180, 240, 300, 360, 420, 480, 600, 720,
   900, 1080, 1200, 1440, 1800, 2160, 2520, 2880];
 export function stretchTime(level, minutes) {
@@ -866,7 +865,6 @@ export const MACHINE_WALL = { oven: 'back', fryer: 'back', grill: 'back', pizza:
 // the basement's own coordinates (its middle is under the middle of the shop). Digging out under the front and side
 // terraces makes it bigger. It is drawn right under the shop; going down cuts the shop away to show it.
 export const BASEMENT_X = 0;
-export const BACK_DEPTH = 0;
 export const LAB_SPOTS = [
   // the back wall
   { x: -3.4, z: -3.95, ry: 0 }, { x: -2.15, z: -3.95, ry: 0 }, { x: -0.9, z: -3.95, ry: 0 }, { x: 0.35, z: -3.95, ry: 0 },
@@ -1010,7 +1008,6 @@ export const EVENTS = [
   { id: 'heatwave',  p: 0.06, text: '☀️ Heatwave. Cold and sweet things fly.',            sweet: 2 },
 ];
 
-export const FACES = ['🧑', '👩', '👨', '🧔', '👵', '👴', '👱', '🧕', '👷', '🧑‍💼', '👩‍🎓', '🧑‍🔧', '👩‍⚕️', '🧑‍🍳'];
 export const BUYER_NAMES = ['Kev', 'Shaz', 'Gaz', 'Tash', 'Kerry', 'Dani', 'Rich', 'Femi', 'Becks', 'Olly', 'Nadia', 'Craig', 'Paddy', 'Sol', 'Jojo', 'Tiny', 'Marcus', 'Leanne'];
 
 // What buyers say at the back door. Undercover officers usually say something off.

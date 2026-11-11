@@ -4,7 +4,6 @@
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize } from './three-helpers.js';
-import { makeCar } from './cars.js';
 import { loadCarModels, buildCar } from './carModels.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
@@ -347,19 +346,15 @@ export function buildWorld(scene) {
   root.add(cyl(0.2, 0.2, 1.05, '#c8323c', -9.5, -0.09, 11.9, 14)); root.add(sphere(0.2, '#c8323c', -9.5, 0.96, 11.9));
 
   // ---------- Cars ----------
-  // Ready-made car models (carModels.js), parked along the kerb and now and then driving past. Until they've loaded
-  // (or if one can't be), each car is a stand-in built in code (cars.js).
-  const headM = night(smat({ color: '#fff6d0', emissive: '#fff2c0', emissiveIntensity: 0 }), 2.5);
-  const tailM = night(smat({ color: '#8a1a1a', emissive: '#ff2a2a', emissiveIntensity: 0 }), 1.6);
+  // Ready-made car models (carModels.js), parked along the kerb and now and then driving past. Each car is an empty
+  // group until the models arrive (a moment after the town appears), then gets its body; a model that can't be loaded
+  // is replaced by one that could.
   const CAR_COLOURS = ['#b3122a', '#1f4f9a', '#e8e6e0', '#2b2d36', '#8a9aa6', '#2f5a45', '#d9822b', '#4a2b5a', '#c9b48a', '#14161c', '#6b7f8f', '#a8282a'];
-  const signM = night(smat({ color: '#fff1a8', emissive: '#ffcf3f', emissiveIntensity: 0 }), 1.5);
-  const STAND_IN = { rolls: 'four', charger: 'three', hatchback: 'giulia', gtr: 'nine', suv: 'avant', camaro: 'nine', sports: 'nine' };
+  const noLamp = smat({ color: '#7a0f14', emissive: '#ff2a2a', emissiveIntensity: 0 }); // stands in for a car without tail lamps
   const cars = [];
-  // A car: an outer group that stays put (and moves, for traffic), with its body inside it, swapped for the model later
   function car(color, parent, own, key) {
-    const c = makeCar(STAND_IN[key] || 'three', color, { own, headM, tailM, signM });
-    const outer = new THREE.Group(); c.group.userData.body = true; outer.add(c.group); parent.add(outer);
-    const h = { group: outer, wheels: c.wheels, paint: c.paint, tail: c.tail, len: c.len, key, color, own };
+    const outer = new THREE.Group(); parent.add(outer);
+    const h = { group: outer, wheels: [], paint: null, tail: noLamp, len: 2.3, key, color, own };
     cars.push(h);
     return h;
   }
@@ -383,17 +378,15 @@ export function buildWorld(scene) {
     beam.rotation.x = -PI / 2; beam.position.set(c.len / 2 + 0.9, 0.1, 0); c.group.add(beam);
     return { ...m, h: c, group: c.group, beam, beamM };
   });
-  // When the models arrive, each car's stand-in body is swapped for its model
+  // When the models arrive, each car gets its body
   loadCarModels().then(lib => {
-    const glowing = new Set();
+    const glowing = new Set(), any = Object.values(lib)[0];
     for (const h of cars) {
-      const model = lib[h.key];
+      const model = lib[h.key] || any;
       if (!model) continue;
       const b = buildCar(model, { color: h.color, own: h.own });
-      for (const ch of [...h.group.children]) if (ch.userData.body) h.group.remove(ch);
-      b.group.userData.body = true; h.group.add(b.group);
-      h.wheels = b.wheels; h.len = b.len;
-      h.paint = b.paint; h.tail = b.tail || smat({ color: '#7a0f14', emissive: '#ff2a2a', emissiveIntensity: 0 });
+      h.group.add(b.group);
+      h.wheels = b.wheels; h.len = b.len; h.paint = b.paint; h.tail = b.tail || noLamp;
       // lamps glow at night (the moving cars' own tail lamps are lit in update, with the brake lights)
       if (b.head && !glowing.has(b.head)) { glowing.add(b.head); b.head.emissive = new THREE.Color('#fff2c0'); night(b.head, 1.2); }
       if (!h.own && b.tail && !glowing.has(b.tail)) { glowing.add(b.tail); b.tail.emissive = new THREE.Color('#ff2a2a'); night(b.tail, 1.2); }
