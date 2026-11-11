@@ -842,3 +842,18 @@ textarea.code { background: var(--card-lo); color: #ead9bd; border: 1px solid va
   .pcard .ptop .em { font-size: 21px; }
   .chip2 { font-size: 12px; height: 25px; padding: 0 6px; }
 }
+
+/* ---------- The menus always win over the top bar ----------
+   Panels, the section dock and pop-ups sit on a higher layer than the top bar and never reach up underneath it: they
+   stop just below it (its height, status-bar inset included, is measured into --hud-h), so on short screens they
+   scroll inside themselves instead. */
+#app .hud { z-index: 4; }
+#app .designbar, #app .panel, #app .fabs, #app .guide { z-index: 10; }
+#app .modal-bg { z-index: 20; }
+.panel { max-height: calc(100vh - var(--hud-h, 60px) - 84px - env(safe-area-inset-bottom)); overflow-y: auto; }
+.designbar.plandock { max-height: calc(100vh - var(--hud-h, 60px) - 84px - env(safe-area-inset-bottom)); display: flex; flex-direction: column; overflow: hidden; }
+.designbar.plandock > .drow, .designbar.plandock > .dinfo { flex: 0 0 auto; }
+.plandock .catalog.cards { flex: 1 1 auto; min-height: 0; }
+.designbar:not(.plandock) { max-height: calc(100vh - var(--hud-h, 60px) - 12px - env(safe-area-inset-bottom)); overflow-y: auto; }
+.modal { max-height: min(74vh, calc(100vh - var(--hud-h, 60px) - 8px)); }
+.plandock .dinfo { max-height: 4.2em; overflow-y: auto; } /* a long hint scrolls, so the cards keep their room */
