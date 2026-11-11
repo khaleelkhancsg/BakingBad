@@ -593,7 +593,7 @@ button.big { padding: 11px; font-size: 15px; }
 .dlabel { flex: 0 0 auto; align-self: center; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); padding: 4px 2px; }
 
 /* First-day guide: a small card above the corner buttons */
-.guide { position: absolute; right: 10px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 7; width: min(330px, calc(100% - 20px));
+.guide { pointer-events: auto; position: absolute; right: 10px; bottom: calc(78px + env(safe-area-inset-bottom)); z-index: 7; width: min(330px, calc(100% - 20px));
   background: var(--solid, rgba(30, 22, 40, .96)); color: #f4efe6; border: 1px solid rgba(255, 255, 255, .12); border-radius: 14px;
   padding: 10px 12px; font-size: 13px; line-height: 1.35; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
 .guide .gbtns { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 8px; }

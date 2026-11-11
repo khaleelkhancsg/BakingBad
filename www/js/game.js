@@ -854,7 +854,7 @@ export function buyCounter(s) {
 export const menuOf = s => s.onMenu.filter(id => s.recipes.includes(id) && inSeason(id) && shopDef(s).machines.includes(ITEMS[id].machine)).slice(0, menuSlots(s));
 export function toggleMenu(s, id) {
   if (!s.recipes.includes(id)) return;
-  if (s.onMenu.includes(id)) { s.onMenu = s.onMenu.filter(x => x !== id); return; }
+  if (s.onMenu.includes(id)) { s.onMenu = s.onMenu.filter(x => x !== id); if (s.design?.special === id) s.design.special = null; return; }
   if (menuOf(s).length >= menuSlots(s)) {
     const nc = nextCounter(s);
     return say(`Your counters hold ${menuSlots(s)} things${nc ? ` (another counter: tap a bare one by the till${unlocked(s, nc.level) ? '' : `, level ${nc.level}`})` : ''}. Take something off first.`, 'bad');

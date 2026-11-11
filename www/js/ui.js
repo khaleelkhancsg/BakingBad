@@ -924,7 +924,7 @@ function settingsTab() {
 // ---- First-day guide: a short card above the corner buttons, one step at a time; each moves on by itself once done
 const GUIDE = [
   { text: '👋 Welcome to Rosa\'s! Tap an <b>oven</b> and pick something to bake.', done: s => s.machines.some(m => m.job) },
-  { text: '⏲️ Baking runs on the real clock. When the timer\'s done, tap the machine: the food goes on a <b>counter</b> by the till.', done: s => G.menuOf(s).some(id => s.display[id] > 0) },
+  { text: '⏲️ Baking runs on the real clock. When the timer\'s done, tap the machine: the food goes on a <b>counter</b> by the till.', done: s => (s.stats.batches || 0) > 0 },
   { text: '🧺 Customers buy from the counters. Tap a <b>counter</b> to see how many servings are left.', done: s => s.guide.seen?.tray },
   { text: '🛒 Ingredients run out. Open <b>☰ Menu → Supplies</b> to stock up.', done: s => s.guide.seen?.supplies },
   { text: '➕ One counter = one thing on sale. Tap a <b>bare counter</b> (green card) to buy another once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
@@ -936,7 +936,10 @@ const guideSeen = key => { s.guide ||= { step: 99 }; (s.guide.seen ||= {})[key] 
 function guideHTML() {
   const g = s.guide;
   if (!g || g.step >= GUIDE.length || !s.introSeen || ui.design || ui.modal || ui.tab || ui.panel || ui.outside) return '';
-  while (g.step < GUIDE.length && GUIDE[g.step].done(s)) g.step++;
+  // A step moves on by itself when you do it after it's shown (not because it was already true); Next always goes
+  // to the very next step
+  if (g.shown !== g.step) { g.shown = g.step; g.was = !!GUIDE[g.step]?.done(s); }
+  if (g.step < GUIDE.length && !g.was && GUIDE[g.step].done(s)) { g.step++; g.shown = g.step; g.was = !!GUIDE[g.step]?.done(s); }
   if (g.step >= GUIDE.length) return '';
   const st = GUIDE[g.step];
   return `<div class="guide"><span>${st.text}</span><div class="gbtns"><small class="mute">${g.step + 1}/${GUIDE.length}</small>

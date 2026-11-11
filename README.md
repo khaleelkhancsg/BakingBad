@@ -417,6 +417,10 @@ node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" 3 365
 
 `TRACE=careful` prints one run day by day. All numbers live in `www/js/data.js`.
 
+`node tools/fuzz.mjs [runs] [days]` plays games with random actions (cooking, counters, specials, cabinets,
+managers, expansions, decor, branches, decisions, saving and loading) and reports any broken rule: negative or NaN
+money, two machines on one spot, more on sale than counters, decor blocking a machine, and so on.
+
 ## Layout
 
 - `www/` is the whole game (plain HTML/CSS/JS, no build step). It is what gets packaged for Android.

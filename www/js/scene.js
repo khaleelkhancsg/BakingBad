@@ -2084,7 +2084,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     };
     s.machines.forEach((m, i) => add(m, i, 'day'));
     s.lab.forEach((m, i) => add(m, i, 'night'));
-    invalidateNav();
+    invalidateNav(); sweepClip();
     if (s.labUnlocked && !pickables.includes(innerDoor)) pickables.push(innerDoor, stairsHit, stairwellHit);
   }
 
@@ -2173,6 +2173,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
       if (under) for (const it of st0.design.back?.decor || []) { const { x, z } = D.backCellCenter(it.bx, it.bz); rects.push([BX + x - 0.36, BX + x + 0.36, z - 0.36, z + 0.36]); }
     }
     for (const st of stations) {
+      if ((st.kind === 'night') !== under) continue; // each floor's own machines
       const p = st.group.position, side = Math.abs(Math.sin(st.group.rotation.y)) > 0.5;
       const hx = (side ? 0.42 : 0.55) + pad, hz = (side ? 0.55 : 0.42) + pad;
       rects.push([p.x - hx, p.x + hx, p.z - hz, p.z + hz]);
@@ -2681,6 +2682,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     ray.setFromCamera(new THREE.Vector2(x / W * 2 - 1, -(y / H) * 2 + 1), camera);
     const hits = ray.intersectObjects(pickables, true);
     for (const h of hits) {
+      // Only things on the floor you're looking at: in the basement, the shop above is cut away but still there
+      if (view.zone === 'back' ? h.point.y > BY + 3.1 : h.point.y < -0.5) continue;
       let o = h.object;
       while (o && !o.userData?.act) o = o.parent;
       if (o) { onPick({ ...o.userData }); return; }
