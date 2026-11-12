@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS, NIGHT_EVENTS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty, shopPlaceProblem, backPlaceProblem, autoSpot, backAutoSpot, kitchenRoom, labRoom, cellFromSpot, backCellFromSpot, bestRot, backBestRot, fixLayout } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -231,6 +231,14 @@ function resolveDecision(s, d, yes, t, auto) {
     s.dirty += d.cost; s.packageUntil = t + 7 * DAY;
     return note(s, `📦 Dez's package is in the back room. £${d.cost.toLocaleString('en-GB')} for your trouble. A raid this week would go badly.`, 'meh', t);
   }
+  if (c === 'night') {
+    const E = NIGHT_EVENTS[d.ev];
+    if (!E) return;
+    const side = yes ? E.yes : E.no, bits = applyFx(s, side.fx);
+    let reply = side.reply, bad = false;
+    if (side.risk && rand() < side.risk.chance) { bits.push(...applyFx(s, side.risk.fx)); reply += ' ' + side.risk.reply; bad = !side.risk.fx.dirty || side.risk.fx.dirty < 0; }
+    return note(s, `🌙 ${reply}${auto ? ' (No answer in time.)' : ''}${bits.length ? ` (${bits.join(', ')})` : ''}`, bad ? 'bad' : yes ? 'good' : 'info', t);
+  }
   if (c === 'charity') {
     if (yes && s.clean >= d.cost) { s.clean = round2(s.clean - d.cost); s.rep = clamp(s.rep + 6, 0, 100); s.heat = clamp(s.heat - 3, 0, 100); return note(s, `❤️ You gave £${d.cost.toLocaleString('en-GB')}. Popularity +6.`, 'good', t); }
   }
@@ -254,6 +262,15 @@ function rivalMove(s, t) {
   if (mv === 'critic') { s.criticAt = t + (2 + rand() * 6) * HOUR; return note(s, `📝 Word is ${RIVAL.name} has tipped off a critic, and they're coming today. Keep your counters stocked.`, 'bad', t); }
   if (mv === 'lean') return pushDecision(s, { kind: 'lean', title: `Deal with ${RIVAL.name}?`, text: `Jay says the crew could "have a word" with ${RIVAL.name}'s suppliers. It would cost 💜 £${RIVAL_MOVES.leanCost.toLocaleString('en-GB')} and get noticed, but they would lose customers fast.`, yes: 'Do it', no: 'Leave it' }, t);
 }
+function nightEvent(s, t) {
+  if (s.decisions.some(d => d.kind === 'night')) return; // one at a time
+  const nightCrew = Object.keys(CREW).filter(r => CREW[r].shift === 'night' && s.crew[r]).length;
+  const pool = Object.keys(NIGHT_EVENTS).filter(k => { const n = NIGHT_EVENTS[k].need;
+    return !n || (n === 'bags' && Object.values(s.bags).some(v => v > 0)) || (n === 'crew' && nightCrew >= 2); });
+  if (!pool.length) return;
+  const ev = pick(pool), E = NIGHT_EVENTS[ev];
+  pushDecision(s, { kind: 'night', ev, night: true, title: `🌙 ${E.title}`, text: E.text, yes: E.yes.label, no: E.no.label, until: t + 8 * HOUR }, t);
+}
 function randomChoice(s, t) {
   const pool = Object.keys(CHOICES).filter(k => !CHOICES[k].night || s.labUnlocked);
   const kind = pick(pool), C = CHOICES[kind], d = { kind, title: C.title, text: C.text, yes: C.yes, no: C.no };
@@ -271,6 +288,7 @@ function randomChoice(s, t) {
 function runDecisions(s, t) {
   for (const d of [...s.decisions]) if (t >= d.until) { s.decisions = s.decisions.filter(x => x !== d); resolveDecision(s, d, false, t, true); }
   if (s.nextChoiceAt && t >= s.nextChoiceAt) { s.nextChoiceAt = null; if (s.level >= 3) randomChoice(s, t); }
+  if (s.nextNightAt && t >= s.nextNightAt) { s.nextNightAt = null; if (s.labUnlocked && s.challenge !== 'nolab') nightEvent(s, t); }
 }
 // Evidence for the detective's case
 export function addEvidence(s, n, t = s.clock, why = '') {
@@ -558,14 +576,25 @@ export function readChapter(s, pick) {
   if (!list.length) return;
   const ch = list[pick] || list[0];
   (s.story.chose ||= {})[id] = ch.label;
-  const fx = ch.fx, bits = [];
-  if (fx.rep) { s.rep = clamp(s.rep + fx.rep, 0, 100); bits.push(`popularity ${fx.rep > 0 ? '+' : ''}${fx.rep}`); }
-  if (fx.heat) { s.heat = clamp(s.heat + fx.heat, 0, 100); bits.push(`heat ${fx.heat > 0 ? '+' : ''}${fx.heat}`); }
-  if (fx.evidence) { s.case.evidence = clamp((s.case.evidence || 0) + fx.evidence, 0, 100); bits.push(`evidence ${fx.evidence}`); }
-  if (fx.clean) { const v = Math.round(fx.clean * s.level); s.clean = round2(Math.max(0, s.clean + v)); bits.push(`${v > 0 ? '+' : '-'}£${Math.abs(v).toLocaleString('en-GB')} clean`); }
-  if (fx.dirty) { const v = Math.round(fx.dirty * s.level); s.dirty = round2(s.dirty + v); bits.push(`+£${v.toLocaleString('en-GB')} dirty`); }
-  if (fx.kits) { s.kits.homegrown = (s.kits.homegrown || 0) + fx.kits; bits.push(`+${fx.kits} kit${fx.kits > 1 ? 's' : ''}`); }
+  const bits = applyFx(s, ch.fx);
   say(`📜 ${ch.reply}${bits.length ? ` (${bits.join(', ')})` : ''}`, 'good');
+}
+// A choice's small effects (story chapters, night dilemmas): popularity, heat, evidence, street rep, the night crew's
+// loyalty, kits, and cash scaled to your level (never below nothing). Returns what changed, in words.
+export function applyFx(s, fx = {}) {
+  const bits = [], sign = n => (n > 0 ? '+' : '');
+  if (fx.rep) { s.rep = clamp(s.rep + fx.rep, 0, 100); bits.push(`popularity ${sign(fx.rep)}${fx.rep}`); }
+  if (fx.heat) { s.heat = clamp(s.heat + fx.heat, 0, 100); bits.push(`heat ${sign(fx.heat)}${fx.heat}`); }
+  if (fx.evidence) { s.case.evidence = clamp((s.case.evidence || 0) + fx.evidence, 0, 100); bits.push(`evidence ${sign(fx.evidence)}${fx.evidence}`); }
+  if (fx.street) { s.street = clamp((s.street ?? CFG.streetStart) + fx.street, 0, 100); bits.push(`street rep ${sign(fx.street)}${fx.street}`); }
+  if (fx.loyalty) { for (const r of Object.keys(CREW).filter(r => CREW[r].shift === 'night' && s.crew[r])) { const st = staffOf(s, r); st.loyalty = clamp(st.loyalty + fx.loyalty, 0, 100); } bits.push(`crew loyalty ${sign(fx.loyalty)}${fx.loyalty}`); }
+  for (const cash of ['clean', 'dirty']) if (fx[cash]) {
+    const want = Math.round(fx[cash] * s.level), v = want < 0 ? -Math.min(-want, Math.floor(s[cash])) : want;
+    s[cash] = round2(s[cash] + v);
+    if (v) bits.push(`${v > 0 ? '+' : '-'}£${Math.abs(v).toLocaleString('en-GB')} ${cash}`);
+  }
+  if (fx.kits) { s.kits.homegrown = (s.kits.homegrown || 0) + fx.kits; bits.push(`+${fx.kits} kit${fx.kits > 1 ? 's' : ''}`); }
+  return bits;
 }
 // The choices a chapter offers right now (some only make sense once the back room is open)
 export const storyChoices = (s, c) => (c?.choices || []).filter(ch => !ch.lab || s.labUnlocked);
@@ -1841,6 +1870,7 @@ export function migrate(s, t = Date.now()) {
     bindShops(s);
     s.cur = Math.min(s.cur || 0, s.shops.length - 1);
     s.purity ??= {}; s.cut ??= {}; s.street ??= CFG.streetStart; s.corners ??= {};
+    s.nextNightAt ??= null;
     s.billsNext ??= dayStart(t) + BILLS.everyDays * DAY; s.lastBills ??= null; // older saves: rent was daily; the first monthly bill is a month on
     s.prestige ??= { tokens: 0, total: 0, resets: 0, perks: {}, best: 0 };
     s.staff ??= {}; s.decisions ??= []; s.case ??= { evidence: 0 }; s.contracts ??= {}; s.insurance ??= {}; s.rival ??= { open: false, share: 0 }; s.auction ??= null;
@@ -2229,6 +2259,7 @@ function rollover(s, t) {
   if (s.goals.dayStart !== dayStart(t)) { s.goals.daily = makeGoals(s, 'daily'); s.goals.dayStart = dayStart(t); }
   if (!s.goals.weekly.length || di % 7 === TAX.taxDay) s.goals.weekly = makeGoals(s, 'weekly');
   if (rand() < 0.5) s.nextChoiceAt = t + (2 + rand() * 18) * HOUR;
+  if (s.labUnlocked && s.level >= 3 && rand() < 0.5) s.nextNightAt = dayStart(t) + (13 + rand() * 7) * HOUR;
   // File yesterday's report and open a new day
   // A clean day: nothing cooked, sold or washed after dark
   s.honest ||= { days: 0, best: 0, awards: {} };

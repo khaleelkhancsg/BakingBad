@@ -158,6 +158,33 @@ export const CHOICES = {
   package:    { title: 'A favour for Dez', night: true, text: 'Dez wants you to keep a package in the back room for a week. He\'ll pay well. Don\'t ask what\'s in it.', yes: 'Keep it', no: 'Say no' },
   charity:    { title: 'A charity appeal', text: 'The children\'s hospital is raising money and has asked local businesses to chip in.', yes: 'Donate', no: 'Not this time' },
 };
+// Dilemmas after dark: small choices that turn up some evenings once the back room is open (and answer themselves "no"
+// if you leave them). Each side nudges things a little, like the story's choices: a few points of heat, street rep,
+// evidence or popularity, a kit or two, or some cash scaled to your level. risk: a chance of something extra going
+// wrong (or right). need: only when it makes sense (bags to sell, night crew to keep happy).
+export const NIGHT_EVENTS = {
+  rush: { title: 'A rush job', need: 'bags', text: 'One of your regulars wants a big order tonight and will pay double for it. The street\'s been busy with patrols all week.',
+    yes: { label: 'Take it', fx: { dirty: 45, heat: 4, street: 2 }, reply: 'Double money, and the regular tells everyone. The patrol car went past twice.' },
+    no:  { label: 'Not tonight', fx: { street: -2 }, reply: 'They go elsewhere tonight. Word gets round that you\'re cautious.' } },
+  yard: { title: 'Dez\'s van', text: 'Dez needs somewhere to leave his van overnight. Your yard is perfect, he says. He\'ll make it worth your while.',
+    yes: { label: 'Let him', fx: { kits: 2, heat: 2 }, risk: { chance: 0.25, fx: { evidence: 3 }, reply: 'Someone took the plate number.' }, reply: 'The van\'s gone by six, and there are two kits by the back door.' },
+    no:  { label: 'Not my yard', fx: { heat: -2 }, reply: 'Dez grumbles and parks it two streets away. One less thing to worry about.' } },
+  runner: { title: 'A kid from the estate', text: 'A lad from the estate wants to run bags for you after school. He\'s keen, and he\'s quick.',
+    yes: { label: 'Give him a go', fx: { dirty: 25, heat: 2, street: 1 }, risk: { chance: 0.2, fx: { evidence: 4, heat: 3 }, reply: 'He got stopped on the way back and said too much.' }, reply: 'He\'s back in an hour with the cash, grinning.' },
+    no:  { label: 'Send him home', fx: { rep: 2 }, reply: 'You send him home with a sausage roll and a word about school. His mum buys a cake every Saturday now.' } },
+  tipoff: { title: 'A tip-off', text: 'A copper who drinks at the Crown says there\'s a patrol on your street tonight. He\'ll keep it quiet, for a price.',
+    yes: { label: 'Pay him', fx: { dirty: -30, heat: -6 }, reply: 'The patrol goes the long way round. Nice to have friends.' },
+    no:  { label: 'Keep your money', fx: {}, risk: { chance: 0.35, fx: { heat: 5 }, reply: 'The patrol came down your street after all.' }, reply: 'You keep your money and keep the back door shut.' } },
+  smell: { title: 'The neighbour', text: 'The man next door says your back room smells like a farm, and he\'s thinking of calling the council.',
+    yes: { label: 'Buy him a bottle', fx: { clean: -15 }, reply: 'A nice bottle of whisky and a new extractor fan. He\'s sleeping better.' },
+    no:  { label: 'Tell him it\'s bread', fx: {}, risk: { chance: 0.35, fx: { heat: 5, evidence: 2 }, reply: 'He called the council anyway, and they asked a lot of questions.' }, reply: '"Sourdough starter," you say. He doesn\'t look convinced.' } },
+  credit: { title: 'On tick', text: 'A regular buyer is short this week and asks for credit. "I\'m good for it," he says, like they all do.',
+    yes: { label: 'Give him credit', fx: { dirty: -10, street: 3 }, risk: { chance: 0.5, fx: { dirty: 25 }, reply: 'He came back and paid double, as promised.' }, reply: 'He\'s grateful, and tells his friends you\'re fair.' },
+    no:  { label: 'Cash only', fx: { street: -1 }, reply: 'Rules are rules. He grumbles off into the dark.' } },
+  argument: { title: 'Trouble in the crew', need: 'crew', text: 'Two of the night crew are at each other\'s throats over who did the most work this week.',
+    yes: { label: 'Give them the night off', fx: { loyalty: 8, heat: -3 }, reply: 'A quiet night, and they shake hands in the morning.' },
+    no:  { label: 'Tell them to get on with it', fx: { loyalty: -5 }, reply: 'They get on with it, sulking. The work gets done, just.' } },
+};
 // Prestige challenges: harder runs for more tokens next time
 export const CHALLENGES = {
   none:      { name: 'No challenge', mult: 1, desc: 'A normal fresh start.' },
@@ -286,8 +313,8 @@ export function stretchTime(level, minutes) {
   return NICE.reduce((a, b) => Math.abs(Math.log(b / t)) < Math.abs(Math.log(a / t)) ? b : a, 1);
 }
 // How much a batch makes, and its price premium, from its time alone
-export const timeServings = minutes => 12 * (Math.pow(1 + minutes / 15, 0.62) - 1);
-export const timePremium = minutes => 0.85 + 0.2 * Math.log2(1 + minutes / 30);
+export const timeServings = minutes => 9 * (Math.pow(1 + minutes / 15, 0.62) - 1);
+export const timePremium = minutes => 0.9 + 0.1 * Math.log2(1 + minutes / 30); // a 2-day bake sells for about 1.6x a quick one
 const timeWorth = minutes => (10.5 + timeServings(minutes)) * timePremium(minutes); // a batch's worth, relative
 // Recipes. Servings come from the cook time (plus a little for the level), the price per serving from the level
 // and the time; ingredient amounts follow from what the batch sells for.

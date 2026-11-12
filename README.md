@@ -57,7 +57,7 @@ timer on one machine. When it's done, tap ✓ to put it on the counters. Leave i
 as long as it took to cook (at least 30 minutes).
 
 Anything you make, in the bakery or the back room, takes from a minute to two days, and the longer it takes the more
-a batch earns: more servings (or bags) and a higher price for slow-made goods. A 2-minute batch of cookies makes about
+a batch earns: more servings (or bags) and a higher price for slow-made goods. (A two-day bake sells for about 1.6 times what a quick one does, serving for serving.) A 2-minute batch of cookies makes about
 £18, a 2-hour sourdough £113, an 8-hour flatbread £449, and the two-day showpieces at the top thousands. The longest
 cooks unlock late: times stretch with a recipe's level (up to four times by level 99), while each recipe keeps its place
 among its neighbours, so there are quick bakes at every level. Per hour, short cooks still pay best while you're
@@ -306,6 +306,13 @@ recipes baked, signature dishes, perfect bakes, seasonal treats, products made, 
   "have a word" with their suppliers: they lose customers fast, but heat and evidence go up.
 
 ## The night: patrols and the crew
+
+**Dilemmas after dark.** On about half the nights once the back room is open, a small choice turns up between 7pm and
+2am: a regular wants a rush order at double money while the street's busy with patrols, Dez wants to leave his van in
+your yard, a kid from the estate wants to run bags, a copper offers a tip-off for a price, the neighbour complains about
+the smell, a buyer asks for credit, or two of the night crew fall out. Each side is a small nudge (a few points of heat,
+street rep, evidence, popularity or crew loyalty, a kit or two, some cash scaled to your level), and some carry a chance
+of something extra going wrong, or right. Leave one for eight hours and the cautious answer is taken for you.
 
 - **Patrol forecast** (Heat & police): at 6am you get tonight's patrols for the evening, late night and early hours:
   quiet, normal or heavy. Heavy patrols raise the chance a buyer is undercover, corner sweeps and arrests; quiet ones

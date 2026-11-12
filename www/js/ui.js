@@ -1290,7 +1290,7 @@ function modalHTML() {
       <p class="quote">"Rosa never told you how she really kept this place going, did she? Bread doesn't pay a bank. The back room's still set up. I bring kits, you cook, and people come to the back door after dark. I'll throw in the first kit."</p>
       <div class="row2"><button class="violet" data-act="offer" data-id="yes">Hear him out</button><button data-act="offer" data-id="no">Not interested</button></div>`;
   }
-  const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night') || (m.type === 'info' && m.prev?.kind === 'night');
+  const night = m.type === 'buyer' || m.type === 'launder' || m.type === 'offer' || (m.type === 'machine' && m.kind === 'night') || (m.type === 'info' && m.prev?.kind === 'night') || (m.type === 'decision' && s.decisions.find(x => x.id === m.id)?.night);
   const sticky = m.type === 'levelup' || m.type === 'offer' || m.type === 'confirm' || m.type === 'decision' || m.type === 'story';
   return `<div class="modal-bg" data-act="${sticky ? 'noop' : 'close'}"><div class="modal ${night ? 'night' : ''}" data-act="noop">${inner}</div></div>`;
 }
