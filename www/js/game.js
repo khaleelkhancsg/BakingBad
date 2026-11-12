@@ -81,7 +81,7 @@ export function buyShop(s, id) {
   if (s.clean < price) return say('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - price); s.today.upgradesSpent += price;
   s.shops.push({ ...makeShop(id), paid: price });
-  if (s.labUnlocked && !s.vans.count) { s.vans.count = 1; note(s, '🚚 Rosa\'s first delivery van comes with the branch: it can run what the branch back room makes to the stall.', 'info'); }
+  if (s.labUnlocked && !s.vans.count) { s.vans.count = 1; note(s, '🚚 Rosa\'s first delivery van comes with the branch: it can run what the branch back room makes to the bakery.', 'info'); }
   say(`${d.emoji} ${d.name} is open. Fit it out with its machines.`, 'good');
 }
 export function viewShop(s, i) { if (s.shops[i]) s.cur = i; }
@@ -963,7 +963,7 @@ export function collectLab(s, idx, t, { quiet = false } = {}) {
   m.job = null;
   addXp(s, labXp(id));
   s.today.labBatches++;
-  if (!quiet) say(`+${n} ${p.name} (${Math.round(pur * 100)}% pure)${s.cur ? ', packed for the stall' : ''}`, 'good');
+  if (!quiet) say(`+${n} ${p.name} (${Math.round(pur * 100)}% pure)${s.cur ? ', packed for the bakery' : ''}`, 'good');
   if (s.crew.chemist && m.last) startLab(s, idx, m.last, t, { quiet: true });
   return true;
 }
@@ -1359,7 +1359,7 @@ export function launder(s, amount, quiet = false) {
 // A pile of unwashed cash in the back room draws attention: it counts as extra heat when police decide whether to raid
 export const cashPileHeat = s => Math.min(CFG.cashPileMax, Math.max(0, s.dirty - CFG.cashPileFree) / CFG.cashPilePer);
 
-// ---------- Logistics: vans from the branches to the stall ----------
+// ---------- Logistics: vans from the branches to the bakery ----------
 export const vanCap = s => capAt(VANS.caps, s.level);
 export const vanCapacity = s => VANS.capacity[s.vans.level];
 export const vansOut = (s, t = s.clock) => s.shipments.length + s.vans.impounded.filter(u => u > t).length;
@@ -2032,7 +2032,7 @@ function shopSpan(s, t0, t1, mins, showIt) {
   for (const b of [...s.door]) if (t1 >= b.arrive + b.patience) unattended(s, b, t1);
 }
 function shared(s, t0, t1, mins) {
-  // Couriers and rival crews come to the stall's back door
+  // Couriers and rival crews come to the bakery's back door
   if (s.labUnlocked && isNight(t0) && !sealed(s, t0)) {
     const keep = s.cur; s.cur = 0;
     if (s.night.courierAt && t1 >= s.night.courierAt) { s.night.courierAt = null; courierArrives(s, t1); }
@@ -2238,7 +2238,7 @@ function rollover(s, t) {
     else if (s.clean >= due) {
       s.clean = round2(s.clean - due); s.balance = round2(s.balance - due); s.arrears = 0; s.behind = 0;
       s.paymentsMade++; s.stats.paid += due; payment = { paid: true, due };
-      if (s.balance <= 0.5) { s.balance = 0; s.won = true; note(s, '🎉 Debt cleared. Aunt Rosa\'s stall is yours.', 'good', t); }
+      if (s.balance <= 0.5) { s.balance = 0; s.won = true; note(s, '🎉 Debt cleared. Aunt Rosa\'s bakery is yours.', 'good', t); }
     } else {
       const part = Math.max(0, Math.floor(s.clean - CFG.keepForStock));
       s.clean = round2(s.clean - part); s.balance = round2(s.balance - part); s.stats.paid += part;

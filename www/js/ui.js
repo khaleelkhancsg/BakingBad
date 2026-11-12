@@ -289,7 +289,7 @@ function crewTab(night = false) {
 }
 
 // ---------- The back room's own sections (they mirror the bakery's) ----------
-const labHint = t => s.cur ? `This back room cooks for the stall: what it makes is packed into Rosa's vans and driven to the stall under the bread.`
+const labHint = t => s.cur ? `This back room cooks for the bakery: what it makes is packed into Rosa's vans and driven there under the bread.`
   : G.sealed(s, t) ? `🚧 Police tape: sealed for another ${mins((s.sealedUntil - t) / MIN)}.`
   : `Cook any time; buyers come to the back door from 6pm to 7am.`;
 // 🧪 Lab: the back room's machines (like the Kitchen)
@@ -301,7 +301,7 @@ function backTab() {
     <button class="small" data-act="restartlab" ${idle && !G.sealed(s, t) ? '' : 'disabled'}>🔁 Cook again (${idle})</button></div>`, '', 'wide night');
   if (s.cur) {
     const st = s.stock, n = G.packed(s, s.cur);
-    cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${G.shopDef(s).drive}h to the stall</small></div></div>
+    cards += pcard(`<div class="ptop"><span class="em">📦</span><div><b>${n} bags packed</b><small>${Object.entries(st).map(([id, k]) => `${PRODUCTS[id].emoji}${k.n}`).join(' ') || 'nothing yet'}<br>${G.vansFree(s)} of ${s.vans.count} vans free · ${G.shopDef(s).drive}h to the bakery</small></div></div>
       <div class="pbtns"><button class="small violet" data-act="van-send" data-id="${s.cur}" ${n && G.vansFree(s) ? '' : 'disabled'}>🚚 Send a van</button></div>`, ibtn('vans', 'x'), 'wide night');
   }
   for (const type of labHere) {
@@ -375,7 +375,7 @@ function dealsTab() {
   if (G.deliveryOpen(s)) cards += pcard(`<div class="ptop"><span class="em">🛵</span><div><b>Delivery round ${s.delivery.on ? 'on' : 'off'}</b><small>${s.delivery.riders} riders · ${s.deliveries.length} out on drops</small></div></div>
     <div class="pbtns"><button class="small" data-act="tab" data-id="logistics">Riders</button></div>`, ibtn('delivery', 'x'), 'night');
   if (!cards) cards = pcard(`<div class="ptop"><span class="em">🌙</span><div><b>Quiet right now</b><small>${doorOpen(t) ? 'Nobody at the back door.' : `The back door opens at 6pm (in ${mins((G.nextNightStart(t) - t) / MIN)}).`}</small></div></div>`, '', 'wide night');
-  return { cards, hint: s.delivery.on ? 'Buyers phone and riders deliver; anyone left over knocks at the stall\'s back door.' : 'Buyers knock at the stall\'s back door from 6pm to 7am. Read them before you sell. Dez\'s jobs pay well for a big batch by a deadline.' };
+  return { cards, hint: s.delivery.on ? 'Buyers phone and riders deliver; anyone left over knocks at the bakery\'s back door.' : 'Buyers knock at the bakery\'s back door from 6pm to 7am. Read them before you sell. Dez\'s jobs pay well for a big batch by a deadline.' };
 }
 // 🚨 Heat & police: heat, the sergeant, the case and street rep
 const t0 = () => s.clock;
@@ -454,7 +454,7 @@ function logisticsTab() {
   else cards += pcard(`<div class="ptop"><span class="em">🛵</span><div><b>Delivery round ${s.delivery.on ? 'on' : 'off'}</b><small>${s.delivery.riders} of ${G.riderCap(s)} riders · 💜 ${money(DELIVERY.riderWage)}/day each${s.delivery.out ? ` · ${s.delivery.out} arrested today` : ''}<br>${s.deliveries.length} out on drops</small></div></div>
     <div class="pbtns"><button class="small ${s.delivery.on ? 'violet' : ''}" data-act="delivery" data-id="${s.delivery.on ? 'off' : 'on'}">${s.delivery.on ? '✓ Delivering' : 'Start'}</button>
       <button class="small" data-act="rider" data-n="-1" ${s.delivery.riders ? '' : 'disabled'}>−</button><button class="small" data-act="rider" data-n="1" ${s.delivery.riders < G.riderCap(s) ? '' : 'disabled'}>+ rider</button></div>`, ibtn('delivery', 'x'), 'wide night');
-  return { cards, hint: `Branch back rooms make product; vans bring it to the stall under the bakery's own deliveries.${s.crew.dispatcher ? ' Marnie sends the vans.' : ' Marnie the dispatcher (Crew) sends them for you.'}` };
+  return { cards, hint: `Branch back rooms make product; vans bring it to the bakery under its own bread deliveries.${s.crew.dispatcher ? ' Marnie sends the vans.' : ' Marnie the dispatcher (Crew) sends them for you.'}` };
 }
 
 function washTab() {
@@ -582,7 +582,7 @@ function marketingTab() {
 
 function bankTab() {
   let cards;
-  if (s.won) cards = pcard(`<div class="ptop"><span class="em">🎉</span><div><b>Debt cleared</b><small>The stall is yours</small></div></div>`, '', 'wide');
+  if (s.won) cards = pcard(`<div class="ptop"><span class="em">🎉</span><div><b>Debt cleared</b><small>The bakery is yours</small></div></div>`, '', 'wide');
   else cards = pcard(`<div class="ptop"><span class="em">🏦</span><div><b>${money(s.balance)} owed</b><small>${money(G.nextDue(s))} due ${dateStr(G.nextPaymentAt(s))} 6am</small></div></div>
       ${s.arrears > 0 ? `<small class="bad">Behind: ${money(s.arrears)}</small>` : ''}${s.holidayNext ? '<small class="good">Next payment skipped</small>' : ''}`, ibtn('bank', 'debt'), 'wide')
     + pcard(`<b>Pay early</b>
@@ -605,7 +605,7 @@ function bankTab() {
   {
     const b = G.monthlyBills(s), days = Math.max(0, Math.ceil((s.billsNext - s.clock) / (24 * 3600e3)));
     cards += pcard(`<div class="ptop"><span class="em">🧾</span><div><b>Monthly bills: ${money(b.total)}</b><small>due ${dateStr(s.billsNext)} 6am (${days ? `in ${days} day${days === 1 ? '' : 's'}` : 'tomorrow'})</small></div></div>
-      ${line('Rent', b.rent ? money(b.rent) : 'none: the stall is yours')}${b.rates ? line('Business rates', money(b.rates)) : ''}${line('Council tax (the flat)', money(b.council))}${line('Utilities', money(b.utilities))}
+      ${line('Rent', b.rent ? money(b.rent) : 'none: the bakery is yours')}${b.rates ? line('Business rates', money(b.rates)) : ''}${line('Council tax (the flat)', money(b.council))}${line('Utilities', money(b.utilities))}
       <small>Utilities grow with every machine${s.labUnlocked ? ' (back-room ones run hot)' : ''}.${s.lastBills ? ` Last month: ${money(s.lastBills.total)}.` : ''}</small>`, '', 'wide');
   }
   for (const [id, I] of Object.entries(INSURANCE)) {
@@ -751,13 +751,13 @@ function infoFor(kind, id) {
       + '<p class="mute">Purity comes from the machine\'s tier, back-room upgrades, Doc and Pip. Cutting makes more bags but each is worth less, and buyers notice: weak product hurts your street rep. Pricier products have fewer buyers and draw more attention.</p>');
   }
   if (kind === 'vans') {
-    return T('🚚 Rosa\'s vans', '<p>Branch back rooms don\'t sell anything. What they make is packed under bread trays and driven to the stall\'s back room with the bakery\'s own deliveries.</p>'
+    return T('🚚 Rosa\'s vans', '<p>Branch back rooms don\'t sell anything. What they make is packed under bread trays and driven to the bakery\'s back room with its own bread deliveries.</p>'
       + line('Fleet', `${s.vans.count} of ${G.vanCap(s)} vans`) + line('A run carries', `${G.vanCapacity(s)} bags`) + line('Drive times', '1h from the café up to 4h from the maison')
       + line('Stopped', `≈ ${pct(G.stopChance(s, G.vanCapacity(s) / 2))} of runs at this heat (more for bigger loads)`) + line('Found if searched', pct(G.findChance(s)))
       + `<p class="mute">If the load is found it's seized, the van is impounded for ${VANS.impoundDays} days, the driver arrested and heat +${VANS.seizeHeat}. Hidden compartments and DS Hale help; so does keeping the heat down.</p>`);
   }
   if (kind === 'delivery') {
-    return T('🛵 Delivery round', `<p>Instead of buyers coming to the stall's back door, they phone and a rider takes it to them. Most undercover officers never get past the phone call, there's less heat around the stall and fewer raids, and buyers pay ${pct(DELIVERY.price - 1)} more.</p>`
+    return T('🛵 Delivery round', `<p>Instead of buyers coming to the bakery's back door, they phone and a rider takes it to them. Most undercover officers never get past the phone call, there's less heat around the bakery and fewer raids, and buyers pay ${pct(DELIVERY.price - 1)} more.</p>`
       + line('Riders', `${s.delivery.riders} of ${G.riderCap(s)}, 💜 ${money(DELIVERY.riderWage)} a day each`) + line('A drop takes', `${DELIVERY.minutes} minutes`)
       + line('Risk per drop', `≈ ${pct(DELIVERY.stop + s.heat * DELIVERY.stopPerHeat)} stop and search, plus the odd sting`) + line('Unlocks at', `level ${DELIVERY.level}`)
       + '<p class="mute">A rider who\'s stopped or stung is arrested and the bags are lost; arrested riders are replaced by morning. When every rider is busy, buyers come to the door as before.</p>');
@@ -787,7 +787,7 @@ function infoFor(kind, id) {
       + line('Corporation tax', `${money(e.corp)} on ${money(e.profit)} profit`) + line('Employer NI', `${money(e.ni)} on day-crew wages`)
       + (e.saved ? line('Viv saves you', money(e.saved), 'good') : '') + line('Estimated bill', money(e.total), 'bad')
       + line('Investigation chance', pct(G.investigateChance(s)), G.investigateChance(s) > 0.2 ? 'bad' : '')
-      + line('Business rates', `${money(G.businessRates(s))} a day on your branches (the stall gets small business rates relief)`)
+      + line('Business rates', `${money(G.businessRates(s))} a day on your branches (the bakery gets small business rates relief)`)
       + `<p class="mute">Corporation tax is ${pct(TAX.smallRate)} on profits up to ${money(TAX.smallLimit)} a week and ${pct(TAX.mainRate)} above ${money(TAX.mainLimit)}, with marginal relief between. Cold takeaway food and bread are zero-rated for VAT. Unpaid tax gets a ${pct(TAX.latePenalty)} penalty and interest, and HMRC collect what they can each morning. If an investigation finds undeclared income you pay it back twice over and it makes the papers. Laundering a lot compared with your real takings draws questions too.</p>`);
   }
   if (kind === 'prestige') {
@@ -834,8 +834,8 @@ function infoFor(kind, id) {
   }
   if (kind === 'shop') {
     const d = SHOPS[id], owned = s.shops.some(x => x.id === id);
-    return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the stall's`)
-      + line('Customers', `×${d.cust} the stall's (before marketing and charm)`) + line('Rent', `${money(d.rent * BILLS.everyDays)} a month`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
+    return T(`${d.emoji} ${d.name}`, line('Machines', d.machines.map(t => `${MACHINES[t].emoji} ${MACHINES[t].name}`).join(', ')) + line('Prices', `×${d.priceMult} the bakery's`)
+      + line('Customers', `×${d.cust} the bakery's (before marketing and charm)`) + line('Rent', `${money(d.rent * BILLS.everyDays)} a month`) + line('Launders', d.launder ? `${money(d.launder)} a day on top of its takings` : 'its takings only')
       + (owned ? '' : line('Opening costs', `${money(G.shopPrice(s))} (each branch costs ${SHOP_GROW}× the last)`)) + line('Unlocks at', `level ${d.level}`)
       + line('Back room', d.lab.map(k => `${LAB_MACHINES[k].emoji} ${LAB_MACHINES[k].name}`).join(', '))
       + '<p class="mute">Each shop has its own machines, case, menu and design, and its own back room and back door, and they all trade at once. Your crew work every shop; bags and kits are shared.</p>');
@@ -999,7 +999,7 @@ function settingsTab() {
   cards += pcard(`<div class="ptop"><span class="em">🧭</span><div><b>First-day guide</b><small>${s.guide?.step < GUIDE.length ? `On step ${s.guide.step + 1} of ${GUIDE.length}` : 'Done'}</small></div></div>
     <div class="pbtns"><button class="small" data-act="guide-restart">Show it again</button></div>`);
   cards += pcard(`<div class="ptop"><span class="em">🚗</span><div><b>Credits</b><small>Cars from Poly Pizza: Nissan GT-R, Dodge Charger and Rolls-Royce by David Sirera, Camaro ZL1 2017 by Kris Tong (both CC-BY); hatchback by Kay Lousberg, SUV and sports car by Quaternius (CC0). Three.js (MIT).</small></div></div>`, '', 'wide');
-  cards += pcard(`<div class="ptop"><span class="em">🆕</span><div><b>New game</b><small>Start over from the stall. This bakery is lost (back it up first).</small></div></div>
+  cards += pcard(`<div class="ptop"><span class="em">🆕</span><div><b>New game</b><small>Start over from Rosa's bakery. Everything you've built is lost (back it up first).</small></div></div>
     <div class="pbtns"><button class="small danger" data-act="restart">Start over</button></div>`);
   return { cards, hint: 'Settings stay the same through new games and prestige.' };
 }
@@ -1012,7 +1012,7 @@ const GUIDE = [
   { text: '🛒 Ingredients run out. Open <b>☰ Menu → Supplies</b> to stock up.', done: s => s.guide.seen?.supplies },
   { text: '➕ Each counter holds one thing; what you cook fills them by itself. Buy another in <b>🎨 Design → Kitchen</b> and tap where it goes, once you reach level 2.', done: s => G.countersOf(s.design) >= 3 },
   { text: '🎨 Make it yours: <b>Design</b> has floors, decor and expansions that bring more customers.', done: s => s.guide.seen?.design },
-  { text: '🏦 The stall came with a debt. <b>☰ Menu → Bank & tax</b> shows what\'s due and when.', done: s => s.guide.seen?.bank },
+  { text: '🏦 The bakery came with a debt. <b>☰ Menu → Bank & tax</b> shows what\'s due and when.', done: s => s.guide.seen?.bank },
   { text: '🌙 That\'s the basics. At level 3 a door at the back opens up... the rest you can find out yourself.', done: () => false, last: true },
 ];
 const guideSeen = key => { s.guide ||= { step: 99 }; (s.guide.seen ||= {})[key] = true; };
@@ -1076,8 +1076,8 @@ function mapPanel() {
 function dockHTML() {
   if (ui.tab && (!TABS[ui.tab] || (TABS[ui.tab].night && !s.labUnlocked))) ui.tab = null;
   const intro = !s.introSeen ? `<div class="floatcard">
-      <h2>Aunt Rosa's stall</h2>
-      <p>Aunt Rosa ran this bakery stall for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
+      <h2>Aunt Rosa's bakery</h2>
+      <p>Aunt Rosa ran this bakery for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
       <p>The game runs on the real clock and never closes. Tap a machine to start a batch, come back when it's done to put it on a counter by the till, and customers buy from the counters all day, even while you're away. Long recipes are for when you go out; don't leave food sitting in a machine or it spoils.</p>
       <p class="mute">☰ Menu has everything else; 🗺️ Map takes you between your shops.</p>
       <button class="small" data-act="intro-ok">Got it</button></div>`
@@ -1271,7 +1271,7 @@ function modalHTML() {
       <button class="big" data-act="close" style="margin-top:10px">Close</button>`;
   } else if (m.type === 'prestige') {
     const pt = G.prestigeTokens(s);
-    inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, decoration, crew member and penny. You start again at Aunt Rosa's stall with a fresh debt.</p>
+    inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, decoration, crew member and penny. You start again at Aunt Rosa's bakery with a fresh debt.</p>
       <div class="card">${line('Net worth', money(G.netWorth(s)))}${line('Prestige tokens', `+${pt}`, 'good')}${line('Prices after', `+${pct(PRESTIGE.tokenBonus * (s.prestige.total + pt))} on everything`, 'good')}</div>
       <p><b>Challenge for the next run</b></p><div class="seg">${Object.entries(CHALLENGES).map(([k, c]) => `<button class="${(ui.challenge || 'none') === k ? 'on' : ''}" data-act="challenge" data-id="${k}">${c.name}${c.mult > 1 ? ` ×${c.mult}` : ''}</button>`).join('')}</div>
       <p class="mute">${CHALLENGES[ui.challenge || 'none'].desc} Your perks and tokens carry over. Spend the tokens in Bank & tax → Perks once you've started again.</p>

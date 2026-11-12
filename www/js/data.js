@@ -43,7 +43,7 @@ export const CFG = {
 // VAT: registered once declared takings pass the threshold; hot food and drinks are standard-rated, cold takeaway
 // food and bread are zero-rated. Corporation tax: the small profits rate, the main rate, and marginal relief between.
 // Employer National Insurance on day-crew wages above the secondary threshold. Business rates on each shop, with
-// small business rates relief for the stall.
+// small business rates relief for the bakery.
 export const TAX = {
   vatRate: 0.2, vatThreshold: 90000, vatGroups: ['savory', 'drink'],
   smallRate: 0.19, mainRate: 0.25, smallLimit: 1000, mainLimit: 5000,   // weekly profit bands
@@ -83,13 +83,13 @@ export const FRONTS = {
 };
 export const FRONT_AUDIT = 0.25; // chance an HMRC investigation also closes one of your fronts for a few days
 
-// Logistics: branch back rooms pack what they make into Rosa's vans, which drive it to the stall's back room
+// Logistics: branch back rooms pack what they make into Rosa's vans, which drive it to the bakery's back room
 // under the bakery's own deliveries. Every run can be stopped and searched.
 export const VANS = {
   price: 8000, caps: [[1, 1], [24, 2], [40, 3], [60, 4], [80, 5]],          // how many vans you may run, by level
   capacity: [40, 80, 160, 320, 640], capacityCost: [0, 12000, 45000, 160000, 600000],   // bags a run, by van level
   hideCost: [0, 6000, 30000, 120000], hideCut: 0.22,                        // hidden compartments: each level hides better
-  travelHours: [0, 1, 2, 3, 4],                                             // from each shop to the stall
+  travelHours: [0, 1, 2, 3, 4],                                             // from each shop to the bakery
   stop: 0.04, stopPerHeat: 1 / 500, stopPerBag: 0.0003, find: 0.65, impoundDays: 2, seizeHeat: 8,
 };
 // Delivery rounds: riders take orders by phone and deliver, so nobody queues at the back door
@@ -153,7 +153,7 @@ export const GOAL_REWARD = { dailyCash: 40, dailyXp: 3, weeklyMult: 5, weeklyTok
 // Risky choices that come up now and then (answered from a pop-up; ignored ones take the safe option)
 export const CHOICES = {
   bulk:       { title: 'A bulk deal', night: true, text: 'A buyer from out of town wants a big order, right now, at a discount.', yes: 'Do the deal', no: 'Turn it down' },
-  journalist: { title: 'A journalist', text: 'A local reporter wants to do a piece on "the little stall that grew".', yes: 'Give the interview', no: 'No comment' },
+  journalist: { title: 'A journalist', text: 'A local reporter wants to do a piece on "the little bakery that grew".', yes: 'Give the interview', no: 'No comment' },
   inspector:  { title: 'Health inspector', text: 'A health inspector has found a few things to "improve". There\'s a quick fix, for a fee.', yes: 'Pay for the fix', no: 'Risk it' },
   package:    { title: 'A favour for Dez', night: true, text: 'Dez wants you to keep a package in the back room for a week. He\'ll pay well. Don\'t ask what\'s in it.', yes: 'Keep it', no: 'Say no' },
   charity:    { title: 'A charity appeal', text: 'The children\'s hospital is raising money and has asked local businesses to chip in.', yes: 'Donate', no: 'Not this time' },
@@ -700,12 +700,12 @@ export const CORNERS = {
   marina:    { name: 'The marina',     emoji: '🛥️', level: 75, price: 120000, rate: 8,  mult: 1.7,  risk: 0.05, cap: 120 },
   penthouse: { name: 'Penthouse parties', emoji: '🏙️', level: 88, price: 200000, rate: 10, mult: 2.0, risk: 0.05, cap: 150 },
 };
-// Rosa's shops. The stall is where it all started; every branch costs far more than the one before, runs
+// Rosa's shops. The bakery is where it all started; every branch costs far more than the one before, runs
 // its own machines (the pricier the branch, the more profitable its kitchen), pays its own rent and charges
 // more for the same food. Branches are also fronts: each lets you launder more every day.
 // lab: the back-room machines that shop's back room takes (each branch has its own back room and back door)
 export const SHOPS = {
-  stall:     { name: "Rosa's Bakery",           short: 'The stall',     emoji: '🥖', level: 1,  rent: 40,    priceMult: 1,    cust: 1,    launder: 0,      drive: 0,
+  stall:     { name: "Rosa's Bakery",           short: 'The bakery',    emoji: '🥖', level: 1,  rent: 40,    priceMult: 1,    cust: 1,    launder: 0,      drive: 0,
                machines: ['oven', 'mixer', 'fryer', 'drinks'],             lab: ['tent', 'burner', 'pillpress', 'dryer'],    floor: 'checker',     wall: 'plaster', sign: "Rosa's Bakery" },
   cafe:      { name: "Rosa's Café, Kingsmere",  short: 'The café',      emoji: '☕', level: 7,  rent: 150,   priceMult: 1.1,  cust: 0.6,  launder: 1500,   drive: 1,
                machines: ['icecream', 'grill', 'pizza', 'griddle'],        lab: ['brickpress', 'still', 'kiln', 'edibles'],   floor: 'wood',        wall: 'brick',   sign: "Rosa's Café" },
@@ -750,7 +750,7 @@ export const UPGRADES = [
   { id: 'loyalty2',  name: 'Loyalty app',          emoji: '📱', level: 56, cost: 20000,  cash: 'clean', eff: { cust: 0.1 },        desc: '+10% customers.' },
   { id: 'chiller',   name: 'Blast chiller',        emoji: '🧊', level: 69, cost: 28000,  cash: 'clean', eff: { keep: 1 },          desc: 'Finished food keeps even longer before it spoils.' },
   { id: 'robot',     name: 'Prep robot',           emoji: '🤖', level: 77, cost: 45000,  cash: 'clean', eff: { speed: 0.1 },       desc: 'Everything cooks another 10% faster.' },
-  { id: 'franchise', name: 'Franchise fees',       emoji: '🏪', level: 91, cost: 120000, cash: 'clean', eff: { income: 1500 },     desc: 'Stalls in her name open in other towns: +£1,500 a day.' },
+  { id: 'franchise', name: 'Franchise fees',       emoji: '🏪', level: 91, cost: 120000, cash: 'clean', eff: { income: 1500 },     desc: 'Bakeries in her name open in other towns: +£1,500 a day.' },
   { id: 'warrant',   name: 'A royal warrant',      emoji: '👑', level: 98, cost: 250000, cash: 'clean', eff: { cust: 0.1, price: 0.1 }, desc: 'By appointment. +10% customers and +10% on every sale.' },
   { id: 'scales',    name: 'Digital scales',       emoji: '⚖️', level: 8,  cost: 1200,   cash: 'dirty', lab: true, eff: { purity: 0.05 }, desc: 'Every cook comes out 5% purer.' },
   { id: 'fumehood',  name: 'Extractor hood',       emoji: '🌀', level: 25, cost: 7000,   cash: 'dirty', lab: true, eff: { purity: 0.05, quiet: 0.1 }, desc: '5% purer, and the smell draws 10% less heat.' },
@@ -843,20 +843,20 @@ export const CAMPAIGNS = {
   tv:         { name: 'TV advert',           emoji: '📺', level: 24, price: 4000,   hours: 120, pop: 1,   cust: 0.35, desc: 'Thirty seconds during the evening soaps.' },
   foodfair:   { name: 'Food fair stall',     emoji: '🎡', level: 34, price: 6000,   hours: 72,  pop: 2,   cust: 0.3, desc: 'A stall at the big food fair. Everyone tries your food.' },
   celebrity:  { name: 'Celebrity chef visit', emoji: '🌟', level: 44, price: 9000,  hours: 72,  pop: 0,   cust: 0.3, once: 20, desc: 'A famous chef drops in, on camera.' },
-  magazine:   { name: 'Magazine feature',    emoji: '📖', level: 57, price: 12000,  hours: 168, pop: 1,   cust: 0.35, desc: 'Six glossy pages on the little stall that grew.' },
+  magazine:   { name: 'Magazine feature',    emoji: '📖', level: 57, price: 12000,  hours: 168, pop: 1,   cust: 0.35, desc: 'Six glossy pages on the little bakery that grew.' },
   awards:     { name: 'Food awards entry',   emoji: '🏆', level: 72, price: 20000,  hours: 168, pop: 1,   cust: 0.4, once: 15, desc: 'You enter, you win something, everyone hears.' },
   documentary:{ name: 'Documentary',         emoji: '🎬', level: 88, price: 40000,  hours: 240, pop: 2,   cust: 0.5, desc: 'A film crew follows you for a fortnight. (They never see the back room.)' },
 };
 
 // Monthly bills, paid at 6am every 30 days (the first a month after you take over). Rent is each shop's (SHOPS rent is
-// per day, so a month is 30 of them; owning the stall ends its rent) plus business rates on the branches; council tax
+// per day, so a month is 30 of them; owning the bakery ends its rent) plus business rates on the branches; council tax
 // is on the flat upstairs; utilities are power, gas and water for each shop, more with every machine (the back room's
 // lights and burners run hot).
 export const BILLS = { everyDays: 30, councilTax: 140, utilBase: 90, utilMachine: 18, utilLab: 45 };
 
 // Property: big long-term purchases. eff: noRent, income (clean per real day), cust. afterDebt: only once the bank's paid.
 export const PROPERTY = {
-  pitch:   { name: 'Buy back Rosa\'s stall',  emoji: '🔑', level: 1,  price: 40000,   eff: { noRent: 1 },   afterDebt: true, desc: 'The bank holds the deeds until the debt is cleared. Then buy them back: no more rent on the stall.' },
+  pitch:   { name: 'Buy back Rosa\'s bakery', emoji: '🔑', level: 1,  price: 40000,   eff: { noRent: 1 },   afterDebt: true, desc: 'The bank holds the deeds until the debt is cleared. Then buy them back: no more rent on the bakery.' },
   flat:    { name: 'Buy the flat upstairs',     emoji: '🏠', level: 35, price: 60000,   eff: { income: 200 }, desc: 'Let it out: +£200 a day.' },
   cafe:    { name: 'Buy the café next door',    emoji: '🏪', level: 50, price: 120000,  eff: { cust: 0.2 },   desc: 'Knock through: +20% customers.' },
   corner:  { name: 'Buy the street corner',     emoji: '🏘️', level: 70, price: 250000,  eff: { income: 800 }, desc: 'Three shops and four flats: +£800 a day.' },
@@ -930,7 +930,7 @@ export const PER_COUNTER = 1;
 // ---------- Late game: landmarks to spend on, and somewhere to put money to work ----------
 export const LANDMARKS = {
   school:     { name: "Rosa's baking school", emoji: '🎓', level: 50, price: 750000, eff: { tray: 1 }, desc: 'Train your own bakers: every counter holds a batch more.' },
-  flagship:   { name: 'Flagship renovation', emoji: '🏛️', level: 55, price: 2000000, eff: { cust: 0.15 }, desc: 'Rebuild the stall as a landmark shop: +15% customers everywhere.' },
+  flagship:   { name: 'Flagship renovation', emoji: '🏛️', level: 55, price: 2000000, eff: { cust: 0.15 }, desc: 'Rebuild the bakery as a landmark shop: +15% customers everywhere.' },
   brand:      { name: 'Rosa\'s in the supermarkets', emoji: '🛒', level: 60, price: 5000000, eff: { income: 6000 }, desc: 'Packaged loaves on every high street: +£6,000 a day.' },
   tv:         { name: 'A baking show', emoji: '📺', level: 70, price: 12000000, eff: { cust: 0.2, price: 0.05 }, desc: 'Prime time, every Tuesday: +20% customers, and prices 5% higher.' },
   foundation: { name: 'The Rosa Foundation', emoji: '❤️', level: 75, price: 25000000, eff: { quiet: 0.15 }, desc: 'A charity in her name: popularity never falls below 60, and heat from cooking rises 15% slower.' },
@@ -965,7 +965,7 @@ export const PERFECT = { windowShare: 0.15, minMin: 2, maxMin: 10, servings: 0.2
 export const MASTERY = { stars: [15, 50, 120, 250, 500], servings: 0.03, price: 0.02 };
 
 // ---------- The story: four threads that turn up as you go ----------
-// Rosa's letters (the stall and what she left), Dez (the back room), DI Harrow (the case against you) and the street
+// Rosa's letters (the bakery and what she left), Dez (the back room), DI Harrow (the case against you) and the street
 // (the regulars and the rival). A chapter turns up when its moment comes (when: a level, Harrow's evidence, the back
 // room open, the debt cleared, a second shop, a first night's selling, a first raid, the rival opening, an earlier
 // chapter read). Most end with a choice: each nudges things a little, never a lot (popularity and heat drift back on
@@ -986,7 +986,7 @@ export const BONDS = {
 };
 export const STORY = [
   // ---- Rosa's letters ----
-  { id: 'letter1', arc: 'rosa', when: { level: 2 }, title: 'A letter in the till', text: 'Under the cash tray there is an envelope in Rosa\'s handwriting. "If you are reading this, the stall is yours. The ovens run hot on the left. Never trust a man called Dez. Love, R." You wonder how she knew.',
+  { id: 'letter1', arc: 'rosa', when: { level: 2 }, title: 'A letter in the till', text: 'Under the cash tray there is an envelope in Rosa\'s handwriting. "If you are reading this, the bakery is yours. The ovens run hot on the left. Never trust a man called Dez. Love, R." You wonder how she knew.',
     choices: [{ label: 'Pin it up by the till', fx: { rep: 3 }, bond: { rosa: 1 }, reply: 'The regulars know her handwriting. A few of them stop to read it.' },
               { label: 'Keep it in your apron', fx: { clean: 60 }, reply: 'Folded behind the letter: three twenties, "for the left oven".' }] },
   { id: 'regulars', arc: 'street', when: { level: 6 }, title: 'The regulars', text: 'By now you know them. Mrs Okafor at ten past seven for two croissants and the gossip. The bus driver who pays in coppers. The man who reads the paper at the window and never buys a thing. Rosa kept a notebook of their names, and their birthdays.',
@@ -995,26 +995,26 @@ export const STORY = [
   { id: 'letter2', arc: 'rosa', when: { level: 8 }, title: 'The recipe box', text: 'Behind the flour sacks: a tin box of Rosa\'s recipe cards, sticky with butter. Half of them have notes in the margins. One just says "for the bad winter, 1987". It is a recipe for soup.',
     choices: [{ label: 'Make the soup for the street', fx: { rep: 4, clean: -4 }, bond: { rosa: 1, town: 1 }, reply: 'You give it away by the bowlful. People talk about it for days.' },
               { label: 'Sell a few of her recipes on', fx: { clean: 12 }, bond: { rosa: -1 }, reply: 'A café two streets over pays well for Rosa’s scone recipe. It feels a little like selling her.' }] },
-  { id: 'branch', arc: 'rosa', when: { shops: 2 }, title: 'A second sign', text: 'The signwriter asks what to put over the new door. "Rosa\'s," you say, before you\'ve thought about it. That night, in the stall\'s till, there\'s a scrap of paper you\'d swear wasn\'t there before: a list of streets in her handwriting, this one circled twice. She\'d had her eye on it for years.',
+  { id: 'branch', arc: 'rosa', when: { shops: 2 }, title: 'A second sign', text: 'The signwriter asks what to put over the new door. "Rosa\'s," you say, before you\'ve thought about it. That night, in the bakery\'s till, there\'s a scrap of paper you\'d swear wasn\'t there before: a list of streets in her handwriting, this one circled twice. She\'d had her eye on it for years.',
     choices: [{ label: 'Hang her photo by the new till', fx: { rep: 3 }, bond: { rosa: 1 }, reply: 'Customers ask who she is. You tell them, and it gets easier every time.' },
               { label: 'Throw an opening party', fx: { clean: -10, rep: 5 }, bond: { town: 1 }, reply: 'Half the street turns up. Someone brings a cake from another bakery as a joke. It\'s not as good.' }] },
   { id: 'letter3', arc: 'rosa', when: { level: 15 }, title: 'Photographs', text: 'A shoebox of photographs in the flat upstairs: Rosa at twenty, flour to the elbows, laughing at someone off camera. On the back of one: "Opening day. Dez said it would never last."',
     choices: [{ label: 'Frame one for the shop wall', fx: { rep: 4 }, bond: { rosa: 1 }, reply: 'Customers ask who she is. You tell them.' },
               { label: 'Show Dez the photo', lab: true, fx: { kits: 1 }, bond: { dez: 1 }, reply: 'Dez goes quiet for a long time. A kit turns up the next day, no charge.' }] },
-  { id: 'paid', arc: 'rosa', when: { won: true }, title: 'Paid in full', text: 'Mr Pryce at the bank slides an envelope across the desk once the last payment clears. It has been in Rosa\'s file for years, marked "to be handed over when it\'s paid". Inside: the stall\'s first key, worn smooth, and a note. "Well done, love. Now don\'t let them talk you into another loan."',
+  { id: 'paid', arc: 'rosa', when: { won: true }, title: 'Paid in full', text: 'Mr Pryce at the bank slides an envelope across the desk once the last payment clears. It has been in Rosa\'s file for years, marked "to be handed over when it\'s paid". Inside: the bakery\'s first key, worn smooth, and a note. "Well done, love. Now don\'t let them talk you into another loan."',
     choices: [{ label: 'Hang the key over the ovens', fx: { rep: 2 }, bond: { rosa: 1 }, reply: 'It catches the light when the left oven runs hot. Which is always.' },
               { label: 'Ask Pryce what else is in her file', fx: { clean: 30 }, reply: 'Pryce coughs and finds a savings account in Rosa’s name that nobody ever closed.' }] },
   { id: 'letter4', arc: 'rosa', when: { level: 30 }, title: 'The last card', text: 'The last recipe card in Rosa\'s tin is blank on the front. On the back: "The bakery was always the point. Do not let the back room eat the front." You put it by the till.',
     choices: [{ label: 'Take a night off the back room', fx: { heat: -10 }, bond: { rosa: 1 }, reply: 'One quiet night. The street notices.' },
               { label: 'Put the card in your wallet', fx: { rep: 3 }, reply: 'You find yourself chatting at the counter more.' }] },
-  { id: 'letter5', arc: 'rosa', when: { level: 50 }, title: 'Rosa\'s other book', text: 'In the cellar, wrapped in a tea towel: a ledger in Rosa\'s writing, with dates going back forty years. It is not a recipe book. So that is how the stall survived the bad winter.',
+  { id: 'letter5', arc: 'rosa', when: { level: 50 }, title: 'Rosa\'s other book', text: 'In the cellar, wrapped in a tea towel: a ledger in Rosa\'s writing, with dates going back forty years. It is not a recipe book. So that is how the bakery survived the bad winter.',
     choices: [{ label: 'Burn the ledger', fx: { evidence: -4 }, reply: 'Forty years of Rosa’s secrets go up the chimney. All but one page, which you keep.' },
               { label: 'Look up her old contacts', fx: { dirty: 30 }, reply: 'A couple of them still owe her, and they pay you instead.' }] },
   { id: 'winter', arc: 'rosa', when: { level: 65, after: 'letter5' }, title: 'The bad winter', textFor: c => 'You finally read the page you kept. Winter, 1987: the ovens cold for six weeks, the bank at the door. Then, every Friday until the spring, the same entry. "D. — £40." Dez. He kept her open. The money Rosa lent him years later wasn\'t charity. She was paying him back.'
       + (c.gaveUpDez ? ' You think about Dez in his cell, and wish you\'d read it sooner.' : c.bond.dez >= 2 ? ' You think about Dez on your back step, and understand him a little better.' : ''),
     choices: [{ label: 'Tell Dez you know', lab: true, notIf: 'gaveUpDez', fx: {}, bond: { dez: 2 }, reply: 'He looks at the floor for a long time. "She told you, then." "Her book did." He laughs, and it sounds a lot like crying.' },
               { label: 'Keep it to yourself', fx: { rep: 2 }, bond: { rosa: 1 }, reply: 'Some debts are private. You put the page back in its tea towel.' }] },
-  { id: 'empire', arc: 'rosa', when: { level: 75 }, title: 'The Rosa name', text: 'Somebody at a dinner party calls it "Rosa\'s, the chain". You think of the stall, the left oven running hot, and a woman laughing at someone off camera.' },
+  { id: 'empire', arc: 'rosa', when: { level: 75 }, title: 'The Rosa name', text: 'Somebody at a dinner party calls it "Rosa\'s, the chain". You think of the old bakery on the corner, the left oven running hot, and a woman laughing at someone off camera.' },
   { id: 'end', arc: 'rosa', when: { level: 99 }, final: true, title: 'Still open', textFor: endingText },
 
   // ---- Dez ----
@@ -1024,7 +1024,7 @@ export const STORY = [
   { id: 'firstnight', arc: 'dez', when: { bags: 1, lab: true }, title: 'First night', text: 'Your first buyer is a girl in a school blazer who calls you "mate" and counts the money twice. When she\'s gone you stand in the back room for a long time with the light off. Upstairs, tomorrow\'s bread is proving.',
     choices: [{ label: 'Make a rule: no kids', fx: { rep: 1, street: -1 }, bond: { rosa: 1 }, reply: 'Dez rolls his eyes, but passes it on. Word gets round: Rosa’s has rules.' },
               { label: 'Money\'s money', fx: { dirty: 15, heat: 1 }, bond: { dez: 1, rosa: -1 }, reply: 'Dez nods, approving. You don’t sleep much.' }] },
-  { id: 'dez2', arc: 'dez', when: { level: 20, lab: true }, title: 'What Dez owed her', text: 'Dez, three drinks in, tells you Rosa lent him money when nobody else would. He never paid it back. "So I look out for the stall," he says. "That\'s what this is." You are not sure he believes it either.',
+  { id: 'dez2', arc: 'dez', when: { level: 20, lab: true }, title: 'What Dez owed her', text: 'Dez, three drinks in, tells you Rosa lent him money when nobody else would. He never paid it back. "So I look out for the bakery," he says. "That\'s what this is." You are not sure he believes it either.',
     choices: [{ label: 'Call the debt in', fx: { dirty: 25 }, bond: { dez: -1 }, reply: 'Dez pays it back in cash, a bit at a time, and stops dropping in for drinks.' },
               { label: 'Let it go', fx: { kits: 2 }, bond: { dez: 1 }, reply: 'He remembers. Two kits turn up with no bill attached.' }] },
   { id: 'dez3', arc: 'dez', when: { level: 40, lab: true }, title: 'An old face', text: 'A man comes asking for Dez by his real name, which you have never heard. Dez does not come round for a week. When he does, he has a new phone and an old bruise, and he does not want to talk about it.',
@@ -1036,7 +1036,7 @@ export const STORY = [
   { id: 'dez5', arc: 'dez', when: { level: 80, lab: true }, title: 'Last orders', textFor: c => c.gaveUpDez
       ? 'Dez\'s trial is over by the time you think to visit. He won\'t see you. His solicitor hands you a paper bag on the steps: inside, Rosa\'s old apron, folded small. No note. There doesn\'t need to be.'
       : c.bond.dez >= 3
-        ? 'A postcard on the mat: a pier, a grey sea, a chip shop with a SOLD sign in the window. "Bought it. Rosa always said I\'d be good at batter. Look after the stall. D." Taped inside, a key to a lock-up and a list of names.'
+        ? 'A postcard on the mat: a pier, a grey sea, a chip shop with a SOLD sign in the window. "Bought it. Rosa always said I\'d be good at batter. Look after the bakery. D." Taped inside, a key to a lock-up and a list of names.'
         : 'Dez stops coming round. The lock-up is empty, the number dead. Someone says Spain, someone says prison, someone says he sits by Rosa\'s grave every Sunday morning. You go and look. There are fresh flowers.',
     choicesFor: c => c.gaveUpDez ? [{ label: 'Hang the apron by the ovens', fx: { rep: 1 }, bond: { rosa: 1 }, reply: 'It hangs next to the key. You don’t look at it much.' }]
       : c.bond.dez >= 3 ? [{ label: 'Use his contacts', fx: { kits: 3, dirty: 20 }, reply: 'The names still answer when you say his. The kits are good.' },
@@ -1076,7 +1076,7 @@ export const STORY = [
 // The last chapter is put together from the game you played: which back room you ran, the raids, who you looked
 // after, and who you gave up
 function endingText(c) {
-  const parts = ['You find yourself at the stall at six in the morning, the first oven on, nobody else awake. The street smells of bread.'];
+  const parts = ['You find yourself in the old bakery at six in the morning, the first oven on, nobody else awake. The street smells of bread.'];
   if (!c.lab) parts.push('You never opened the back room. Rosa\'s ledger stays wrapped in its tea towel, and that feels right.');
   else if (c.busts >= 3) parts.push(`There\'s still a faint line on the doorframe where the police tape went up, ${c.busts} times. You\'ve stopped trying to scrub it off.`);
   else if (c.busts === 0) parts.push('The back room is quiet. Harrow never did find his way through that door.');

@@ -1,6 +1,6 @@
 # Baking Bad
 
-An idle bakery game on the real clock. You inherit Aunt Rosa's bakery stall at the night market, and £24,000 of her debt.
+An idle bakery game on the real clock. You inherit Aunt Rosa's bakery, and £24,000 of her debt.
 The bank wants £2,000 a week, starting after two weeks' grace. Dez, one of Rosa's regulars, knows what the back room used to be for.
 
 The game never ends: like Clash of Clans, you just keep building the place up. Levels go up to 99.
@@ -42,12 +42,12 @@ There's no in-game day. The clock in the corner is your clock.
 
 Wages come out every morning; everything else is a monthly bill, paid at 6am every 30 days (the first a month after you
 take over), itemised in 🏦 Bank & tax with the date it's due:
-- **Rent**: each shop's (the stall's is £1,200 a month), plus business rates on the branches.
+- **Rent**: each shop's (the bakery's is £1,200 a month), plus business rates on the branches.
 - **Council tax** on the flat upstairs: £140.
 - **Utilities**: power, gas and water, £90 a shop plus £18 for every kitchen machine and £45 for every back-room one
   (grow lights and burners run hot).
 
-Whatever you can't cover goes on what you owe the bank. **Buying back Rosa's stall** (🏪 Shops & property, £40,000)
+Whatever you can't cover goes on what you owe the bank. **Buying back Rosa's bakery** (🏪 Shops & property, £40,000)
 ends its rent, but the bank holds the deeds until the debt is cleared.
 
 ## The kitchen
@@ -75,7 +75,7 @@ and the price per bag makes up the rest. Special orders always give you time to 
 | 🍣 Sushi counter, 🍗 Rotisserie, 🍭 Sweet machine | 68, 76, 84 |
 | 👑 Grand patisserie | 92 |
 
-The stall only takes the first four; the rest are fitted in Rosa's branches (see Shops). You can run at most three of any machine in a shop.
+The bakery only takes the first four; the rest are fitted in Rosa's branches (see Shops). You can run at most three of any machine in a shop.
 
 205 recipes in all, from scones and lattes to pho, Beef Wellington and a golden croquembouche. You can only own as many of each machine as your level allows, and only as many as you have room for:
 expansions (Design → Expand) add room for more, so a room never fills up before it has grown. The bakery starts with room
@@ -134,9 +134,9 @@ in front of it cut away (the buildings behind stay in view). One flight of stair
 under the shop's side wall, and comes into the basement through an opening in its left wall; buyers walk down it. ☀️ Upstairs brings it all back. Digging out under the front and side terraces (Design → Layout, once you own
 those terraces) makes it 2 m bigger each way.
 
-Say yes to Dez and the stall's back room is yours. Every branch you open has a back room of its own with its own
-machines, but only the stall has buyers: branch back rooms pack what they make into Rosa's vans, which drive it to
-the stall under the bakery's own deliveries (see Logistics). Bags, kits, heat, turf and laundering are shared. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
+Say yes to Dez and the bakery's back room is yours. Every branch you open has a back room of its own with its own
+machines, but only the bakery has buyers: branch back rooms pack what they make into Rosa's vans, which drive it to
+the bakery under the bakery's own deliveries (see Logistics). Bags, kits, heat, turf and laundering are shared. Buy kits from Dez, cook them on the back-room machines, and sell the bags to
 buyers at the back door after dark. The products are real drugs with serious names. How they're made is abstracted to
 a machine and a timer, but each supply kit lists what really goes in for growing, sourcing, cutting, pressing or
 mixing (methamphetamine's chemistry stays a supplier's "precursor kit"), and each product says what it's usually cut with.
@@ -178,7 +178,7 @@ mixing (methamphetamine's chemistry stays a supplier's "precursor kit"), and eac
 - **Stop and search**: any run can be stopped (more likely when heat is high or the load is big). If police find the
   load it's seized, the van impounded for two days and the driver arrested. Marnie the dispatcher sends vans for you.
 - **Delivery rounds** (level 45): buyers phone instead of knocking and riders take the product to them. Most undercover
-  officers never get past the call, there's less heat around the stall, raids are less likely and buyers pay 10% more,
+  officers never get past the call, there's less heat around the bakery, raids are less likely and buyers pay 10% more,
   but riders can be stopped and searched or walk into a sting: the bags are lost and the rider arrested.
 
 ## Clean and dirty money
@@ -213,13 +213,13 @@ a friendly bank manager doubles smurfing limits.
 
 ## Shops
 
-Rosa's stall is where it starts. Every shop runs four kitchen machine types and four back-room machine types, at most
+Rosa's bakery is where it starts. Every shop runs four kitchen machine types and four back-room machine types, at most
 three of each. Branches open as you level up; each one you open costs five times the one before (£20,000 for the
 second, then £100,000, £500,000 and on up to £62.5M for the seventh), whichever branch it is:
 
 | Shop | Level | Kitchen | Back room | Prices | Launders |
 |---|---|---|---|---|---|
-| 🥖 Rosa's Bakery (the stall) | 1 | oven, mixer, fryer, drinks | grow tent, burner, pill press, drying rack | ×1 | takings only |
+| 🥖 Rosa's Bakery (the first shop) | 1 | oven, mixer, fryer, drinks | grow tent, burner, pill press, drying rack | ×1 | takings only |
 | ☕ Rosa's Café, Kingsmere | 7 | ice cream, grill, pizza oven, griddle | brick press, still, curing oven, edibles oven | ×1.1 | +£1,500 a day |
 | 🧀 Rosa's Deli, Ashford | 27 | steamer, noodle bar, chocolate station, smoker | lab bench, mixing vat, clean room, burner | ×1.2 | +£6,000 |
 | 🚉 Rosa's Express, the Station | 35 | oven, mixer, fryer, drinks | grow tent, burner, pill press, drying rack | ×1.25 | +£10,000 |
@@ -241,7 +241,7 @@ a week and is paid from clean cash; see it building up in the 🏦 Bank tab.
 - **Corporation tax**: 19% on small profits, 25% above the main limit, with marginal relief in between. Ingredients,
   rent, wages, machines and everything else you spend on the business count against profit.
 - **Employer National Insurance (15%)** on day-crew wages above the threshold.
-- **Business rates** on every branch; the stall gets small business rates relief.
+- **Business rates** on every branch; the bakery gets small business rates relief.
 - **Laundered money is declared income**, so it's taxed too.
 - **Declaring less** (90%, 75% or half) cuts the bill but raises the chance of an investigation. If HMRC find undeclared
   income you pay it back twice over and it makes the papers. Viv the accountant trims the bill and halves the chance.
@@ -277,14 +277,14 @@ In a back room, 🎨 Design has its own tabs (paid in dirty cash, through the sa
 
 Seasons follow the real calendar: Valentine's (1–14 Feb), Easter (20 Mar–20 Apr), summer (15 Jun–31 Aug), Halloween
 (15–31 Oct), Bonfire Night (1–7 Nov) and Christmas (1–26 Dec). Each brings three to five limited recipes on the
-stall's machines (learned free when it starts, cookable only until it ends, and a bit dearer), shifts what people want
+bakery's machines (learned free when it starts, cookable only until it ends, and a bit dearer), shifts what people want
 (ice cream in summer, pastries at Christmas), and decorates the shop: a garland along the back wall and something by
 the door (a tree, pumpkins, a heart balloon, an Easter basket, a parasol, lanterns).
 
 ## The story and the collection book
 
 The story runs in four threads, 25 chapters in all, and turns up as you play:
-- **Rosa's letters**: the stall, what she left in it, and how it survived the bad winter of 1987.
+- **Rosa's letters**: the bakery, what she left in it, and how it survived the bad winter of 1987.
 - **Dez**: the back room, the man who knew Rosa before you did, and where he ends up.
 - **DI Harrow**: the case against you, and the man behind it.
 - **The street**: the regulars, the school fete, and Crumbs & Co across the road.
@@ -363,7 +363,7 @@ of something extra going wrong, or right. Leave one for eight hours and the caut
   +10% customers).
 - **Investment fund** (from level 30): put clean cash in and it grows 0.3% a day; take it out whenever you like.
 - **Branch back doors**: in a branch's basement layout, "Open a back door here" (level 25) brings buyers to that branch
-  after dark (fewer than at the stall), and what its basement makes goes straight into your bags instead of the vans.
+  after dark (fewer than at the bakery), and what its basement makes goes straight into your bags instead of the vans.
 
 ## A clean record
 
@@ -389,7 +389,7 @@ over. Settings stay the same through new games and prestige.
 ## Prestige
 
 From level 25, Menu → Bank & tax → Prestige lets you hand the business on and start again from nothing: no shops,
-machines, cash or crew, and a fresh debt at Aunt Rosa's stall. In return you get **prestige tokens** for what the
+machines, cash or crew, and a fresh debt at Aunt Rosa's bakery. In return you get **prestige tokens** for what the
 business was worth (the square root of net worth over £10,000: £1M is worth 10, £100M is worth 100). Every token ever
 earned adds 1% to every sale and bag, for good. Spend tokens on perks that make each fresh start quicker:
 
@@ -456,7 +456,7 @@ Nothing ends the game. Trouble costs you instead:
 - **Busted** (heat hits 100, or a raid finds product): fines, every bag and kit seized, police tape on the back room for 3 days, Jay charged, other night crew may quit, and a scandal in the papers. Popularity drops, and customers stay away for a few days.
 - **Behind with the bank**: whatever you can't pay rolls over with 5% on top, then 0.5% a day interest. While you're behind, Grimshaw Recovery's heavies may visit. They smash decorations, crack tiles, tear wallpaper, wreck a machine or empty the till. Big Ron helps. Once you're two payments behind you can restructure the debt to call them off.
 - **Cash never goes below zero.** If you're broke with nothing to bake, the market traders' association chips in so you can always start again.
-- **Clearing the debt** is a milestone, not an ending. After that there's property to buy, from Rosa's stall itself to the whole market.
+- **Clearing the debt** is a milestone, not an ending. After that there's property to buy, from Rosa's bakery itself to the whole market.
 
 ## Popularity and marketing
 
@@ -489,7 +489,7 @@ Open **🎨 Design** any time:
 - **The building grows** when zoomed out: the front terrace gets a deeper awning (over the food carts) and
   planters, the side stalls a lean-to roof, the kitchen island roof lanterns (or roof windows on a pitched roof), the
   back-room benches extractor fans and ducting, the cellar a pavement grille, the annex a raised roof, and buying the
-  flat upstairs adds a second storey to the stall (its windows light up in the evening and early morning). The OPEN sign
+  flat upstairs adds a second storey to the bakery (its windows light up in the evening and early morning). The OPEN sign
   on the door turns to CLOSED when trade stops for the night, and with a revolving door people keep to one side going in
   and the other coming out while the wings turn with them.
 - **Expand**: terraces for more squares, and the kitchen island, carts, stalls and back-room benches for room for more
