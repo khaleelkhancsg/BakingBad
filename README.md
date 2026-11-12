@@ -63,7 +63,7 @@ cooks unlock late: times stretch with a recipe's level (up to four times by leve
 among its neighbours, so there are quick bakes at every level. Per hour, short cooks still pay best while you're
 playing; long ones keep the counters and the back door stocked while you're out or asleep. In the back room what a cook
 is worth comes from its level and time alone (no product is a shortcut), its bag count grows like a batch's servings,
-and the price per bag makes up the rest. Special orders always give you time to cook what they ask for.
+and the price per bag makes up the rest. Special orders always give you time to cook what they ask for. Heat follows the money too: every cook adds heat from its price per bag, plus a little more for big cooks (over £20,000), up to 8 a cook, and every bag sold adds 0.05.
 
 | Machines | From level |
 |---|---|

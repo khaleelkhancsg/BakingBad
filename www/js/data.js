@@ -19,7 +19,7 @@ export const CFG = {
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
   nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.4, buyersMax: 14, buyersMaxPerLevel: 0.6, buyerPatienceMin: 3,
   dealerCut: 0.2, streetMult: 1, stockedPull: 5, swapChance: 0.5,
-  copBase: 0.03, copPerHeat: 1 / 500, copServedHeat: 15, copCrewHeat: 5, heatPerBag: 0.045,
+  copBase: 0.03, copPerHeat: 1 / 500, copServedHeat: 15, copCrewHeat: 5, heatPerBag: 0.05,
   heatDecayPerHour: 0.25, heatCoolPerLevel: 0.02, lieLowPerHour: 0.25, lieLowAfterHours: 12,
   raidAt: 60, inspectAt: 35, inspectChance: 0.2, inspectFine: 800,
   dealerArrestPerNight: 0.03, dealerArrestPerHeat: 1 / 400, dealerArrestHeat: 20,
@@ -588,7 +588,9 @@ function P(machine, name, emoji, family, level, minutes, bags, list, extra = {})
   const price = Math.max(3, Math.round(worth / bags));
   return { machine, name, emoji, family, level, minutes, bags, price,
     kit: Math.round(0.3 * bags * price / 10) * 10,
-    heat: Math.min(6, Math.round((0.4 + price / 120) * 10) / 10),
+    // heat a cook: from the price per bag (15% more than it was), plus a little for big cooks (over £20,000, growing
+    // with what they make), up to 8; dear product draws attention, and so does a lot of it
+    heat: Math.min(8, Math.round((Math.min(6, 0.4 + price / 120) * 1.15 + 0.6 * Math.max(0, Math.log2(worth / 20000))) * 10) / 10),
     cop: Math.min(0.12, Math.round(price / 9000 * 1000) / 1000),
     share: Math.round(Math.max(0.12, 1.3 - level / 70) * 100) / 100, ...extra };
 }
