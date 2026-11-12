@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS, NIGHT_EVENTS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS, NIGHT_EVENTS, BONDS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty, shopPlaceProblem, backPlaceProblem, autoSpot, backAutoSpot, kitchenRoom, labRoom, cellFromSpot, backCellFromSpot, bestRot, backBestRot, fixLayout } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -557,25 +557,56 @@ function manage(s, t) {
   });
 }
 // Chapters that turn up as you go; one at a time, shown by the UI
+export function storyReady(s, c) {
+  const w = c.when || {};
+  if (w.lab && !s.labUnlocked) return false;
+  if (w.level && (s.level || 1) < w.level) return false;
+  if (w.evidence && (s.case?.evidence || 0) < w.evidence) return false;
+  if (w.won && !s.won) return false;
+  if (w.shops && (s.shops?.length || 1) < w.shops) return false;
+  if (w.busts && (s.stats?.busts || 0) < w.busts) return false;
+  if (w.bags && (s.stats?.totalBags || 0) < w.bags) return false;
+  if (w.rival && !(s.rival?.open || s.rival?.closedUntil)) return false;
+  if (w.after && !s.story?.seen?.includes(w.after)) return false;
+  return true;
+}
 function storyCheck(s) {
   s.story ||= { seen: [], queue: [] };
   for (const c of STORY) {
     if (s.story.seen.includes(c.id) || s.story.queue.includes(c.id)) continue;
-    if (c.lab && !s.labUnlocked) continue;
-    if (c.level && s.level < c.level) continue;
-    if (c.evidence && (s.case?.evidence || 0) < c.evidence) continue;
-    s.story.queue.push(c.id);
+    // the ending waits until everything else that's due has been read, so it can tell the whole of it
+    if (c.final && (s.story.queue.length || STORY.some(o => !o.final && !s.story.seen.includes(o.id) && storyReady(s, o)))) continue;
+    if (storyReady(s, c)) s.story.queue.push(c.id);
   }
+}
+// What the story knows about your game: how everyone sees you, what you chose, and how things went
+export function storyContext(s) {
+  const st = s.story || {}, pick = st.pick || {}, bond = { rosa: 0, dez: 0, harrow: 0, town: 0, ...(st.bond || {}) };
+  const gaveUpDez = pick.harrow4 === 0;
+  return { bond, pick, gaveUpDez, dezRetired: !gaveUpDez && pick.dez5 !== undefined && bond.dez >= 3, lab: !!s.labUnlocked, busts: s.stats?.busts || 0, s };
+}
+// A chapter's words: as you read them (kept), or as they'd read now
+export const storyText = (s, c) => s.story?.text?.[c.id] || (c.textFor ? c.textFor(storyContext(s)) : c.text);
+// How someone sees you, in a word
+export function bondWord(s, k) {
+  const v = s.story?.bond?.[k] || 0;
+  return BONDS[k].words[v <= -2 ? 0 : v <= 0 ? 1 : v <= 2 ? 2 : 3];
 }
 // Read the next chapter; pick is the choice made at its end (if it has any)
 export function readChapter(s, pick) {
   const id = s.story?.queue?.shift();
   if (!id) return;
   s.story.seen.push(id);
-  const c = STORY.find(x => x.id === id), list = storyChoices(s, c);
+  const c = STORY.find(x => x.id === id);
+  if (!c) return;
+  (s.story.text ||= {})[id] = storyText(s, c);
+  const list = storyChoices(s, c);
   if (!list.length) return;
   const ch = list[pick] || list[0];
   (s.story.chose ||= {})[id] = ch.label;
+  (s.story.pick ||= {})[id] = (c.choicesFor ? c.choicesFor(storyContext(s)) : c.choices || []).indexOf(ch);
+  s.story.bond ||= {};
+  for (const [k, v] of Object.entries(ch.bond || {})) s.story.bond[k] = clamp((s.story.bond[k] || 0) + v, -5, 5);
   const bits = applyFx(s, ch.fx);
   say(`📜 ${ch.reply}${bits.length ? ` (${bits.join(', ')})` : ''}`, 'good');
 }
@@ -597,7 +628,11 @@ export function applyFx(s, fx = {}) {
   return bits;
 }
 // The choices a chapter offers right now (some only make sense once the back room is open)
-export const storyChoices = (s, c) => (c?.choices || []).filter(ch => !ch.lab || s.labUnlocked);
+export const storyChoices = (s, c) => {
+  if (!c) return [];
+  const ctx = storyContext(s), list = c.choicesFor ? c.choicesFor(ctx) : c.choices || [];
+  return list.filter(ch => (!ch.lab || s.labUnlocked) && (!ch.notIf || !ctx[ch.notIf]));
+};
 export function collectionCount(s, cat) {
   if (cat === 'baked') return Object.keys(s.mastery || {}).length;
   if (cat === 'master') return Object.keys(s.mastery || {}).filter(id => starsOf(s, id) >= MASTERY.stars.length).length;
@@ -1850,7 +1885,16 @@ export function migrate(s, t = Date.now()) {
   if (!s.guide) s.guide = { step: 99 };
   s.mastery ||= {}; s.collect ||= {};
   // Older saves: chapters you'd already have reached are in the collection book, not popped up one after another
-  if (!s.story) { s.story = { seen: [], queue: [] }; for (const c of STORY) if ((!c.level || (s.level || 1) >= c.level) && (!c.evidence || (s.case?.evidence || 0) >= c.evidence) && (!c.lab || s.labUnlocked)) s.story.seen.push(c.id); }
+  if (!s.story) { s.story = { seen: [], queue: [] }; for (const c of STORY) if (storyReady(s, c)) s.story.seen.push(c.id); }
+  if (!s.story.bond) {
+    s.story.bond = {}; s.story.pick ||= {};
+    for (const [id, label] of Object.entries(s.story.chose || {})) {
+      const c = STORY.find(x => x.id === id), k = (c?.choices || []).findIndex(ch => ch.label === label);
+      if (k < 0) continue;
+      s.story.pick[id] = k;
+      for (const [b, v] of Object.entries(c.choices[k].bond || {})) s.story.bond[b] = clamp((s.story.bond[b] || 0) + v, -5, 5);
+    }
+  }
   for (const st of Object.values(s.staff || {})) if (!st.trait) st.trait = pick(['steady', 'steady', 'loyal', 'greedy', 'nervous', 'chatty', 'sharp']);
   s.honest ||= { days: 0, best: 0, awards: {} };
   if (s.v === 3) {
@@ -1932,6 +1976,8 @@ export function advance(s, now, { live: watching = false } = {}) {
     if (t === roll) rollover(s, roll);
   }
   s.last = now; s.clock = now;
+  // a counter's room grows with stars, tiers and the sous chef: tidy the counters so none is held with nothing on it
+  eachShop(s, () => settleCounters(s));
   seasonCheck(s, now); storyCheck(s);
   checkMilestones(s, now);
   checkGoals(s, now);

@@ -1219,3 +1219,5 @@ textarea.code {
 .modal-head h2 { flex: 1; margin: 0; text-align: center; font-size: 18px; }
 .modal-head > span, .modal-head > button { flex: 0 0 auto; min-width: 34px; }
 .modal.night .modal-head { border-bottom-color: var(--vrule); }
+.storyarc { margin: 0 0 2px; font-size: 12px; letter-spacing: .02em; }
+.storychoice { text-align: left; font-family: var(--serif); font-weight: 600; } /* story choices all look alike: no answer is the "right" one */

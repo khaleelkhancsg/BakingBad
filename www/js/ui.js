@@ -15,7 +15,7 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 import * as SFX from './sound.js';
-import { BILLS, LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
+import { STORY_ARCS, BONDS, BILLS, LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
 const SETTINGS_KEY = 'bakingbad.settings';
 const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
@@ -904,7 +904,7 @@ function infoFor(kind, id) {
     return T(`${a.emoji} ${a.name}`, line('Price', money(a.price)) + line('Charm', `+${a.charm}`) + line('Sells back for', money(Math.round(a.price * D.SELL_BACK)))
       + '<p class="mute">One piece per wall panel. Not over the window, menu board or door.</p>');
   }
-  if (kind === 'chapter') { const c = STORY.find(x => x.id === id), ch = s.story?.chose?.[id]; return T(`📜 ${c.title}`, `<p class="story">${c.text}</p>${ch ? `<p class="mute">You chose: ${ch}</p>` : ''}`); }
+  if (kind === 'chapter') { const c = STORY.find(x => x.id === id), ch = s.story?.chose?.[id]; return T(`${STORY_ARCS[c.arc]?.emoji || '📜'} ${c.title}`, `<p class="mute">${STORY_ARCS[c.arc]?.name || ''}</p><p class="story">${G.storyText(s, c)}</p>${ch ? `<p class="mute">You chose: ${ch}</p>` : ''}`); }
   if (kind === 'clean') {
     const h = s.honest || { days: 0, awards: {} };
     return T('🕊️ A clean record', `<p>Every day with nothing cooked, sold or washed after dark adds a day. Any night trade starts it again from zero.</p>`
@@ -972,11 +972,21 @@ function collectionTab() {
       return `<button class="small ${ready && !done ? 'primary' : ''}" data-act="claim" data-id="${c.id}" ${ready && !done ? '' : 'disabled'}>${done ? '✓' : `${c.n}`} · ${c.name}${done ? '' : ` · ${money(Math.round(c.reward * (1 + s.level / 25)))}`}</button>`; }).join('');
     cards += pcard(`<div class="ptop"><span class="em">${emoji}</span><div><b>${name}</b><small>${have}${total ? ` of ${total()}` : ''}</small></div></div><div class="pbtns col">${btns}</div>`, '', 'wide');
   }
+  // The story first: how everyone sees you, then each thread's chapters
+  let story = '';
+  const known = k => !!(s.story?.bond && k in s.story.bond);
+  const people = Object.entries(BONDS).filter(([k]) => known(k) && (k !== 'dez' || s.labUnlocked) && (k !== 'harrow' || s.story.seen.some(id => id.startsWith('harrow') || id === 'tape')));
+  if (people.length) story += pcard(`<div class="ptop"><span class="em">🤝</span><div><b>How they see you</b><small>Your choices in the story move these, and later chapters remember</small></div></div>
+    ${people.map(([k, B]) => { const v = s.story.bond[k] || 0; return `<div class="line"><span>${B.name}</span><span>${G.bondWord(s, k)}</span></div><span class="heat pop ${v <= -2 ? 'hot' : v <= 0 ? 'warm' : ''}"><span class="meter wide"><i style="width:${Math.round((v + 5) * 10)}%"></i></span></span>`; }).join('')}`, '', 'wide');
+  for (const [arc, A] of Object.entries(STORY_ARCS)) {
+    const all = STORY.filter(c => c.arc === arc), read = all.filter(c => s.story?.seen?.includes(c.id));
+    if (arc === 'dez' && !s.labUnlocked && !read.length) continue;
+    story += pcard(`<div class="ptop"><span class="em">${A.emoji}</span><div><b>${A.name}</b><small>${read.length} of ${all.length} chapters${read.length < all.length ? '' : ' · complete'}</small></div></div>
+      <div class="pbtns col">${read.map(c => `<button class="small" data-act="info" data-kind="chapter" data-id="${c.id}">${c.title}</button>`).join('') || '<small>Nothing yet: it comes as you play.</small>'}</div>`, '', 'wide');
+  }
+  cards = story + cards;
   if (s.story?.queue?.length) cards = pcard(`<div class="ptop"><span class="em">📜</span><div><b>${s.story.queue.length} new chapter${s.story.queue.length === 1 ? '' : 's'}</b><small>Saved for later</small></div></div>
     <div class="pbtns"><button class="small primary" data-act="story-open">Read now</button></div>`, '', 'wide') + cards;
-  const read = STORY.filter(c => s.story?.seen?.includes(c.id));
-  cards += pcard(`<div class="ptop"><span class="em">📜</span><div><b>The story so far</b><small>${read.length ? 'Tap a chapter to read it again' : 'Nothing yet'}</small></div></div>
-    <div class="pbtns col">${read.map(c => `<button class="small" data-act="info" data-kind="chapter" data-id="${c.id}">${c.title}</button>`).join('')}</div>`, '', 'wide');
   return { cards, hint: 'Complete a set to claim its reward. Prizes grow with your level.' };
 }
 function settingsTab() {
@@ -1221,10 +1231,11 @@ function modalHTML() {
   let inner = '';
   if (m.type === 'info') { const { title, html } = infoFor(m.kind, m.id); inner = `<h2>${title}</h2><div class="infobody">${html}</div><button class="big" data-act="close" style="margin-top:10px">${backLabel(m.prev)}</button>`; }
   else if (m.type === 'story') {
-    const c = STORY.find(x => x.id === m.id), n = STORY.findIndex(x => x.id === m.id) + 1;
+    const c = STORY.find(x => x.id === m.id), A = STORY_ARCS[c?.arc] || { name: 'The story', emoji: '📜' };
+    const inArc = STORY.filter(x => x.arc === c?.arc), n = inArc.findIndex(x => x.id === m.id) + 1;
     const more = (s.story?.queue?.length || 1) - 1;
-    inner = c ? `<h2>📜 ${c.title}</h2><p class="story">${c.text}</p><p class="mute">Chapter ${n} of ${STORY.length} · kept in 📖 Collection${more ? ` · ${more} more waiting` : ''}</p>
-      ${G.storyChoices(s, c).length ? `<div class="pbtns col">${G.storyChoices(s, c).map((ch, i) => `<button class="big ${i ? '' : 'primary'}" data-act="story-read" data-id="${i}">${ch.label}</button>`).join('')}</div>${more ? '<button class="big" data-act="story-later" style="margin-top:8px">Read later</button>' : ''}`
+    inner = c ? `<p class="mute storyarc">${A.emoji} ${A.name} · chapter ${n} of ${inArc.length}</p><h2>${c.title}</h2><p class="story">${G.storyText(s, c)}</p><p class="mute">Kept in 📖 Collection${more ? ` · ${more} more waiting` : ''}</p>
+      ${G.storyChoices(s, c).length ? `<div class="pbtns col">${G.storyChoices(s, c).map((ch, i) => `<button class="big storychoice" data-act="story-read" data-id="${i}">${ch.label}</button>`).join('')}</div>${more ? '<button class="big" data-act="story-later" style="margin-top:8px">Read later</button>' : ''}`
         : `<div class="row2"><button class="big primary" data-act="story-read">${more ? 'Next chapter' : 'Carry on'}</button>${more ? '<button class="big" data-act="story-later">Read later</button>' : ''}</div>`}` : '';
     if (!c) ui.modal = null;
   }

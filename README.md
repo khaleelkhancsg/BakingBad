@@ -283,15 +283,31 @@ the door (a tree, pumpkins, a heart balloon, an Easter basket, a parasol, lanter
 
 ## The story and the collection book
 
-Chapters turn up as you go: Rosa's letters and keepsakes, Dez's past catching up with him, and DI Harrow's case as it
-builds (14 in all). Most end with a choice of two: pin Rosa's letter by the till or pocket what's folded behind it,
-call in Dez's old debt or let it go, make Harrow a coffee or keep the back door shut while he's there. Each one nudges
-things a little and never decides anything big: a few points of popularity or heat (which drift back anyway), a little
-evidence, a kit or two, or some cash scaled to your level. The chapter says what it did, and re-reading it in the
-Collection shows what you chose. Telling Dez you're not interested the first time puts the bakery first (popularity
-+2); he comes back a few days later, leaving it a little longer each time you say no.
-☰ Menu → 📖 Collection keeps the chapters to read again, and has sets to complete for prize money:
-recipes baked, signature dishes, perfect bakes, seasonal treats, products made, chapters and bakery awards.
+The story runs in four threads, 25 chapters in all, and turns up as you play:
+- **Rosa's letters**: the stall, what she left in it, and how it survived the bad winter of 1987.
+- **Dez**: the back room, the man who knew Rosa before you did, and where he ends up.
+- **DI Harrow**: the case against you, and the man behind it.
+- **The street**: the regulars, the school fete, and Crumbs & Co across the road.
+
+Some chapters come with a level or with Harrow's evidence; others come when something happens in your game: your first
+night selling, your first raid, opening a second shop, clearing the bank's debt, the rival opening, or an earlier
+chapter read. When several are due at once they wait in a queue (Read later keeps them).
+
+Most chapters end with a choice of two. Each one nudges things a little and never decides anything big on its own: a
+few points of popularity or heat (which drift back anyway), a little evidence, street rep or crew loyalty, a kit or two,
+or some cash scaled to your level. Each choice also moves how someone sees you: **Rosa's way** (keeping the bakery
+first), **Dez**, **Harrow** and **the street**. Later chapters read differently because of it: Dez's last chapter can
+be a postcard from the seaside, flowers on a grave or a paper bag from his solicitor, depending on how you treated him,
+and whether you gave him to Harrow when Harrow offered to drop your file. The last chapter, *Still open*, is put
+together from the game you played: whether you ever opened the back room, how many raids you had, who you looked
+after and who you gave up. It waits until every other chapter that's due has been read.
+
+Telling Dez you're not interested the first time puts the bakery first (popularity +2); he comes back a few days later,
+leaving it a little longer each time you say no.
+
+☰ Menu → 📖 Collection starts with the story: how everyone sees you, then each thread's chapters to read again (as you
+read them, with what you chose). Below are sets to complete for prize money: recipes baked, signature dishes, perfect
+bakes, seasonal treats, products made, chapters and bakery awards.
 
 ## Locals, managers and the rival
 

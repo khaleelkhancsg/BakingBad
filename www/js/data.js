@@ -964,25 +964,129 @@ export const PERFECT = { windowShare: 0.15, minMin: 2, maxMin: 10, servings: 0.2
 // Every batch of a recipe counts; stars bring more servings and a better price; five stars make it a signature dish
 export const MASTERY = { stars: [15, 50, 120, 250, 500], servings: 0.03, price: 0.02 };
 
-// ---------- The story: chapters that turn up as you go ----------
-// Most chapters end with a choice. Each one nudges things a little, never a lot: popularity and heat drift back on their
-// own, and cash amounts (fx.clean, fx.dirty) are per player level, so they stay small at any point in the game.
+// ---------- The story: four threads that turn up as you go ----------
+// Rosa's letters (the stall and what she left), Dez (the back room), DI Harrow (the case against you) and the street
+// (the regulars and the rival). A chapter turns up when its moment comes (when: a level, Harrow's evidence, the back
+// room open, the debt cleared, a second shop, a first night's selling, a first raid, the rival opening, an earlier
+// chapter read). Most end with a choice: each nudges things a little, never a lot (popularity and heat drift back on
+// their own; fx.clean and fx.dirty are per player level), and moves how someone sees you (bond: rosa, dez, harrow,
+// town). Later chapters read differently because of it, and the last one is put together from the game you played.
+export const STORY_ARCS = {
+  rosa:   { name: "Rosa's letters", emoji: '📜' },
+  dez:    { name: 'Dez',            emoji: '🧥' },
+  harrow: { name: 'DI Harrow',      emoji: '🕵️' },
+  street: { name: 'The street',     emoji: '🏘️' },
+};
+// What each relationship looks like, from the worst to the best
+export const BONDS = {
+  rosa:   { name: "Rosa's way", words: ['forgotten', 'drifting', 'remembered', 'kept'] },
+  dez:    { name: 'Dez',        words: ['betrayed', 'wary', 'friendly', 'like family'] },
+  harrow: { name: 'Harrow',     words: ['hostile', 'watching', 'curious', 'almost a friend'] },
+  town:   { name: 'The street', words: ['strangers', 'customers', 'regulars', 'neighbours'] },
+};
 export const STORY = [
-  { id: 'letter1', level: 2, title: 'A letter in the till', text: 'Under the cash tray there is an envelope in Rosa\'s handwriting. "If you are reading this, the stall is yours. The ovens run hot on the left. Never trust a man called Dez. Love, R." You wonder how she knew.', choices: [{ label: 'Pin it up by the till', fx: { rep: 3 }, reply: 'The regulars know her handwriting. A few of them stop to read it.' }, { label: 'Keep it in your apron', fx: { clean: 60 }, reply: 'Folded behind the letter: three twenties, "for the left oven".' }] },
-  { id: 'dez1', level: 3, lab: true, title: 'A knock at the back', text: 'Dez turns up at the back door as if he has done it a hundred times. "Your aunt and me had an arrangement," he says. "The room back there pays better than bread." He leaves a number on a napkin.', choices: [{ label: 'Keep his number', fx: { kits: 1, heat: 3 }, reply: 'He sends round a spare kit by the morning. Someone saw him do it.' }, { label: 'Bin the napkin', fx: { heat: -5 }, reply: 'Nobody sees you with him for a while. That helps.' }] },
-  { id: 'letter2', level: 8, title: 'The recipe box', text: 'Behind the flour sacks: a tin box of Rosa\'s recipe cards, sticky with butter. Half of them have notes in the margins. One just says "for the bad winter, 1987". It is a recipe for soup.', choices: [{ label: 'Make the soup for the street', fx: { rep: 4, clean: -4 }, reply: 'You give it away by the bowlful. People talk about it for days.' }, { label: 'Sell a few of her recipes on', fx: { clean: 12 }, reply: 'A café two streets over pays well for Rosa’s scone recipe. It feels a little like selling her.' }] },
-  { id: 'harrow1', evidence: 25, title: 'A quiet man in a raincoat', text: 'A man buys a coffee every morning and never drinks it. He watches the back door. On Thursday he leaves a card on the counter: Detective Inspector Harrow. "Lovely bakery," he says. "Be a shame."', choices: [{ label: 'Make him a fresh one, on the house', fx: { evidence: -3 }, reply: 'He drinks this one. His notebook stays in his pocket.' }, { label: 'Keep the back door shut while he’s here', fx: { heat: -6 }, reply: 'He watches a closed door all morning. Nothing to see.' }] },
-  { id: 'letter3', level: 15, title: 'Photographs', text: 'A shoebox of photographs in the flat upstairs: Rosa at twenty, flour to the elbows, laughing at someone off camera. On the back of one: "Opening day. Dez said it would never last."', choices: [{ label: 'Frame one for the shop wall', fx: { rep: 4 }, reply: 'Customers ask who she is. You tell them.' }, { label: 'Show Dez the photo', lab: true, fx: { kits: 1 }, reply: 'Dez goes quiet for a long time. A kit turns up the next day, no charge.' }] },
-  { id: 'dez2', level: 20, lab: true, title: 'What Dez owed her', text: 'Dez, three drinks in, tells you Rosa lent him money when nobody else would. He never paid it back. "So I look out for the stall," he says. "That\'s what this is." You are not sure he believes it either.', choices: [{ label: 'Call the debt in', fx: { dirty: 25 }, reply: 'Dez pays it back in cash, a bit at a time, and stops dropping in for drinks.' }, { label: 'Let it go', fx: { kits: 2 }, reply: 'He remembers. Two kits turn up with no bill attached.' }] },
-  { id: 'harrow2', evidence: 50, title: 'The file', text: 'Harrow is in the shop again, reading a thick file over his coffee. He lets you see the first page: your name, your shop, and a list of dates. "It all adds up," he says, "eventually."', choices: [{ label: 'Have a solicitor write to him', fx: { clean: -15, evidence: -5 }, reply: 'A stiff letter on headed paper. The file gets a little thinner.' }, { label: 'Keep calm and keep baking', fx: { heat: -8 }, reply: 'You give him nothing to write down. Things cool off.' }] },
-  { id: 'letter4', level: 30, title: 'The last card', text: 'The last recipe card in Rosa\'s tin is blank on the front. On the back: "The bakery was always the point. Do not let the back room eat the front." You put it by the till.', choices: [{ label: 'Take a night off the back room', fx: { heat: -10 }, reply: 'One quiet night. The street notices.' }, { label: 'Put the card in your wallet', fx: { rep: 3 }, reply: 'You find yourself chatting at the counter more.' }] },
-  { id: 'dez3', level: 40, lab: true, title: 'An old face', text: 'A man comes asking for Dez by his real name, which you have never heard. Dez does not come round for a week. When he does, he has a new phone and an old bruise, and he does not want to talk about it.', choices: [{ label: 'Help Dez lie low', fx: { kits: 2, heat: 6 }, reply: 'He sleeps in the back room for a week. He leaves kits as rent, and someone is watching.' }, { label: 'Keep your distance', fx: { heat: -6 }, reply: 'Whoever was asking moves on. Dez does not mention it.' }] },
-  { id: 'harrow3', evidence: 75, title: 'Close', text: 'Harrow sits on your bench outside and eats a sausage roll. "I knew your aunt," he says. "She was the only honest one on this street." He folds the paper bag very neatly and leaves.', choices: [{ label: 'Sit with him', fx: { evidence: -5 }, reply: 'You talk about Rosa. He doesn’t mention the file.' }, { label: 'Give him a bag of rolls for the station', fx: { rep: 3 }, reply: 'The whole station gets a taste. Word gets round.' }] },
-  { id: 'letter5', level: 50, title: 'Rosa\'s other book', text: 'In the cellar, wrapped in a tea towel: a ledger in Rosa\'s writing, with dates going back forty years. It is not a recipe book. So that is how the stall survived the bad winter.', choices: [{ label: 'Burn the ledger', fx: { evidence: -4 }, reply: 'Forty years of Rosa’s secrets go up the chimney.' }, { label: 'Look up her old contacts', fx: { dirty: 30 }, reply: 'A couple of them still owe her, and they pay you instead.' }] },
-  { id: 'dez4', level: 60, lab: true, title: 'Dez wants out', text: '"I\'m getting old," Dez says, watching your vans load. "You\'re bigger than I ever was. Bigger than Rosa." He does not sound proud. He sounds tired.', choices: [{ label: 'Give him a proper send-off', fx: { clean: -20, rep: 3 }, reply: 'Half the street turns up. Dez cries a bit.' }, { label: 'Ask him to stay one more year', fx: { kits: 3 }, reply: '"One more," he says. He brings three kits to show he means it.' }] },
-  { id: 'empire', level: 75, title: 'The Rosa name', text: 'Somebody at a dinner party calls it "Rosa\'s, the chain". You think of the stall, the left oven running hot, and a woman laughing at someone off camera.' },
-  { id: 'end', level: 99, title: 'Still open', text: 'You find yourself at the stall at six in the morning, the first oven on, nobody else awake. The street smells of bread. Whatever else you have built, this part still feels like hers.' },
+  // ---- Rosa's letters ----
+  { id: 'letter1', arc: 'rosa', when: { level: 2 }, title: 'A letter in the till', text: 'Under the cash tray there is an envelope in Rosa\'s handwriting. "If you are reading this, the stall is yours. The ovens run hot on the left. Never trust a man called Dez. Love, R." You wonder how she knew.',
+    choices: [{ label: 'Pin it up by the till', fx: { rep: 3 }, bond: { rosa: 1 }, reply: 'The regulars know her handwriting. A few of them stop to read it.' },
+              { label: 'Keep it in your apron', fx: { clean: 60 }, reply: 'Folded behind the letter: three twenties, "for the left oven".' }] },
+  { id: 'regulars', arc: 'street', when: { level: 6 }, title: 'The regulars', text: 'By now you know them. Mrs Okafor at ten past seven for two croissants and the gossip. The bus driver who pays in coppers. The man who reads the paper at the window and never buys a thing. Rosa kept a notebook of their names, and their birthdays.',
+    choices: [{ label: 'Keep up Rosa\'s birthday cakes', fx: { clean: -5, rep: 3 }, bond: { town: 1, rosa: 1 }, reply: 'The bus driver cries a bit over a Victoria sponge. Mrs Okafor tells everyone.' },
+              { label: 'Start a loyalty card', fx: { clean: 20, rep: 1 }, reply: 'The stamps bring people back. Mrs Okafor has three cards on the go and a system.' }] },
+  { id: 'letter2', arc: 'rosa', when: { level: 8 }, title: 'The recipe box', text: 'Behind the flour sacks: a tin box of Rosa\'s recipe cards, sticky with butter. Half of them have notes in the margins. One just says "for the bad winter, 1987". It is a recipe for soup.',
+    choices: [{ label: 'Make the soup for the street', fx: { rep: 4, clean: -4 }, bond: { rosa: 1, town: 1 }, reply: 'You give it away by the bowlful. People talk about it for days.' },
+              { label: 'Sell a few of her recipes on', fx: { clean: 12 }, bond: { rosa: -1 }, reply: 'A café two streets over pays well for Rosa’s scone recipe. It feels a little like selling her.' }] },
+  { id: 'branch', arc: 'rosa', when: { shops: 2 }, title: 'A second sign', text: 'The signwriter asks what to put over the new door. "Rosa\'s," you say, before you\'ve thought about it. That night, in the stall\'s till, there\'s a scrap of paper you\'d swear wasn\'t there before: a list of streets in her handwriting, this one circled twice. She\'d had her eye on it for years.',
+    choices: [{ label: 'Hang her photo by the new till', fx: { rep: 3 }, bond: { rosa: 1 }, reply: 'Customers ask who she is. You tell them, and it gets easier every time.' },
+              { label: 'Throw an opening party', fx: { clean: -10, rep: 5 }, bond: { town: 1 }, reply: 'Half the street turns up. Someone brings a cake from another bakery as a joke. It\'s not as good.' }] },
+  { id: 'letter3', arc: 'rosa', when: { level: 15 }, title: 'Photographs', text: 'A shoebox of photographs in the flat upstairs: Rosa at twenty, flour to the elbows, laughing at someone off camera. On the back of one: "Opening day. Dez said it would never last."',
+    choices: [{ label: 'Frame one for the shop wall', fx: { rep: 4 }, bond: { rosa: 1 }, reply: 'Customers ask who she is. You tell them.' },
+              { label: 'Show Dez the photo', lab: true, fx: { kits: 1 }, bond: { dez: 1 }, reply: 'Dez goes quiet for a long time. A kit turns up the next day, no charge.' }] },
+  { id: 'paid', arc: 'rosa', when: { won: true }, title: 'Paid in full', text: 'Mr Pryce at the bank slides an envelope across the desk once the last payment clears. It has been in Rosa\'s file for years, marked "to be handed over when it\'s paid". Inside: the stall\'s first key, worn smooth, and a note. "Well done, love. Now don\'t let them talk you into another loan."',
+    choices: [{ label: 'Hang the key over the ovens', fx: { rep: 2 }, bond: { rosa: 1 }, reply: 'It catches the light when the left oven runs hot. Which is always.' },
+              { label: 'Ask Pryce what else is in her file', fx: { clean: 30 }, reply: 'Pryce coughs and finds a savings account in Rosa’s name that nobody ever closed.' }] },
+  { id: 'letter4', arc: 'rosa', when: { level: 30 }, title: 'The last card', text: 'The last recipe card in Rosa\'s tin is blank on the front. On the back: "The bakery was always the point. Do not let the back room eat the front." You put it by the till.',
+    choices: [{ label: 'Take a night off the back room', fx: { heat: -10 }, bond: { rosa: 1 }, reply: 'One quiet night. The street notices.' },
+              { label: 'Put the card in your wallet', fx: { rep: 3 }, reply: 'You find yourself chatting at the counter more.' }] },
+  { id: 'letter5', arc: 'rosa', when: { level: 50 }, title: 'Rosa\'s other book', text: 'In the cellar, wrapped in a tea towel: a ledger in Rosa\'s writing, with dates going back forty years. It is not a recipe book. So that is how the stall survived the bad winter.',
+    choices: [{ label: 'Burn the ledger', fx: { evidence: -4 }, reply: 'Forty years of Rosa’s secrets go up the chimney. All but one page, which you keep.' },
+              { label: 'Look up her old contacts', fx: { dirty: 30 }, reply: 'A couple of them still owe her, and they pay you instead.' }] },
+  { id: 'winter', arc: 'rosa', when: { level: 65, after: 'letter5' }, title: 'The bad winter', textFor: c => 'You finally read the page you kept. Winter, 1987: the ovens cold for six weeks, the bank at the door. Then, every Friday until the spring, the same entry. "D. — £40." Dez. He kept her open. The money Rosa lent him years later wasn\'t charity. She was paying him back.'
+      + (c.gaveUpDez ? ' You think about Dez in his cell, and wish you\'d read it sooner.' : c.bond.dez >= 2 ? ' You think about Dez on your back step, and understand him a little better.' : ''),
+    choices: [{ label: 'Tell Dez you know', lab: true, notIf: 'gaveUpDez', fx: {}, bond: { dez: 2 }, reply: 'He looks at the floor for a long time. "She told you, then." "Her book did." He laughs, and it sounds a lot like crying.' },
+              { label: 'Keep it to yourself', fx: { rep: 2 }, bond: { rosa: 1 }, reply: 'Some debts are private. You put the page back in its tea towel.' }] },
+  { id: 'empire', arc: 'rosa', when: { level: 75 }, title: 'The Rosa name', text: 'Somebody at a dinner party calls it "Rosa\'s, the chain". You think of the stall, the left oven running hot, and a woman laughing at someone off camera.' },
+  { id: 'end', arc: 'rosa', when: { level: 99 }, final: true, title: 'Still open', textFor: endingText },
+
+  // ---- Dez ----
+  { id: 'dez1', arc: 'dez', when: { level: 3, lab: true }, title: 'A knock at the back', text: 'Dez turns up at the back door as if he has done it a hundred times. "Your aunt and me had an arrangement," he says. "The room back there pays better than bread." He leaves a number on a napkin.',
+    choices: [{ label: 'Keep his number', fx: { kits: 1, heat: 3 }, bond: { dez: 1 }, reply: 'He sends round a spare kit by the morning. Someone saw him do it.' },
+              { label: 'Bin the napkin', fx: { heat: -5 }, bond: { dez: -1 }, reply: 'Nobody sees you with him for a while. That helps.' }] },
+  { id: 'firstnight', arc: 'dez', when: { bags: 1, lab: true }, title: 'First night', text: 'Your first buyer is a girl in a school blazer who calls you "mate" and counts the money twice. When she\'s gone you stand in the back room for a long time with the light off. Upstairs, tomorrow\'s bread is proving.',
+    choices: [{ label: 'Make a rule: no kids', fx: { rep: 1, street: -1 }, bond: { rosa: 1 }, reply: 'Dez rolls his eyes, but passes it on. Word gets round: Rosa’s has rules.' },
+              { label: 'Money\'s money', fx: { dirty: 15, heat: 1 }, bond: { dez: 1, rosa: -1 }, reply: 'Dez nods, approving. You don’t sleep much.' }] },
+  { id: 'dez2', arc: 'dez', when: { level: 20, lab: true }, title: 'What Dez owed her', text: 'Dez, three drinks in, tells you Rosa lent him money when nobody else would. He never paid it back. "So I look out for the stall," he says. "That\'s what this is." You are not sure he believes it either.',
+    choices: [{ label: 'Call the debt in', fx: { dirty: 25 }, bond: { dez: -1 }, reply: 'Dez pays it back in cash, a bit at a time, and stops dropping in for drinks.' },
+              { label: 'Let it go', fx: { kits: 2 }, bond: { dez: 1 }, reply: 'He remembers. Two kits turn up with no bill attached.' }] },
+  { id: 'dez3', arc: 'dez', when: { level: 40, lab: true }, title: 'An old face', text: 'A man comes asking for Dez by his real name, which you have never heard. Dez does not come round for a week. When he does, he has a new phone and an old bruise, and he does not want to talk about it.',
+    choices: [{ label: 'Help Dez lie low', fx: { kits: 2, heat: 6 }, bond: { dez: 2 }, reply: 'He sleeps in the back room for a week. He leaves kits as rent, and someone is watching.' },
+              { label: 'Keep your distance', fx: { heat: -6 }, bond: { dez: -1 }, reply: 'Whoever was asking moves on. Dez does not mention it.' }] },
+  { id: 'dez4', arc: 'dez', when: { level: 60, lab: true }, title: 'Dez wants out', text: '"I\'m getting old," Dez says, watching your vans load. "You\'re bigger than I ever was. Bigger than Rosa." He does not sound proud. He sounds tired.',
+    choices: [{ label: 'Give him a proper send-off', fx: { clean: -20, rep: 3 }, bond: { dez: 1 }, reply: 'Half the street turns up. Dez cries a bit.' },
+              { label: 'Ask him to stay one more year', fx: { kits: 3 }, bond: { dez: -1 }, reply: '"One more," he says. He brings three kits to show he means it, and doesn’t smile.' }] },
+  { id: 'dez5', arc: 'dez', when: { level: 80, lab: true }, title: 'Last orders', textFor: c => c.gaveUpDez
+      ? 'Dez\'s trial is over by the time you think to visit. He won\'t see you. His solicitor hands you a paper bag on the steps: inside, Rosa\'s old apron, folded small. No note. There doesn\'t need to be.'
+      : c.bond.dez >= 3
+        ? 'A postcard on the mat: a pier, a grey sea, a chip shop with a SOLD sign in the window. "Bought it. Rosa always said I\'d be good at batter. Look after the stall. D." Taped inside, a key to a lock-up and a list of names.'
+        : 'Dez stops coming round. The lock-up is empty, the number dead. Someone says Spain, someone says prison, someone says he sits by Rosa\'s grave every Sunday morning. You go and look. There are fresh flowers.',
+    choicesFor: c => c.gaveUpDez ? [{ label: 'Hang the apron by the ovens', fx: { rep: 1 }, bond: { rosa: 1 }, reply: 'It hangs next to the key. You don’t look at it much.' }]
+      : c.bond.dez >= 3 ? [{ label: 'Use his contacts', fx: { kits: 3, dirty: 20 }, reply: 'The names still answer when you say his. The kits are good.' },
+                           { label: 'Burn the list', fx: { heat: -5, evidence: -3 }, bond: { rosa: 1 }, reply: 'Whatever Dez knew goes up the chimney. He’d have done the same.' }]
+      : [{ label: 'Leave a loaf by the flowers', fx: { rep: 1 }, bond: { dez: 1 }, reply: 'The next Sunday the loaf is gone and the flowers are fresh again.' }] },
+
+  // ---- DI Harrow ----
+  { id: 'harrow1', arc: 'harrow', when: { evidence: 25 }, title: 'A quiet man in a raincoat', text: 'A man buys a coffee every morning and never drinks it. He watches the back door. On Thursday he leaves a card on the counter: Detective Inspector Harrow. "Lovely bakery," he says. "Be a shame."',
+    choices: [{ label: 'Make him a fresh one, on the house', fx: { evidence: -3 }, bond: { harrow: 1 }, reply: 'He drinks this one. His notebook stays in his pocket.' },
+              { label: 'Keep the back door shut while he’s here', fx: { heat: -6 }, bond: { harrow: -1 }, reply: 'He watches a closed door all morning. Nothing to see.' }] },
+  { id: 'tape', arc: 'harrow', when: { busts: 1 }, title: 'Police tape', text: 'The tape comes down after three days. Harrow is the last to leave, and stops in the doorway. "Your aunt would have hated this," he says. "Not the drugs. The mess." He leaves his card on the counter again, as if you might have lost the first one.',
+    choices: [{ label: 'Clean up and open early', fx: { rep: 3 }, bond: { rosa: 1 }, reply: 'By six the floor’s scrubbed and the first batch is in. Mrs Okafor pretends not to notice anything.' },
+              { label: 'Ask him what he wants', fx: { evidence: -2 }, bond: { harrow: 1 }, reply: '"Same thing she wanted," he says. "A quiet street."' }] },
+  { id: 'harrow2', arc: 'harrow', when: { evidence: 50 }, title: 'The file', text: 'Harrow is in the shop again, reading a thick file over his coffee. He lets you see the first page: your name, your shop, and a list of dates. "It all adds up," he says, "eventually."',
+    choices: [{ label: 'Have a solicitor write to him', fx: { clean: -15, evidence: -5 }, bond: { harrow: -1 }, reply: 'A stiff letter on headed paper. The file gets a little thinner, and Harrow a little colder.' },
+              { label: 'Keep calm and keep baking', fx: { heat: -8 }, bond: { harrow: 1 }, reply: 'You give him nothing to write down. Things cool off.' }] },
+  { id: 'harrow4', arc: 'harrow', when: { evidence: 60, level: 45, lab: true }, title: 'The offer', textFor: c => 'Harrow is sitting in your car, which you don\'t remember leaving unlocked. "I don\'t want you," he says. "I want the man who\'s been running product through this street since before you were born. Give me Dez, and your file goes in a drawer."'
+      + (c.dezRetired ? ' He glances at the postcard on your dashboard. "Seaside, is it. Lovely."' : ''),
+    choices: [{ label: 'Give him Dez', fx: { evidence: -12 }, bond: { dez: -5, harrow: 2 }, reply: 'You tell him about the lock-up. You don’t look at him while you do it.' },
+              { label: '"I don\'t know any Dez"', fx: { evidence: 3 }, bond: { dez: 1, harrow: -1 }, reply: 'Harrow sighs and gets out. "Suit yourself. She’d have said the same."' }] },
+  { id: 'harrow3', arc: 'harrow', when: { evidence: 75 }, title: 'Close', textFor: c => 'Harrow sits on your bench outside and eats a sausage roll. "I knew your aunt," he says. "She was the only honest one on this street." He folds the paper bag very neatly and leaves.'
+      + (c.bond.harrow >= 2 ? ' At the corner he turns, as if he\'s going to say something else, and doesn\'t.' : ''),
+    choices: [{ label: 'Sit with him', fx: { evidence: -5 }, bond: { harrow: 2 }, reply: 'You talk about Rosa. He doesn’t mention the file.' },
+              { label: 'Give him a bag of rolls for the station', fx: { rep: 3 }, bond: { town: 1 }, reply: 'The whole station gets a taste. Word gets round.' }] },
+
+  // ---- The street ----
+  { id: 'rival', arc: 'street', when: { rival: true }, title: 'Across the road', text: 'Crumbs & Co opens across the road with balloons, a jazz trio and a man in a gingerbread costume. The owner, Gordon Crumb, comes over to shake your hand and looks at your counters a little too long. "Friendly competition," he says.',
+    choices: [{ label: 'Send over a welcome cake', fx: { rep: 2 }, bond: { town: 1 }, reply: 'He sends back a card. It says "Cute."' },
+              { label: 'Match his opening offer', fx: { clean: -15, rep: 3 }, reply: 'Two-for-one all week. Your regulars stay loyal; the gingerbread man looks hot.' }] },
+  { id: 'fete', arc: 'street', when: { level: 25 }, title: 'The school fete', text: 'The primary school asks if Rosa\'s will do the cake stall at the summer fete, like Rosa always did. The headteacher remembers you as a child, which is worse than it sounds.',
+    choices: [{ label: 'Bake for free', fx: { clean: -8, rep: 4 }, bond: { town: 1, rosa: 1 }, reply: 'You sell out by eleven. A small boy tells you your brownies are better than his nan’s. His nan is standing right there.' },
+              { label: 'Send a voucher instead', fx: { rep: 1 }, reply: 'The raffle prize goes to the vicar, who is delighted.' }] },
+  { id: 'crumb', arc: 'street', when: { level: 45, after: 'rival' }, title: 'Gordon\'s last stand', text: 'Gordon Crumb comes over after closing, without the costume. Crumbs & Co is losing money, he says, and he\'d rather sell to you than to a chain. He doesn\'t look you in the eye.',
+    choices: [{ label: 'Offer him a job instead', fx: { rep: 3 }, bond: { town: 1 }, reply: 'He’s a good baker, it turns out. He does the early shift and stops pretending to like gingerbread.' },
+              { label: 'Wish him luck', fx: { clean: 20 }, reply: 'The shutters come down a month later. You buy his best mixer at the auction for a song.' }] },
 ];
+// The last chapter is put together from the game you played: which back room you ran, the raids, who you looked
+// after, and who you gave up
+function endingText(c) {
+  const parts = ['You find yourself at the stall at six in the morning, the first oven on, nobody else awake. The street smells of bread.'];
+  if (!c.lab) parts.push('You never opened the back room. Rosa\'s ledger stays wrapped in its tea towel, and that feels right.');
+  else if (c.busts >= 3) parts.push(`There\'s still a faint line on the doorframe where the police tape went up, ${c.busts} times. You\'ve stopped trying to scrub it off.`);
+  else if (c.busts === 0) parts.push('The back room is quiet. Harrow never did find his way through that door.');
+  if (c.gaveUpDez) parts.push('A letter from the prison sits unopened by the till. You\'ll read it one day.');
+  else if (c.bond.dez >= 3) parts.push('A postcard of a pier is propped against the till: "Batter\'s going well. D."');
+  if (c.bond.harrow >= 3) parts.push('At ten past seven Harrow comes in, retired now, and buys a coffee. He drinks it.');
+  if (c.bond.town >= 2) parts.push('Mrs Okafor is first through the door, as always, with this week\'s gossip and a birthday to remember.');
+  parts.push(c.bond.rosa >= 3 ? 'Whatever else you have built, this part is still hers. And, you realise, it\'s yours too.' : 'Whatever else you have built, this part still feels like hers.');
+  return parts.join(' ');
+}
 
 // ---------- The collection book: sets with a reward when complete ----------
 export const COLLECTION = [
@@ -995,7 +1099,7 @@ export const COLLECTION = [
   { id: 'season20', cat: 'seasonal', n: 20, name: 'Every season tasted', reward: 50000 },
   { id: 'prod5', cat: 'products', n: 5, name: 'Branching out', reward: 1000, night: true }, { id: 'prod15', cat: 'products', n: 15, name: 'A wide catalogue', reward: 15000, night: true },
   { id: 'prod33', cat: 'products', n: 33, name: 'Everything Dez ever sold', reward: 150000, night: true },
-  { id: 'story5', cat: 'story', n: 5, name: 'Family history', reward: 3000 }, { id: 'story14', cat: 'story', n: 14, name: 'The whole story', reward: 50000 },
+  { id: 'story5', cat: 'story', n: 5, name: 'Family history', reward: 3000 }, { id: 'story14', cat: 'story', n: STORY.length, name: 'The whole story', reward: 50000 },
   { id: 'award4', cat: 'awards', n: 4, name: 'Every bakery award', reward: 30000 },
 ];
 
