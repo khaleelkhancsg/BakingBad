@@ -936,7 +936,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     ZONES.back.needW = ex.digside ? 13.6 : 11.8; ZONES.back.needH = ex.digfront ? 12.2 : 10.2;
   }
 
-  // Shop windows, sign and menu board
+  // Shop windows, sign and menu board. They share the right-hand end of the back wall (panels b6 to b8, which take no
+  // wall art): a tall chalkboard menu on the left (x 1.55 to 2.35), the window to its right (x 2.6 to 4.1, sill 1.1 to
+  // top 2.3) and the sign above the window (2.59 to 2.91, under the wall's cap at 3.0), with a clear gap. Nothing overlaps.
+  const WIN = { x: 3.35, w: 1.5, h: 1.2, y: 1.1 }, SIGN = { x: WIN.x, y: 2.75 }, MENU = { x: 1.95, y: 2.1, w: 0.8, h: 1.0 };
   function windowOn(x, z, w, h, y) {
     const frame = box(w + 0.16, h + 0.16, 0.08, '#fff0dc', x, y - 0.08, z + 0.1);
     const m = smat({ color: '#1c2233', emissive: '#bfe6ff', emissiveIntensity: 0.9, roughness: 0.2 });
@@ -945,16 +948,17 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     statics.add(box(0.04, h, 0.05, '#fff0dc', x, y, z + 0.18, false));
     windows.push(m);
   }
-  windowOn(3.0, -4.6, 1.7, 1.2, 1.2);
-  const menuTex = canvasTex(256, 192, (c, w, h) => {
+  windowOn(WIN.x, -4.6, WIN.w, WIN.h, WIN.y);
+  const menuTex = canvasTex(192, 240, (c, w, h) => { // a tall chalkboard
     c.fillStyle = '#2b3a34'; c.fillRect(0, 0, w, h);
     c.strokeStyle = '#a07a52'; c.lineWidth = 12; c.strokeRect(6, 6, w - 12, h - 12);
-    c.fillStyle = '#f4efe2'; c.font = 'bold 30px Georgia, serif'; c.textAlign = 'center'; c.fillText('MENU', w / 2, 46);
-    c.font = '20px Georgia, serif'; c.textAlign = 'left';
-    ['Sourdough', 'Croissants', 'Cookies', 'Donuts', 'Tarts'].forEach((t, i) => c.fillText('~ ' + t, 30, 78 + i * 22));
+    c.fillStyle = '#f4efe2'; c.font = 'bold 30px Georgia, serif'; c.textAlign = 'center'; c.fillText('MENU', w / 2, 50);
+    c.strokeStyle = 'rgba(244,239,226,.5)'; c.lineWidth = 2; c.beginPath(); c.moveTo(40, 62); c.lineTo(w - 40, 62); c.stroke();
+    c.font = '19px Georgia, serif'; c.textAlign = 'left';
+    ['Sourdough', 'Croissants', 'Cookies', 'Donuts', 'Tarts', 'Coffee'].forEach((t, i) => c.fillText('~ ' + t, 26, 92 + i * 24));
   });
-  const menu = mesh(new THREE.PlaneGeometry(1.2, 0.9), smat({ map: menuTex, roughness: 0.9 }), 2.3, 2.45, -4.475, false);
-  menu.position.x = 1.85; menu.position.y = 2.35; statics.add(menu);
+  const menu = mesh(new THREE.PlaneGeometry(MENU.w, MENU.h), smat({ map: menuTex, roughness: 0.9 }), MENU.x, MENU.y, -4.475, false);
+  statics.add(menu);
   const drawSign = (c, w, h, text) => {
     c.fillStyle = '#8a5a36'; c.fillRect(0, 0, w, h);
     c.fillStyle = '#ffe7c2'; c.font = `bold ${text.length > 13 ? 28 : 34}px Georgia, serif`; c.textAlign = 'center'; c.fillText(text, w / 2, 44);
@@ -966,14 +970,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     signText = text;
     const cv = woodSignTex.image; drawSign(cv.getContext('2d'), cv.width, cv.height, text); woodSignTex.needsUpdate = true;
   };
-  const woodSign = mesh(new THREE.PlaneGeometry(1.9, 0.48), smat({ map: woodSignTex, roughness: 0.8 }), 3.3, 2.65, -4.475, false);
+  const woodSign = mesh(new THREE.PlaneGeometry(1.4, 0.32), smat({ map: woodSignTex, roughness: 0.8 }), SIGN.x, SIGN.y, -4.475, false);
   scene.add(woodSign);
   const neonTex = canvasTex(512, 128, (c, w, h) => {
     c.fillStyle = 'rgba(0,0,0,0)'; c.fillRect(0, 0, w, h);
     c.shadowColor = '#ff4fa8'; c.shadowBlur = 24; c.fillStyle = '#ffd1ec';
-    c.font = 'italic bold 78px "Brush Script MT", cursive, Georgia'; c.textAlign = 'center'; c.fillText("Rosa's", w / 2, 92);
+    c.font = 'italic bold 104px "Brush Script MT", cursive, Georgia'; c.textAlign = 'center'; c.fillText("Rosa's", w / 2, 102);
   });
-  const neonSign = mesh(new THREE.PlaneGeometry(2.2, 0.55), new THREE.MeshBasicMaterial({ map: neonTex, transparent: true }), 3.3, 2.65, -4.465, false);
+  const neonSign = mesh(new THREE.PlaneGeometry(1.5, 0.36), new THREE.MeshBasicMaterial({ map: neonTex, transparent: true }), SIGN.x, SIGN.y, -4.465, false);
   neonSign.visible = false; scene.add(neonSign);
 
   // Display counters: each a glass cabinet standing on its own square, facing its customers (built in syncCounters).
@@ -1182,8 +1186,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   const lampM = smat({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0.4 });
   lampGlows.push(lampM);
   statics.add(sphere(0.13, lampM, 8.7, 2.65, 2.95, false));
-  // String lights along the top of the shop's back wall
-  for (let k = 0; k < 13; k++) {
+  // String lights along the top of the shop's back wall, stopping short of the menu board and sign
+  for (let k = 0; k < 8; k++) {
     const x = -4.2 + k * 0.7;
     const y = 2.82 - Math.sin((k % 4) / 4 * PI) * 0.12;
     const bm = smat({ color: '#fff3d6', emissive: ['#ffcf7a', '#ff9fb2', '#9fe1ff'][k % 3], emissiveIntensity: 0.6 });
@@ -1770,7 +1774,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
     if (E.bikes) { for (let k = 0; k < 3; k++) { const r = mesh(geo('bikeloop', () => new THREE.TorusGeometry(0.3, 0.025, 6, 14, PI)), mat('#8d939c', { metalness: 0.6 }), -6.6 + k * 0.45, 0, 5.6); r.rotation.y = PI / 2; add(r); } }
     if (E.bunting) { const cols = ['#e85d75', '#ffd447', '#4f9de8', '#5fcf8a', '#ffffff']; for (let k = 0; k < 18; k++) { const f = mesh(geo('flag', () => new THREE.ConeGeometry(0.11, 0.22, 3)), mat(cols[k % 5]), -4.3 + k * 0.5, 2.78, -4.35); f.rotation.x = PI; add(f); } }
     if (E.lanterns) for (const z of [2.85, 4.55]) { const lm = emissiveMat('#fff1cc', '#ffb347'); lampGlows.push(lm); outGlows.push(lm); add(box(0.16, 0.22, 0.16, lm, 4.62, 1.3, z)); add(box(0.05, 1.3, 0.05, '#2b2d36', 4.62, 0, z)); add(box(0.2, 0.04, 0.2, '#2b2d36', 4.62, 1.52, z)); } // each on its own iron post, with a cap
-    if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); outGlows.push(lm); for (let k = 0; k < 18; k++) { add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
+    if (E.lights) { const lm = emissiveMat('#fff6d0', '#ffe08a'); glowMats.push(lm); outGlows.push(lm); for (let k = 0; k < 18; k++) { if (-4.4 + k * 0.52 < 1.4) add(sphere(0.045, lm, -4.4 + k * 0.52, 2.92 - (k % 2) * 0.06, -4.42, false)); shopSideLights.add(sphere(0.045, lm, -4.42, 2.92 - (k % 2) * 0.06, -4.4 + k * 0.52, false)); } outsideGroup.add(shopSideLights); }
   }
   // ---------- Zoomed out: the whole building from outside ----------
   // Rebuilt from the shop's outside design (paint, wall finish, windows, door, roof, awning, sign) and grows with
