@@ -57,8 +57,8 @@ timer on one machine. When it's done, tap ✓ to put it on the counters. Leave i
 as long as it took to cook (at least 30 minutes).
 
 Anything you make, in the bakery or the back room, takes from a minute to two days, and the longer it takes the more
-a batch earns: more servings (or bags) and a higher price for slow-made goods. (A two-day bake sells for about 1.6 times what a quick one does, serving for serving.) A 2-minute batch of cookies makes about
-£18, a 2-hour sourdough £113, an 8-hour flatbread £449, and the two-day showpieces at the top thousands. The longest
+a batch earns: more servings (or bags) and a higher price for slow-made goods. (A two-day bake sells for about 1.6 times what a quick one does, serving for serving.) A 2-minute batch of cookies takes about
+£19, a 2-hour sourdough £78, an 8-hour flatbread £277, and the day-and-a-half-to-two-day showpieces at the top £3,400 to £5,700. The longest
 cooks unlock late: times stretch with a recipe's level (up to four times by level 99), while each recipe keeps its place
 among its neighbours, so there are quick bakes at every level. Per hour, short cooks still pay best while you're
 playing; long ones keep the counters and the back door stocked while you're out or asleep. In the back room what a cook
