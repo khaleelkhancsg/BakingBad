@@ -32,7 +32,8 @@ const BUILT = [ // footprints of the bakery, back room, alley and buildings: no 
   { x0: shiftX(12.2), x1: shiftX(18), z0: -12, z1: 6.4 },
   { x0: -26.5, x1: -20.5, z0: -12, z1: -5.6 },
 ];
-const POND = { x: -20.5, z: 1.2, rx: 2.8, rz: 1.9 };
+// The park keeps clear of the front pavement (z 4.8 on): pond, paths, benches, beds, trees and bushes all inside it
+const POND = { x: -22, z: -0.1, rx: 2.8, rz: 1.9 };
 const inside = (r, x, z, pad = 0) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad;
 const inPond = (x, z, pad = 0) => ((x - POND.x) / (POND.rx + pad)) ** 2 + ((z - POND.z) / (POND.rz + pad)) ** 2 < 1;
 const isGrass = (x, z) => ![...ROADS, ...PAVEMENTS, ...BUILT].some(r => inside(r, x, z, 0.3)) && !inPond(x, z, 0.5)
@@ -90,9 +91,13 @@ export function buildWorld(scene) {
     }
     for (let x = -24; x < 20; x += 6) { c.fillStyle = '#2f2e36'; c.fillRect(X(x), Z(FRONT_EDGE + 0.04), 0.5 * GPX, 0.22 * GPX); }
     // Park: path, pond, flower beds
-    c.strokeStyle = '#d9c69c'; c.lineWidth = 1.3 * GPX; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(X(-14.4), Z(4.4)); c.bezierCurveTo(X(-17), Z(4.4), X(-17.2), Z(-1.5), X(-20.5), Z(-2.4)); c.bezierCurveTo(X(-23.5), Z(-3.2), X(-25), Z(-1), X(-27), Z(0.5)); c.stroke();
-    c.beginPath(); c.moveTo(X(-17.1), Z(3.0)); c.bezierCurveTo(X(-19), Z(5.6), X(-23), Z(5.6), X(-26), Z(4.2)); c.stroke();
+    // The main path comes in from the front pavement (its square end flush with the pavement's edge), round past the
+    // pond and out the far side; a second one loops along the front of the park
+    c.strokeStyle = '#d9c69c'; c.fillStyle = '#d9c69c'; c.lineWidth = 1.3 * GPX; c.lineCap = 'butt';
+    c.beginPath(); c.moveTo(X(-15.6), Z(4.8)); c.bezierCurveTo(X(-15.9), Z(3.3), X(-18.7), Z(-2.8), X(-22), Z(-3.7)); c.bezierCurveTo(X(-25), Z(-4.5), X(-26.5), Z(-2.3), X(-28.5), Z(-0.8)); c.stroke();
+    c.beginPath(); c.arc(X(-28.5), Z(-0.8), 0.65 * GPX, 0, 2 * PI); c.fill();
+    c.lineCap = 'round';
+    c.beginPath(); c.moveTo(X(-16.06), Z(3.43)); c.bezierCurveTo(X(-19.5), Z(4.4), X(-24), Z(4.4), X(-27.5), Z(2.9)); c.stroke();
     c.fillStyle = '#d9c69c'; c.beginPath(); c.ellipse(X(POND.x), Z(POND.z), (POND.rx + 0.45) * GPX, (POND.rz + 0.45) * GPX, 0, 0, 2 * PI); c.fill();
     c.fillStyle = '#3d7fa8'; c.beginPath(); c.ellipse(X(POND.x), Z(POND.z), POND.rx * GPX, POND.rz * GPX, 0, 0, 2 * PI); c.fill();
     for (const b of FLOWER_BEDS) { c.fillStyle = '#7a5a40'; c.beginPath(); c.ellipse(X(shiftX(b.x)), Z(shiftZ(b.z)), b.rx * GPX, b.rz * GPX, 0, 0, 2 * PI); c.fill(); }
@@ -246,7 +251,7 @@ export function buildWorld(scene) {
     return im;
   }
   // Trees: a trunk plus one or two low-poly canopy blobs
-  const TREES = [[-17, -3], [-24, -1.5], [-18.2, 6.2], [-25, 4.6], [-23, -4.6], [-15.8, 1.2],
+  const TREES = [[-17.6, -4.2], [-29, -2.8], [-18.2, 6.2], [-27.8, 3.9], [-23, -5.0], [-15.3, -0.9],
     [-12, 12.25], [-20, 12.25], [14.5, 12.25], [19.5, 12.25], [-6.5, 12.25],
     // (street trees stand at the back of their pavements, clear of people walking along them)
     [12.0, -14], [12.0, -19], [-16, 14.6], [8, 14.6], [16, 15], [-27.5, 13.8], [21, 5],
@@ -266,7 +271,7 @@ export function buildWorld(scene) {
   const BUSHES = [];
   for (let x = -13.5; x < 6.5; x += 0.62) if (x < -6.8 || x > -5.4) BUSHES.push({ x, z: 12.95, s: 0.42 + rand() * 0.1, ry: rand() * PI });
   for (let z = -4.2; z < 4.6; z += 0.62) BUSHES.push({ x: -14.7, z, s: 0.36 + rand() * 0.08, ry: rand() * PI });
-  for (const [x, z] of [[-18.5, -0.8], [-22.5, 3.6], [-19, 3.4], [-24.5, 0.8], [12.4, 13.1], [-1, -4.95], [3.2, -4.95], [-7.4, -4.95]]) BUSHES.push({ x, z, s: 0.5 + rand() * 0.2, ry: rand() * PI });
+  for (const [x, z] of [[-17.2, -2.0], [-24.9, 2.35], [-19.6, 2.6], [-26.2, -0.6], [12.4, 13.1], [-1, -4.95], [3.2, -4.95], [-7.4, -4.95]]) BUSHES.push({ x, z, s: 0.5 + rand() * 0.2, ry: rand() * PI });
   instanced(geo('bush', () => new THREE.IcosahedronGeometry(1, 0)), leafy, BUSHES.map((b, i) => ({ ...b, y: b.s * 0.55, sy: b.s * 0.8, c: ['#4f8f48', '#5a9a50', '#467f42'][i % 3] })), { shadow: true, colors: ['#4f8f48'] });
   // Flowers in the beds
   const FLOWERS = [];
@@ -335,7 +340,7 @@ export function buildWorld(scene) {
     bike.position.set(x + 0.45, -0.09, z + 0.02); fixed(bike); }
 
   // Benches in the park
-  for (const [x, z, ry] of [[-18.8, -2.2, 0.3], [-23.8, 5.3, -0.4], [-23.6, -0.9, PI / 2 + 0.6]]) {
+  for (const [x, z, ry] of [[-18.3, -3.1, 0.3], [-26.6, 1.4, -0.4], [-27.2, -4.1, PI / 2 + 0.6]]) {
     const g = new THREE.Group();
     g.add(box(1.4, 0.07, 0.4, '#a8703f', 0, 0.4, 0)); g.add(box(1.4, 0.34, 0.06, '#a8703f', 0, 0.5, -0.2));
     for (const dx of [-0.6, 0.6]) g.add(box(0.07, 0.4, 0.36, '#2b2d36', dx, 0, 0));
@@ -437,6 +442,6 @@ export function buildWorld(scene) {
 // Flower beds: on the far verge, in the park and by the café.
 const FLOWER_BEDS = [
   { x: -10.2, z: 13.7, rx: 1.6, rz: 0.45 }, { x: -3.5, z: 13.7, rx: 2.0, rz: 0.45 }, { x: 3.2, z: 13.7, rx: 1.6, rz: 0.45 },
-  { x: -18.6, z: 4.6, rx: 0.9, rz: 0.5 }, { x: -24.2, z: 2.4, rx: 1.0, rz: 0.6 }, { x: -21.5, z: 4.4, rx: 0.8, rz: 0.5 },
+  { x: -15.1, z: 1.7, rx: 0.8, rz: 0.45 }, { x: -29.5, z: 1.2, rx: 0.9, rz: 0.55 }, { x: -21.6, z: 3.05, rx: 0.8, rz: 0.28 },
   { x: -16.2, z: -4.2, rx: 0.8, rz: 0.5 }, { x: 13.6, z: 13.7, rx: 0.9, rz: 0.45 },
 ];
