@@ -12,7 +12,7 @@ export const CAR_FILES = {
   rolls:     { file: 'rolls.glb',     L: 2.6,  paint: /^car$/i,          turn: 2 },
   charger:   { file: 'charger.glb',   L: 2.45, paint: /chasis/i,         turn: 2 },
   gtr:       { file: 'gtr.glb',       L: 2.3,  paint: /^chasis/i,        turn: 2 },
-  camaro:    { file: 'camaro.glb',    L: 2.35, paint: /^mat8$/i,         turn: 0 },
+  camaro:    { file: 'camaro.glb',    L: 2.25, paint: /^mat8$/i,         turn: 0 },
   hatchback: { file: 'hatchback.glb', L: 1.95, paint: null,              turn: 2 },
   suv:       { file: 'suv.glb',       L: 2.3,  paint: /^white$/i,        turn: 2 },
   sports:    { file: 'sports.glb',    L: 2.25, paint: /^white$/i,        turn: 2 },
@@ -62,7 +62,10 @@ function prepare(root, cfg) {
   const tmp = new THREE.Box3();
   root.traverse(o => { if (o.isMesh) { o.geometry.computeBoundingBox(); } });
   // the turned bounds, then a scale to the wanted length, centred, on the ground
-  const b2 = new THREE.Box3(); root.traverse(o => { if (o.isMesh) b2.union(tmp.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(fix, o.matrixWorld))); });
+  // measured from the model's own points: a turned model's bounding box overstates its size (the Camaro came out 19% small)
+  const b2 = new THREE.Box3(), pt = new THREE.Vector3();
+  root.traverse(o => { if (!o.isMesh) return; const m = new THREE.Matrix4().multiplyMatrices(fix, o.matrixWorld), a = o.geometry.attributes.position;
+    for (let i = 0; i < a.count; i++) b2.expandByPoint(pt.fromBufferAttribute(a, i).applyMatrix4(m)); });
   const s2 = b2.getSize(new THREE.Vector3()), c2 = b2.getCenter(new THREE.Vector3()), k = cfg.L / s2.x;
   const place = new THREE.Matrix4().makeScale(k, k, k).multiply(new THREE.Matrix4().makeTranslation(-c2.x, -b2.min.y, -c2.z)).multiply(fix);
   const mats = new Map(), parts = [];
