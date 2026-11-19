@@ -746,13 +746,13 @@ class Agent {
 
 export function createScene(canvas, overlayEl, { onPick, onOutside, retro = false }) {
   setRetro(retro);
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: !retro }); // retro: no edge smoothing, crisp steps
   const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 600;
   const fullRatio = Math.min(window.devicePixelRatio || 1, smallScreen ? 1.5 : 2);
   renderer.setPixelRatio(fullRatio);
-  // Retro: about 480 lines from top to bottom, scaled up with crisp pixels (edges stay smoothed, so it reads as 32-bit
-  // rather than chunky 8-bit). The menus and labels on top stay sharp.
-  const RETRO_LINES = 480;
+  // Retro: about 270 lines from top to bottom (a PlayStation-era screen), scaled up with crisp pixels and no edge
+  // smoothing. The menus and labels on top stay sharp.
+  const RETRO_LINES = 270;
   if (retro) canvas.style.imageRendering = 'pixelated';
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;

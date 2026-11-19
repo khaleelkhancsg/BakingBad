@@ -206,7 +206,7 @@ export function surface(kind) {
   const r = rng(kind.length * 977 + kind.charCodeAt(0));
   const t = canvasTex(256, 256, (c, w, h) => (SURFACES[kind] || SURFACES.plaster)(c, w, h, r));
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  if (RETRO) pixelArt(t, 64); // 64 texels a tile: detailed, but you can see the pixels
+  if (RETRO) pixelArt(t, 32); // 32 texels a tile, like the textures of a 32-bit console
   surfCache.set(kind, t);
   return t;
 }
