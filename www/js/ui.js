@@ -584,7 +584,7 @@ function marketingTab() {
     const effect = [c.cust ? `+${Math.round(c.cust * 100)}% customers` : '', c.pop ? `+${c.pop} pop/day` : '', c.once ? `+${c.once} pop` : ''].filter(Boolean).join(' · ');
     const btn = running ? `<span class="lock good">Running · ${mins((running.until - s.clock) / MIN)} left</span>`
       : block ? (block.lock && !open ? lockTag(c.level) : `<div class="lockline">${block.text}</div>`)
-      : `<div class="pbtns"><button class="small primary" data-act="campaign" data-id="${id}" ${s.clean < c.price ? 'disabled' : ''}>${money(c.price)}</button></div>`;
+      : `<div class="pbtns"><button class="small primary" data-act="campaign" data-id="${id}" ${s.clean < G.campaignPrice(s, id) ? 'disabled' : ''}>${money(G.campaignPrice(s, id))}</button></div>`;
     cards += pcard(`<div class="ptop"><span class="em">${c.emoji}</span><div><b>${c.name}</b><small>${effect} · ${mins(c.hours * 60)}</small></div></div>${btn}`,
       ibtn('campaign', id), `${open ? '' : 'locked'} ${running ? 'hired' : ''}`);
   }
@@ -735,7 +735,7 @@ function infoFor(kind, id) {
   }
   if (kind === 'campaign') {
     const c = CAMPAIGNS[id];
-    return T(`${c.emoji} ${c.name}`, `<p>${c.desc}</p>` + line('Cost', money(c.price)) + line('Lasts', mins(c.hours * 60))
+    return T(`${c.emoji} ${c.name}`, `<p>${c.desc}</p>` + line('Cost', money(G.campaignPrice(s, id)) + (G.campaignPrice(s, id) > c.price ? ' (more as you grow)' : '')) + line('Lasts', mins(c.hours * 60))
       + (c.cust ? line('Customers', `+${Math.round(c.cust * 100)}%`) : '') + (c.pop ? line('Popularity', `+${c.pop} a day`) : '')
       + (c.once ? line('Popularity now', `+${c.once}${s.crew.pr ? ' (+25% with Mel)' : ''}`) : '') + (c.heat ? line('Heat', `${c.heat}`) : '')
       + line('Unlocks at', `level ${c.level}`) + `<p class="mute">You can run ${G.campaignCap(s)} at once at your level.</p>`);

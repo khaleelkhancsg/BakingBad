@@ -10,7 +10,7 @@ export const CFG = {
   maxLevel: 99, xpBase: 60, xpScale: 12, xpPow: 2.5, levelCash: 25,
   // Customers (per real hour, before time of day, popularity, marketing and charm)
   custBase: 20, custPerPop: 0.6, varietyBonus: 0.067, varietyCap: 0.4, // 7 full counters: +40%
-  popServed: 0.01, popUnserved: -0.004, popHome: 50, popDriftPerHour: 0.1,
+  popServed: 0.01, popUnserved: -0.004, popHome: 50, popDriftPerHour: 0.1, popDriftPerPoint: 0.004, popServedDaily: 3, // serving alone settles near 80; PR and campaigns take it higher
   // Food: what's left done in a machine spoils after max(spoilMin, cook time) more minutes
   spoilMin: 30, trayBatches: 4, // a counter holds 4 batches
   cashierBonus: 0.1, drinkAddOn: 0.35,

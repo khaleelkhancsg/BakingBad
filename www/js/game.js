@@ -1240,7 +1240,7 @@ function customerVisit(s, t, showIt) {
   if (regular) s.rep = clamp(s.rep + 0.01, 0, 100);
   td.sales = round2(td.sales + rev); td.itemsSold += qty; td.served++; s.stats.served = (s.stats.served || 0) + 1;
   s.stats.totalSales = round2(s.stats.totalSales + rev);
-  s.rep = clamp(s.rep + CFG.popServed * Math.max(0, 100 - s.rep) / 50, 0, 100); // harder to win the last few points
+  if ((td.popUp || 0) < CFG.popServedDaily) { const g = CFG.popServed * Math.max(0, 100 - s.rep) / 50; td.popUp = (td.popUp || 0) + g; s.rep = clamp(s.rep + g, 0, 100); } // harder to win the last few points, and only so many a day
   addXp(s, xp);
   show({ kind: 'good', text: `+£${rev.toFixed(2)}${combo ? ' combo' : ''}${regular ? ' 🫶' : ''}`, want: id });
 }
@@ -1839,14 +1839,17 @@ export function campaignBlock(s, id, t = s.clock) {
   }
   return null;
 }
+// A campaign costs more the bigger you are: a bigger business needs a bigger push (its own price at the level it opens)
+export const campaignPrice = (s, id) => { const c = CAMPAIGNS[id]; return Math.round(c.price * Math.pow(1 + Math.max(0, (s.level || 1) - c.level) / 10, 1.5) / 10) * 10; };
 export function startCampaign(s, id, t = s.clock) {
   const c = CAMPAIGNS[id];
   if (!c) return;
   const block = campaignBlock(s, id, t);
   if (block) return say(block.text + '.', 'bad');
-  if (s.clean < c.price) return say('Not enough clean cash.', 'bad');
-  s.clean = round2(s.clean - c.price);
-  s.today.upgradesSpent += c.price;
+  const price = campaignPrice(s, id);
+  if (s.clean < price) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - price);
+  s.today.upgradesSpent += price;
   if (c.once) s.rep = clamp(s.rep + c.once * (s.crew.pr ? 1.25 : 1), 0, 100);
   if (c.heat) s.heat = clamp(s.heat + c.heat, 0, 100);
   if (c.weeklyOnce) s.lastCharity = t;
@@ -2119,7 +2122,7 @@ function shared(s, t0, t1, mins) {
   // Heat cools; popularity drifts back to the middle; marketing and PR add a little
   const lyingLow = t1 - (s.lastLab || 0) > CFG.lieLowAfterHours * HOUR;
   s.heat = clamp(s.heat - (heatCool(s) * (s.crew.fixer ? 2 : 1) * backCool(s) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
-  s.rep += (s.rep > CFG.popHome ? -1 : 1) * Math.min(Math.abs(s.rep - CFG.popHome), CFG.popDriftPerHour * mins / 60);
+  s.rep += (s.rep > CFG.popHome ? -1 : 1) * Math.min(Math.abs(s.rep - CFG.popHome), Math.max(CFG.popDriftPerHour, Math.abs(s.rep - CFG.popHome) * CFG.popDriftPerPoint) * mins / 60); // further from the middle, faster back
   if (s.landmarks?.foundation && s.rep < 60) s.rep = 60; // the Rosa Foundation: popularity never falls below 60
   let popDay = s.crew.pr ? CFG.prPopPerDay : 0;
   for (const c of activeCampaigns(s, t0)) popDay += CAMPAIGNS[c.id].pop || 0;

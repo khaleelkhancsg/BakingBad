@@ -95,7 +95,7 @@ function checkIn(s, st, t, next) {
   hireIf('cleaner', spare() > 3000);
   hireIf('chef', spare() > 4000);
   hireIf('manager', spare() > 6000);
-  for (const [id, c] of Object.entries(CAMPAIGNS)) if (!G.campaignBlock(s, id, t) && c.price < spare() * 0.05) G.startCampaign(s, id, t);
+  for (const [id, c] of Object.entries(CAMPAIGNS)) if (!G.campaignBlock(s, id, t) && G.campaignPrice(s, id) < spare() * 0.05) G.startCampaign(s, id, t);
   G.eachShop(s, () => {
     placeSomeDecor(s);
     s.machines.forEach((m, i) => { if ((m.tier || 0) < TIERS.max && G.tierCost(m.type, m.tier || 0) < spare() * 0.15) G.upgradeMachine(s, i); });
