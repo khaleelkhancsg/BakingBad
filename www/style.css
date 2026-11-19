@@ -1251,3 +1251,5 @@ textarea.code {
 .rtag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 9px; font-size: 11px; font-weight: 600; vertical-align: 1px;
   background: rgba(217, 138, 78, .18); color: var(--warm); border: 1px solid rgba(217, 138, 78, .35); }
 .rtag.night { background: rgba(140, 120, 220, .16); color: #c9b8ff; border-color: rgba(160, 140, 230, .35); }
+.seg.challenges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.seg.challenges button { padding: 6px 4px; }

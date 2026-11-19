@@ -2860,7 +2860,10 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     const menu = G.counterList(s), lines = new Map();
     for (const [id, e] of customers) if (e.stage === 'queue' && e.c) { const ti = Math.min(trays.length - 1, Math.max(0, menu.indexOf(e.c.want))); if (!lines.has(ti)) lines.set(ti, []); lines.get(ti).push(id); }
     for (const [id, e] of customers) stepShopper(id, e, dt, now, menu, lines);
-    if (walkers.length < 3 && Math.random() < dt * 0.04) spawnWalker();
+    // the street gets busier as the bakery gets popular: up to eight passers-by by day, a couple late at night, fewer in the rain
+    { const hr = G.localHour(s.clock), day = hr >= 7 && hr < 21 ? 1 : hr >= 21 && hr < 24 ? 0.5 : 0.25;
+      const most = Math.max(1, Math.round((2 + s.rep / 16) * day * (s.event?.id === 'rain' ? 0.5 : 1)));
+      if (walkers.length < most && Math.random() < dt * 0.09) spawnWalker(); }
     for (let i = walkers.length - 1; i >= 0; i--) if (walkers[i].agent.update(dt)) { scene.remove(walkers[i].agent.group); walkers.splice(i, 1); }
 
     // Night buyers: in through the back door, wait, leave the same way.

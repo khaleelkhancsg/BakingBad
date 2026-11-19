@@ -1298,7 +1298,7 @@ function modalHTML() {
     const pt = G.prestigeTokens(s);
     inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, crew member and penny. You start again at Aunt Rosa's bakery with a fresh debt. You keep the story so far, your collection, your mastered recipes and the look of the bakery.</p>
       <div class="card">${line('Net worth', money(G.netWorth(s)))}${line('Prestige tokens', `+${pt}`, 'good')}${line('Prices after', `+${pct(PRESTIGE.tokenBonus * (s.prestige.total + pt))} on everything`, 'good')}</div>
-      <p><b>Challenge for the next run</b></p><div class="seg">${Object.entries(CHALLENGES).map(([k, c]) => `<button class="${(ui.challenge || 'none') === k ? 'on' : ''}" data-act="challenge" data-id="${k}">${c.name}${c.mult > 1 ? ` ×${c.mult}` : ''}</button>`).join('')}</div>
+      <p><b>Challenge for the next run</b></p><div class="seg challenges">${Object.entries(CHALLENGES).map(([k, c]) => `<button class="${(ui.challenge || 'none') === k ? 'on' : ''}" data-act="challenge" data-id="${k}">${c.name}${c.mult > 1 ? ` ×${c.mult}` : ''}</button>`).join('')}</div>
       <p class="mute">${CHALLENGES[ui.challenge || 'none'].desc} Your perks and tokens carry over. Spend the tokens in Bank & tax → Perks once you've started again.</p>
       <div class="row2" style="margin-top:10px"><button class="primary" data-act="prestige-go">Start again</button><button data-act="close">Not yet</button></div>`;
   } else if (m.type === 'milestones') {

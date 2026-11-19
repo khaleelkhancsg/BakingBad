@@ -100,7 +100,7 @@ export const perk = (s, id) => s.prestige?.perks?.[id] || 0;
 export const tokenBonus = s => 1 + PRESTIGE.tokenBonus * (s.prestige?.total || 0);
 // What the whole business is worth: cash anywhere, shops, machines, property, fronts and vans, less what you owe
 export function netWorth(s) {
-  let v = s.clean + s.dirty + (s.wash?.offshore || 0) + (s.wash?.art || []).reduce((a, x) => a + x.amount, 0);
+  let v = s.clean + s.dirty + (s.invest || 0) + (s.wash?.offshore || 0) + (s.wash?.art || []).reduce((a, x) => a + x.amount, 0);
   for (const x of s.shops) {
     v += x.paid || 0;
     for (const m of x.machines) v += MACHINES[m.type].price * (1 + 0.5 * (m.tier || 0));
