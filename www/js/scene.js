@@ -790,8 +790,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   sun.castShadow = true;
   sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 24, bottom: -24, near: 1, far: 110 });
-  sun.shadow.bias = -0.0005;
-  sun.shadow.normalBias = 0.02;
+  sun.shadow.bias = -0.0008; // blocks have many flat faces: a little more offset keeps their shadows free of streaks
+  sun.shadow.normalBias = 0.07;
   sun.target.position.set(-3.5, 0, 0);
   sun.position.set(4, 16, 9);
   scene.add(sun, sun.target);
