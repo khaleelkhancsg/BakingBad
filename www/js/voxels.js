@@ -69,9 +69,11 @@ function sizeFor(o) {
 }
 
 // ---------- Sampling a surface into cells ----------
-// toGrid takes a point from the mesh's geometry space into grid space (in voxels). Fills cells (and glow cells for
-// glowing parts): Map key -> [r, g, b, n] linear colour sums. Returns the first glowing material met, if any.
-function sampleSurface(geom, material, toGrid, cells, glowCells, tint) {
+// toGrid takes a point from the mesh's geometry space into grid space (in voxels). Fills cells: Map key ->
+// [r, g, b, distance of that sample from the cell's middle, lowest and highest point in the cell (0-1), seen from above,
+// glows, plain colour]. Each block takes the colour of the bit of surface nearest its middle, so a window painted on a
+// wall comes out as crisp blocks of glass and wall rather than a muddy blend. Returns the first glowing material met.
+function sampleSurface(geom, material, toGrid, cells, tint) {
   const pos = geom.attributes.position, uv = geom.attributes.uv, col = geom.attributes.color, idx = geom.index;
   const mats = Array.isArray(material) ? material : [material];
   const groups = geom.groups.length ? geom.groups : [{ start: 0, count: idx ? idx.count : pos.count, materialIndex: 0 }];
@@ -96,76 +98,113 @@ function sampleSurface(geom, material, toGrid, cells, glowCells, tint) {
       for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
         const u = i / n, v = j / n, w = 1 - u - v;
         p.set(ga.x * w + gb.x * u + gc.x * v, ga.y * w + gb.y * u + gc.y * v, ga.z * w + gb.z * u + gc.z * v);
-        const key = keyOf(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
-        // glowing here? (all of a glowing material, or the bright parts of its glow map: lit windows)
-        let glow = isGlow;
+        const fx = Math.floor(p.x), fyc = Math.floor(p.y), fz = Math.floor(p.z), key = keyOf(fx, fyc, fz);
+        const fy = p.y - fyc; // how high up its cell this bit of surface is (0 bottom, 1 top)
+        const dx = p.x - fx - 0.5, dy = fy - 0.5, dz = p.z - fz - 0.5, dist = dx * dx + dy * dy + dz * dz;
+        let cell = cells.get(key);
+        if (!cell) { cell = [0, 0, 0, Infinity, fy, fy, seen, 0, 1]; cells.set(key, cell); }
+        else { if (fy < cell[4]) cell[4] = fy; if (fy > cell[5]) cell[5] = fy; cell[6] |= seen; }
+        if (dist >= cell[3]) continue; // a sample nearer the middle already gave this block its colour
         let tu = 0, tv = 0;
         if (uv) { tu = uv.getX(i0) * w + uv.getX(i1) * u + uv.getX(i2) * v; tv = uv.getY(i0) * w + uv.getY(i1) * u + uv.getY(i2) * v; }
+        // glowing here? (all of a glowing material, or the bright parts of its glow map: lit windows)
+        let glow = isGlow;
         if (glow && epx) { const k = texel(eTex, epx, tu, tv); glow = (epx.d[k] + epx.d[k + 1] + epx.d[k + 2]) > 180; }
-        const target = glow ? glowCells : cells;
-        let cell = target.get(key);
-        const fy = p.y - Math.floor(p.y); // how high up its cell this bit of surface is (0 bottom, 1 top)
-        if (cell) { if (fy < cell[4]) cell[4] = fy; if (fy > cell[5]) cell[5] = fy; cell[6] |= seen; }
-        if (cell && cell[3] >= 4) continue;
         let r = base.r, g = base.g, b = base.b;
         if (col) { r *= col.getX(i0) * w + col.getX(i1) * u + col.getX(i2) * v; g *= col.getY(i0) * w + col.getY(i1) * u + col.getY(i2) * v; b *= col.getZ(i0) * w + col.getZ(i1) * u + col.getZ(i2) * v; }
         if (px) { const k = texel(tex, px, tu, tv); r *= lin(px.d[k]); g *= lin(px.d[k + 1]); b *= lin(px.d[k + 2]); }
-        if (!cell) { cell = [0, 0, 0, 0, fy, fy, seen]; target.set(key, cell); }
-        cell[0] += r; cell[1] += g; cell[2] += b; cell[3]++;
+        cell[0] = r; cell[1] = g; cell[2] = b; cell[3] = dist; cell[7] = glow ? 1 : 0; cell[8] = px ? 0 : 1;
       }
     }
   }
   return glowMat;
 }
-// A cell's colour, with a little block-to-block variation, the way voxel art has
-function cellColor(cell, key, out) {
-  let h = Math.imul((key % 2147483647) | 0, 2654435761) ^ Math.imul(Math.floor(key / 2147483647) | 0, 40503); h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13;
-  const j = 0.92 + ((h >>> 0) % 1000) / 1000 * 0.16;
-  return out.setRGB(Math.min(1, cell[0] / cell[3] * j), Math.min(1, cell[1] / cell[3] * j), Math.min(1, cell[2] / cell[3] * j), THREE.LinearSRGBColorSpace);
+// A cell's colour, with a little block-to-block variation on plain-coloured things, the way voxel art has (textured
+// ones vary already)
+function cellColor(cell, key, out, vary = true) {
+  let j = 1;
+  if (vary && cell[8]) {
+    let h = Math.imul((key % 2147483647) | 0, 2654435761) ^ Math.imul(Math.floor(key / 2147483647) | 0, 40503); h ^= h >>> 15; h = Math.imul(h, 2246822519); h ^= h >>> 13;
+    j = 0.92 + ((h >>> 0) % 1000) / 1000 * 0.16;
+  }
+  return out.setRGB(Math.min(1, cell[0] * j), Math.min(1, cell[1] * j), Math.min(1, cell[2] * j), THREE.LinearSRGBColorSpace);
 }
 const FACES = [ // [neighbour offset, the face's four corners (as offsets from the cell's low corner), its normal]
   [[1, 0, 0], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]], [1, 0, 0]], [[-1, 0, 0], [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]], [-1, 0, 0]],
   [[0, 1, 0], [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]], [0, 1, 0]], [[0, -1, 0], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]], [0, -1, 0]],
   [[0, 0, 1], [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]], [0, 0, 1]], [[0, 0, -1], [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]], [0, 0, -1]],
 ];
-// The blocks for a set of cells, as one mesh with only the faces you can see (a face against another block is left
-// out). fromGrid takes a point in grid space (in voxels) to the space the mesh lives in.
-function cubes(cells, size, fromGrid, castShadow, material) {
-  const pos = [], nor = [], col = [], idx = [];
-  const c = new THREE.Color(), p = new THREE.Vector3(), o = new THREE.Vector3(), n = new THREE.Vector3();
-  const g0 = fromGrid(new THREE.Vector3(0, 0, 0)).clone(), gx = fromGrid(new THREE.Vector3(1, 0, 0)).clone().sub(g0), gy = fromGrid(new THREE.Vector3(0, 1, 0)).clone().sub(g0), gz = fromGrid(new THREE.Vector3(0, 0, 1)).clone().sub(g0);
-  // How much of its cell each block fills from bottom to top, in quarters. A block with nothing above it stops where
-  // the surface stops, and one with nothing below starts where it starts, so a kerb, a floor, a shelf or a tabletop is
-  // a slab of its real thickness rather than a whole cube taller (blocks stacked on blocks stay whole).
-  // Blocks made only from undersides (the bottom of a floor slab, a ceiling) are left out: the camera never sees them,
-  // and as solid blocks they'd show their tops, putting a lid over the basement when the shop is cut away
-  for (const [key, cell] of cells) if (!cell[6]) cells.delete(key);
+// How much of its cell each block fills from bottom to top, in quarters. A block with nothing above it stops where the
+// surface stops, and one with nothing below starts where it starts, so a kerb, a floor, a shelf or a tabletop is a slab
+// of its real thickness rather than a whole cube taller (blocks stacked on blocks stay whole). Blocks made only from
+// undersides (the bottom of a floor slab, a ceiling) are left out: the camera never sees them, and as solid blocks
+// they'd show their tops, putting a lid over the basement when the shop is cut away.
+function spans(cells) {
   const span = new Map();
   for (const [key, cell] of cells) {
+    if (!cell[6]) continue;
     const [x, y, z] = unkey(key);
-    const up = cells.has(keyOf(x, y + 1, z)), down = cells.has(keyOf(x, y - 1, z));
+    const above = cells.get(keyOf(x, y + 1, z)), below = cells.get(keyOf(x, y - 1, z));
+    const up = !!(above && above[6]), down = !!(below && below[6]);
     let hi = up ? 1 : Math.min(1, Math.ceil(cell[5] * 4 - 1e-6) / 4), lo = down ? 0 : Math.max(0, Math.floor(cell[4] * 4 + 1e-6) / 4);
     if (hi - lo < 0.25) { if (!down) lo = hi - 0.25; else hi = lo + 0.25; }
     span.set(key, [lo, hi]);
   }
-  for (const [key, cell] of cells) {
+  return span;
+}
+// The blocks for a set of cells, as one mesh with only the faces you can see (a face against another block is left
+// out). `all` is every block of the model (lit or not, for hiding faces between them); `draw` the ones this mesh draws.
+// fromGrid takes a point in grid space (in voxels) to the space the mesh lives in. Side by side faces of the same colour
+// are joined into one long face, so a plain wall costs a few triangles a row rather than two a block.
+// vary: a little shade variation block to block (left off for the town's bigger blocks, so long walls join up).
+function cubes(all, draw, vary, fromGrid, castShadow, material) {
+  const pos = [], nor = [], col = [], idx = [];
+  const c = new THREE.Color(), p = new THREE.Vector3(), o = new THREE.Vector3(), n = new THREE.Vector3();
+  const g0 = fromGrid(new THREE.Vector3(0, 0, 0)).clone(), gx = fromGrid(new THREE.Vector3(1, 0, 0)).clone().sub(g0), gy = fromGrid(new THREE.Vector3(0, 1, 0)).clone().sub(g0), gz = fromGrid(new THREE.Vector3(0, 0, 1)).clone().sub(g0);
+  const span = spans(all);
+  // every visible face: [direction, x, y, z, lo, hi, colour (packed)]
+  const faces = [[], [], [], [], [], []], cols = new Map();
+  for (const [key, cell] of draw) {
+    if (!span.has(key)) continue;
     const [x, y, z] = unkey(key);
     const [lo, hi] = span.get(key);
-    cellColor(cell, key, c);
-    for (const [[dx, dy, dz], corners, [nx, ny, nz]] of FACES) {
+    cellColor(cell, key, c, vary);
+    const packed = (Math.round(c.r * 1023) * 1024 + Math.round(c.g * 1023)) * 1024 + Math.round(c.b * 1023);
+    cols.set(packed, [c.r, c.g, c.b]);
+    for (let f = 0; f < 6; f++) {
+      const [dx, dy, dz] = FACES[f][0];
       const nb = span.get(keyOf(x + dx, y + dy, z + dz));
       if (nb && (dy !== 0 || (nb[0] <= lo && nb[1] >= hi))) continue; // hidden behind a neighbour that covers it
-      const base = pos.length / 3;
-      for (const [cx, cy, cz] of corners) {
-        p.copy(g0).addScaledVector(gx, x + cx).addScaledVector(gy, y + (cy ? hi : lo)).addScaledVector(gz, z + cz);
-        pos.push(p.x, p.y, p.z); col.push(c.r, c.g, c.b);
-      }
-      n.copy(gx).multiplyScalar(nx).addScaledVector(gy, ny).addScaledVector(gz, nz).normalize();
-      for (let k = 0; k < 4; k++) nor.push(n.x, n.y, n.z);
-      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      faces[f].push([x, y, z, lo, hi, packed]);
     }
   }
-  void size; void o;
+  // Join runs: faces on x sides run along z, the rest along x
+  for (let f = 0; f < 6; f++) {
+    const [, corners, [nx, ny, nz]] = FACES[f], along = f < 2 ? 2 : 0, other = f < 2 ? 0 : 2; // grid axis index (0 x, 1 y, 2 z)
+    const list = faces[f];
+    list.sort((a, b) => a[other] - b[other] || a[1] - b[1] || a[along] - b[along]);
+    n.copy(gx).multiplyScalar(nx).addScaledVector(gy, ny).addScaledVector(gz, nz).normalize();
+    for (let i = 0; i < list.length;) {
+      const a = list[i];
+      let j = i + 1;
+      while (j < list.length) {
+        const b = list[j], prev = list[j - 1];
+        if (b[other] !== a[other] || b[1] !== a[1] || b[along] !== prev[along] + 1 || b[3] !== a[3] || b[4] !== a[4] || b[5] !== a[5]) break;
+        j++;
+      }
+      const first = a[along], last = list[j - 1][along], [r, g, bl] = cols.get(a[5]), base = pos.length / 3;
+      for (const cr of corners) {
+        const v = [a[0] + cr[0], 0, a[2] + cr[2]];
+        v[along] = cr[along] ? last + 1 : first;
+        p.copy(g0).addScaledVector(gx, v[0]).addScaledVector(gy, a[1] + (cr[1] ? a[4] : a[3])).addScaledVector(gz, v[2]);
+        pos.push(p.x, p.y, p.z); col.push(r, g, bl);
+      }
+      for (let k = 0; k < 4; k++) nor.push(n.x, n.y, n.z);
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      i = j;
+    }
+  }
+  void o;
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geom.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
@@ -174,7 +213,7 @@ function cubes(cells, size, fromGrid, castShadow, material) {
   geom.computeBoundingSphere();
   const vm = new THREE.Mesh(geom, material);
   vm.castShadow = castShadow; vm.receiveShadow = true;
-  vm.userData.isVoxels = true; vm.userData.cells = cells.size;
+  vm.userData.isVoxels = true; vm.userData.cells = draw.size;
   vm.raycast = () => {}; // taps go to the model underneath, as before
   return vm;
 }
@@ -218,11 +257,13 @@ export function voxelize(o) {
   o.userData.voxSource = source;
   const cells = new Map(), glowCells = new Map();
   let made = 0, glowMat = null;
-  const glowCubes = (size, fromGrid) => {
+  const vary = S < 0.17;
+  const glowCubes = fromGrid => {
     if (!glowCells.size || !glowMat) return null;
-    const gm = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, vertexColors: true, emissive: glowMat.emissive.clone(), emissiveIntensity: glowMat.emissiveIntensity });
+    const gm = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, vertexColors: true, emissive: glowMat.emissive.clone(), emissiveIntensity: glowMat.emissiveIntensity,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); // a window's glass lands in the same blocks as its wall: the glass wins
     glowPairs.push([glowMat, gm]);
-    return cubes(glowCells, size, fromGrid, false, gm);
+    return cubes(cells, glowCells, vary, fromGrid, false, gm);
   };
   if (o.isInstancedMesh) {
     // every copy, on the world grid, into one set of cubes beside it
@@ -230,33 +271,33 @@ export function voxelize(o) {
     for (let k = 0; k < o.count; k++) {
       o.getMatrixAt(k, m); world.multiplyMatrices(o.matrixWorld, m);
       if (o.instanceColor) o.getColorAt(k, tint); else tint.set(1, 1, 1);
-      glowMat = sampleSurface(o.geometry, source, v => v.applyMatrix4(world).multiplyScalar(inv), cells, glowCells, tint) || glowMat;
+      glowMat = sampleSurface(o.geometry, source, v => v.applyMatrix4(world).multiplyScalar(inv), cells, tint) || glowMat;
     }
-    const size = new THREE.Vector3(S, S, S), back = v => v.multiplyScalar(S).applyMatrix4(parentInv);
-    const vm = cubes(cells, size, back, o.castShadow, voxMat);
+    const back = v => v.multiplyScalar(S).applyMatrix4(parentInv);
+    const vm = cubes(cells, cells, vary, back, o.castShadow, voxMat);
     o.parent.add(vm); o.userData.voxBeside = vm; o.visible = false;
     made = cells.size;
   } else {
-    let size, back, toGrid;
+    let back, toGrid;
     const sc = new THREE.Vector3(); o.getWorldScale(sc);
     if (o.userData.voxStatic) {
       // the world's grid: sample in world space, place the cubes back in the mesh's own space
       const inv = 1 / S, toLocal = new THREE.Matrix4().copy(o.matrixWorld).invert();
       toGrid = v => v.applyMatrix4(o.matrixWorld).multiplyScalar(inv);
       back = v => v.multiplyScalar(S).applyMatrix4(toLocal);
-      size = new THREE.Vector3(S / Math.abs(sc.x || 1), S / Math.abs(sc.y || 1), S / Math.abs(sc.z || 1));
     } else {
       // its own frame, the same size in the world whatever its scale
       const sx = S / Math.abs(sc.x || 1), sy = S / Math.abs(sc.y || 1), sz = S / Math.abs(sc.z || 1);
       toGrid = v => v.set(v.x / sx, v.y / sy, v.z / sz);
       back = v => v.set(v.x * sx, v.y * sy, v.z * sz);
-      size = new THREE.Vector3(sx, sy, sz);
     }
-    glowMat = sampleSurface(o.geometry, source, toGrid, cells, glowCells);
-    if (cells.size) o.add(cubes(cells, size, back, o.castShadow, voxMat));
-    const g = glowCubes(size, back); if (g) o.add(g);
+    glowMat = sampleSurface(o.geometry, source, toGrid, cells);
+    const unlit = new Map();
+    for (const [k, c] of cells) (c[7] && glowMat ? glowCells : unlit).set(k, c); // lit blocks follow the model's glow
+    if (unlit.size) o.add(cubes(cells, unlit, vary, back, o.castShadow, voxMat));
+    const g = glowCubes(back); if (g) o.add(g);
     o.material = Array.isArray(source) ? source.map(off) : off(source);
-    made = cells.size + glowCells.size;
+    made = cells.size;
   }
   o.userData.voxDone = true; o.userData.voxSig = sig(source); o.userData.voxS = S;
   tracked.add(o);
