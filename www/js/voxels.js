@@ -58,7 +58,15 @@ function plain(o) {
   if (!m || m.transparent || m.isMeshBasicMaterial || m.isShaderMaterial || m.isPointsMaterial || m.isLineBasicMaterial) return false;
   return !!o.geometry?.attributes?.position;
 }
-const sizeFor = o => { for (let p = o; p; p = p.parent) if (p.userData.voxSize) return p.userData.voxSize; return VOX.size; };
+// The block size for a mesh: set on it or a parent, or else half-size blocks when it is part of a model under about two
+// metres across (a person, a machine, a wheel), so faces, hands and knobs still read
+const modelBox = new THREE.Box3(), modelDims = new THREE.Vector3();
+const across = o => { if (o.userData.voxAcross === undefined) o.userData.voxAcross = modelBox.setFromObject(o).getSize(modelDims).length(); return o.userData.voxAcross; };
+function sizeFor(o) {
+  for (let p = o; p; p = p.parent) if (p.userData.voxSize) return p.userData.voxSize;
+  for (let p = o; p && !p.isScene; p = p.parent) { const a = across(p); if (a > 0 && a < VOX.size * 16) return VOX.size / 2; }
+  return VOX.size;
+}
 
 // ---------- Sampling a surface into cells ----------
 // toGrid takes a point from the mesh's geometry space into grid space (in voxels). Fills cells (and glow cells for
@@ -67,7 +75,7 @@ function sampleSurface(geom, material, toGrid, cells, glowCells, tint) {
   const pos = geom.attributes.position, uv = geom.attributes.uv, col = geom.attributes.color, idx = geom.index;
   const mats = Array.isArray(material) ? material : [material];
   const groups = geom.groups.length ? geom.groups : [{ start: 0, count: idx ? idx.count : pos.count, materialIndex: 0 }];
-  const ga = new THREE.Vector3(), gb = new THREE.Vector3(), gc = new THREE.Vector3(), p = new THREE.Vector3();
+  const ga = new THREE.Vector3(), gb = new THREE.Vector3(), gc = new THREE.Vector3(), p = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
   let glowMat = null;
   for (const gr of groups) {
     const m = mats[gr.materialIndex] || mats[0];
@@ -82,6 +90,9 @@ function sampleSurface(geom, material, toGrid, cells, glowCells, tint) {
       const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
       toGrid(ga.fromBufferAttribute(pos, i0)); toGrid(gb.fromBufferAttribute(pos, i1)); toGrid(gc.fromBufferAttribute(pos, i2));
       const n = Math.min(400, Math.max(1, Math.ceil(Math.max(ga.distanceTo(gb), gb.distanceTo(gc), gc.distanceTo(ga)) * 2)));
+      // does this triangle face up or sideways (or show both sides)? Only those can be seen from the game's camera above
+      e1.subVectors(gb, ga); e2.subVectors(gc, ga); e1.cross(e2);
+      const seen = m.side === THREE.DoubleSide || e1.y > -0.3 * e1.length() ? 1 : 0;
       for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
         const u = i / n, v = j / n, w = 1 - u - v;
         p.set(ga.x * w + gb.x * u + gc.x * v, ga.y * w + gb.y * u + gc.y * v, ga.z * w + gb.z * u + gc.z * v);
@@ -93,11 +104,13 @@ function sampleSurface(geom, material, toGrid, cells, glowCells, tint) {
         if (glow && epx) { const k = texel(eTex, epx, tu, tv); glow = (epx.d[k] + epx.d[k + 1] + epx.d[k + 2]) > 180; }
         const target = glow ? glowCells : cells;
         let cell = target.get(key);
+        const fy = p.y - Math.floor(p.y); // how high up its cell this bit of surface is (0 bottom, 1 top)
+        if (cell) { if (fy < cell[4]) cell[4] = fy; if (fy > cell[5]) cell[5] = fy; cell[6] |= seen; }
         if (cell && cell[3] >= 4) continue;
         let r = base.r, g = base.g, b = base.b;
         if (col) { r *= col.getX(i0) * w + col.getX(i1) * u + col.getX(i2) * v; g *= col.getY(i0) * w + col.getY(i1) * u + col.getY(i2) * v; b *= col.getZ(i0) * w + col.getZ(i1) * u + col.getZ(i2) * v; }
         if (px) { const k = texel(tex, px, tu, tv); r *= lin(px.d[k]); g *= lin(px.d[k + 1]); b *= lin(px.d[k + 2]); }
-        if (!cell) { cell = [0, 0, 0, 0]; target.set(key, cell); }
+        if (!cell) { cell = [0, 0, 0, 0, fy, fy, seen]; target.set(key, cell); }
         cell[0] += r; cell[1] += g; cell[2] += b; cell[3]++;
       }
     }
@@ -121,14 +134,30 @@ function cubes(cells, size, fromGrid, castShadow, material) {
   const pos = [], nor = [], col = [], idx = [];
   const c = new THREE.Color(), p = new THREE.Vector3(), o = new THREE.Vector3(), n = new THREE.Vector3();
   const g0 = fromGrid(new THREE.Vector3(0, 0, 0)).clone(), gx = fromGrid(new THREE.Vector3(1, 0, 0)).clone().sub(g0), gy = fromGrid(new THREE.Vector3(0, 1, 0)).clone().sub(g0), gz = fromGrid(new THREE.Vector3(0, 0, 1)).clone().sub(g0);
+  // How much of its cell each block fills from bottom to top, in quarters. A block with nothing above it stops where
+  // the surface stops, and one with nothing below starts where it starts, so a kerb, a floor, a shelf or a tabletop is
+  // a slab of its real thickness rather than a whole cube taller (blocks stacked on blocks stay whole).
+  // Blocks made only from undersides (the bottom of a floor slab, a ceiling) are left out: the camera never sees them,
+  // and as solid blocks they'd show their tops, putting a lid over the basement when the shop is cut away
+  for (const [key, cell] of cells) if (!cell[6]) cells.delete(key);
+  const span = new Map();
   for (const [key, cell] of cells) {
     const [x, y, z] = unkey(key);
+    const up = cells.has(keyOf(x, y + 1, z)), down = cells.has(keyOf(x, y - 1, z));
+    let hi = up ? 1 : Math.min(1, Math.ceil(cell[5] * 4 - 1e-6) / 4), lo = down ? 0 : Math.max(0, Math.floor(cell[4] * 4 + 1e-6) / 4);
+    if (hi - lo < 0.25) { if (!down) lo = hi - 0.25; else hi = lo + 0.25; }
+    span.set(key, [lo, hi]);
+  }
+  for (const [key, cell] of cells) {
+    const [x, y, z] = unkey(key);
+    const [lo, hi] = span.get(key);
     cellColor(cell, key, c);
     for (const [[dx, dy, dz], corners, [nx, ny, nz]] of FACES) {
-      if (cells.has(keyOf(x + dx, y + dy, z + dz))) continue;
+      const nb = span.get(keyOf(x + dx, y + dy, z + dz));
+      if (nb && (dy !== 0 || (nb[0] <= lo && nb[1] >= hi))) continue; // hidden behind a neighbour that covers it
       const base = pos.length / 3;
       for (const [cx, cy, cz] of corners) {
-        p.copy(g0).addScaledVector(gx, x + cx).addScaledVector(gy, y + cy).addScaledVector(gz, z + cz);
+        p.copy(g0).addScaledVector(gx, x + cx).addScaledVector(gy, y + (cy ? hi : lo)).addScaledVector(gz, z + cz);
         pos.push(p.x, p.y, p.z); col.push(c.r, c.g, c.b);
       }
       n.copy(gx).multiplyScalar(nx).addScaledVector(gy, ny).addScaledVector(gz, nz).normalize();
@@ -229,7 +258,7 @@ export function voxelize(o) {
     o.material = Array.isArray(source) ? source.map(off) : off(source);
     made = cells.size + glowCells.size;
   }
-  o.userData.voxDone = true; o.userData.voxSig = sig(source);
+  o.userData.voxDone = true; o.userData.voxSig = sig(source); o.userData.voxS = S;
   tracked.add(o);
   return made;
 }

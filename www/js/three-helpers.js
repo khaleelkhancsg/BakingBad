@@ -311,10 +311,16 @@ export function mergeStatic(root) {
   const toRoot = root.matrixWorld.clone().invert(), rel = new THREE.Matrix4();
   const buckets = new Map();
   const merged = [];
+  const box = new THREE.Box3(), dims = new THREE.Vector3();
   root.traverse(o => {
     if (!o.isMesh || o.isInstancedMesh || Array.isArray(o.material) || o.userData.keep) return;
-    const key = o.material.uuid + (o.castShadow ? '|s' : '|n');
-    if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, geos: [] });
+    // Voxels: small things (a lamp, a flower, a handle) get finer blocks than the grid round them (halves, so the grids
+    // still line up), at least about five across
+    let vs = 0.125; for (let p = o; p; p = p.parent) if (p.userData.voxSize) { vs = p.userData.voxSize; break; }
+    const big = box.setFromObject(o).getSize(dims).length();
+    while (big < vs * 5 && vs / 2 >= 0.06) vs /= 2;
+    const key = o.material.uuid + (o.castShadow ? '|s' : '|n') + vs;
+    if (!buckets.has(key)) buckets.set(key, { material: o.material, cast: o.castShadow, geos: [], vs });
     const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(rel.multiplyMatrices(toRoot, o.matrixWorld));
     for (const name of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(name)) g.deleteAttribute(name);
     if (!g.attributes.uv) g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
@@ -326,7 +332,7 @@ export function mergeStatic(root) {
   for (const b of buckets.values()) {
     const m = new THREE.Mesh(mergeGeometries(b.geos, false), b.material);
     m.castShadow = b.cast; m.receiveShadow = true;
-    m.userData.voxStatic = true; // never moves: voxelised on the world's grid
+    m.userData.voxStatic = true; m.userData.voxSize = b.vs; // never moves: voxelised on the world's grid
     root.add(m);
   }
   return root;

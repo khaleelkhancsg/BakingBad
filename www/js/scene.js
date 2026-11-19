@@ -1192,6 +1192,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       leaf.add(face); leaf.position.z = sgn * 0.09; ab.add(leaf);
     }
     ab.position.set(5.5, -0.09, 4.95); ab.rotation.y = PI / 4; statics.add(ab);
+    ab.traverse(o => { o.userData.keep = true; o.userData.voxKeep = true; }); // its chalk lettering stays readable
   }
   // The shop's street lamp, by the kerb next to the doorway
   statics.add(cyl(0.05, 0.08, 2.9, '#2b2d36', 9.15, -0.09, 2.95, 10));
@@ -1938,14 +1939,14 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     const bg = S?.bg || shade(P.color, 0.7), fg = S?.fg || P.trim;
     const ftex = canvasTex(512, 40, (c, w, h) => { c.fillStyle = bg; c.fillRect(0, 0, w, h); if (S?.glow) { c.shadowColor = fg; c.shadowBlur = 12; } c.fillStyle = fg; c.font = `bold 28px ${o.sign === 'gold' ? 'Georgia, serif' : o.sign === 'neon' ? '"Trebuchet MS", sans-serif' : 'Georgia, serif'}`; c.textAlign = 'center'; c.fillText(text, w / 2, 30); });
     const fasciaM = sm('#ffffff', S?.glow ? { map: ftex, emissive: '#ffffff', emissiveMap: ftex, emissiveIntensity: 0.9 } : { map: ftex });
-    shellGroup.add(mesh(sg(new THREE.PlaneGeometry(6.6, 0.5)), fasciaM, 0, 2.62, 4.84, false));
+    shellGroup.add(mesh(sg(new THREE.PlaneGeometry(6.6, 0.5)), fasciaM, 0, 2.62, 4.84, false)); shellGroup.children.at(-1).userData.voxKeep = true; // the name stays readable
     sb(6.8, 0.07, 0.12, frameM, 0, 2.33, 4.82); sb(6.8, 0.07, 0.12, frameM, 0, 2.86, 4.82);
     // A hanging blade sign on the corner, once there's a sign
     if (S?.bg) {
       sb(0.05, 0.05, 0.7, darkM, 4.9, 2.45, 5.1);
       const bt = canvasTex(128, 128, (c, w, h) => { c.fillStyle = S.bg; c.fillRect(0, 0, w, h); c.fillStyle = S.fg; c.font = '72px "Segoe UI Emoji", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🥐', w / 2, h / 2 + 4); });
       const blade = mesh(sg(new THREE.BoxGeometry(0.04, 0.55, 0.55)), sm('#ffffff', S.glow ? { map: bt, emissive: '#ffffff', emissiveMap: bt, emissiveIntensity: 0.8 } : { map: bt }), 4.9, 2.12, 5.25, false);
-      shellGroup.add(blade);
+      blade.userData.voxKeep = true; shellGroup.add(blade);
     }
     // The front awning (deeper once the front terrace is yours), with a valance; a matching one over the side window
     if (awnM) {
