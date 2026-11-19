@@ -3,7 +3,7 @@
 // repeated things (trees, flowers, grass, bushes, pickets) drawn as instanced batches.
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, RETRO, crisp } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, RETRO, crisp, lumpy, surface, relief } from './three-helpers.js';
 import { loadCarModels, buildCar } from './carModels.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
@@ -260,11 +260,11 @@ export function buildWorld(scene) {
     [-38, 13.5], [-30.5, 14.2], [-21, 14.4], [-0.5, 14.6], [21, 14.4], [27.5, 14], [-40, -28], [30, -16], [-32, -8], [5, 23], [-12, 23.5], [-30, 23], [20, 23]]
     .map(([x, z]) => ({ x, z, s: 0.85 + rand() * 0.45, ry: rand() * PI }));
   const at = t => ({ x: shiftX(t.x), z: shiftZ(t.z) });
-  const leafy = smat({ color: '#ffffff', roughness: 0.85, flatShading: true });
+  const leafy = relief(smat({ color: '#ffffff', roughness: 0.85, map: surface('leaf') }), 'leaf'); // leafy texture with a bit of relief
   // Street trees on the pavement get a tree pit and a grate
   for (const t of TREES) if (PAVEMENTS.some(p => inside(p, at(t).x, at(t).z))) { root.add(box(0.9, 0.02, 0.9, '#5a4632', t.x, -0.085, t.z, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z + 0.45, false)); root.add(box(0.95, 0.03, 0.08, '#3a3d44', t.x, -0.08, t.z - 0.45, false)); }
   instanced(geo('trunk', () => new THREE.CylinderGeometry(0.1, 0.15, 1.3, 6).translate(0, 0.65, 0)), mat('#7a5534'), TREES.map(t => ({ ...t, y: -0.09 })), { shadow: true });
-  const canopyGeo = geo('canopy', () => new THREE.IcosahedronGeometry(0.85, 0));
+  const canopyGeo = geo('canopy', () => lumpy(0.85, 2)); // smooth and lumpy, not faceted
   const greens = ['#5f9e4f', '#4f8f48', '#6aab57', '#7bb661', '#4b8a52'];
   instanced(canopyGeo, leafy, TREES.map((t, i) => ({ x: t.x, z: t.z, y: 1.75 * t.s, s: t.s, sy: t.s * 1.05, ry: t.ry, c: greens[i % 5] })), { shadow: true, colors: greens });
   instanced(canopyGeo, leafy, TREES.map((t, i) => ({ x: t.x + 0.35 * t.s, z: t.z - 0.25 * t.s, y: 2.35 * t.s, s: t.s * 0.6, ry: t.ry + 1, c: greens[(i + 2) % 5] })), { shadow: true, colors: greens });
@@ -273,7 +273,7 @@ export function buildWorld(scene) {
   for (let x = -13.5; x < 6.5; x += 0.62) if (x < -6.8 || x > -5.4) BUSHES.push({ x, z: 12.95, s: 0.42 + rand() * 0.1, ry: rand() * PI });
   for (let z = -4.2; z < 4.6; z += 0.62) BUSHES.push({ x: -14.7, z, s: 0.36 + rand() * 0.08, ry: rand() * PI });
   for (const [x, z] of [[-17.2, -2.0], [-24.9, 2.35], [-19.6, 2.6], [-26.2, -0.6], [12.4, 13.1], [-1, -4.95], [3.2, -4.95], [-7.4, -4.95]]) BUSHES.push({ x, z, s: 0.5 + rand() * 0.2, ry: rand() * PI });
-  instanced(geo('bush', () => new THREE.IcosahedronGeometry(1, 0)), leafy, BUSHES.map((b, i) => ({ ...b, y: b.s * 0.55, sy: b.s * 0.8, c: ['#4f8f48', '#5a9a50', '#467f42'][i % 3] })), { shadow: true, colors: ['#4f8f48'] });
+  instanced(geo('bush', () => lumpy(1, 7, 0.1, 2)), leafy, BUSHES.map((b, i) => ({ ...b, y: b.s * 0.55, sy: b.s * 0.8, c: ['#4f8f48', '#5a9a50', '#467f42'][i % 3] })), { shadow: true, colors: ['#4f8f48'] });
   // Flowers in the beds
   const FLOWERS = [];
   const petals = ['#ff7eb6', '#ffd447', '#ffffff', '#b58cff', '#ff5d6c', '#ff9a5c'];

@@ -3,7 +3,8 @@
 import * as THREE from 'three';
 import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, BASEMENT_X } from './data.js';
 import * as G from './game.js';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, tmat, worldUV, surfaceTiled, setRetro, RETRO, crisp } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, tmat, worldUV, surfaceTiled, setRetro, RETRO, crisp, lumpy } from './three-helpers.js';
+import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { buildWorld } from './world.js';
 import { foodModel } from './food.js';
@@ -755,12 +756,15 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   const RETRO_LINES = 270;
   if (retro) canvas.style.imageRendering = 'pixelated';
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap; // soft-edged shadows
   renderer.shadowMap.autoUpdate = false; // redrawn every other frame in frame()
   renderer.toneMapping = THREE.NeutralToneMapping; // keeps the pastel colours, softens hot spots
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#4a3e64');
+  // Soft light from a simple room all round: surfaces pick up gentle shading and the odd soft reflection, instead of
+  // flat colour. Dimmed at night (applyLights) so the evening keeps its mood.
+  { const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); }
 
   const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 300);
   const DIR = V3(1, 1.15, 1).normalize();
@@ -1339,8 +1343,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       for (const [dx, dy, dz, r] of [[0, 0.55, 0, 0.26], [0.12, 0.72, 0.05, 0.18], [-0.12, 0.68, -0.06, 0.2]]) g.add(sphere(r, tmat('#4f9a5a', 'leaf'), dx, dy, dz));
     } else if (type === 'ficus') {
       g.add(cyl(0.22, 0.17, 0.4, '#e8e2d6', 0, 0, 0, 12)); g.add(cyl(0.04, 0.05, 0.85, tmat('#7a5534', 'bark'), 0, 0.4, 0, 6));
-      const c1 = mesh(geo('ico45', () => new THREE.IcosahedronGeometry(0.45, 0)), tmat('#4f8f48', 'leaf', { flatShading: true }), 0, 1.4, 0); g.add(c1);
-      g.add(mesh(geo('ico3', () => new THREE.IcosahedronGeometry(0.3, 0)), tmat('#6aab57', 'leaf', { flatShading: true }), 0.18, 1.05, 0.1));
+      const c1 = mesh(geo('lumpy45', () => lumpy(0.45, 3)), tmat('#4f8f48', 'leaf'), 0, 1.4, 0); g.add(c1);
+      g.add(mesh(geo('lumpy3', () => lumpy(0.3, 5)), tmat('#6aab57', 'leaf'), 0.18, 1.05, 0.1));
     } else if (type === 'flowers') {
       g.add(cyl(0.12, 0.16, 0.6, '#f4f0e8', 0, 0, 0, 10)); g.add(cyl(0.12, 0.09, 0.25, '#4f9de8', 0, 0.6, 0, 10));
       for (const [dx, dz, c] of [[0, 0, '#ff7eb6'], [0.1, 0.06, '#ffd447'], [-0.09, 0.05, '#ffffff'], [0.03, -0.1, '#ff5d6c'], [-0.06, -0.06, '#b58cff']]) g.add(sphere(0.07, c, dx, 0.95 + Math.abs(dx) * 0.5, dz));
@@ -3021,6 +3025,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     cur.hemiCC.lerp(new THREE.Color(L.hemiC), k);
     cur.sunCC.lerp(new THREE.Color(L.sunC), k);
     hemi.intensity = cur.hemi; hemi.color.copy(cur.hemiCC);
+    scene.environmentIntensity = 0.16 - 0.1 * cur.nightK; // just a touch: enough for soft sheen and depth, not a wash
     sun.intensity = cur.sun; sun.color.copy(cur.sunCC);
     if (view.light === 'day') {
       const c = frac < 0.5 ? SUN_MORNING.clone().lerp(SUN_NOON, frac * 2) : SUN_NOON.clone().lerp(SUN_LATE, (frac - 0.5) * 2);

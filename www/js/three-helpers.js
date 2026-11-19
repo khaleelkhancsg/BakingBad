@@ -1,7 +1,7 @@
 // Shared helpers for building low-poly scenery from simple shapes, with cached geometry and materials.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
-import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from '../vendor/BufferGeometryUtils.js';
 
 export const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 export const PI = Math.PI;
@@ -16,14 +16,38 @@ export function mat(color, o = {}) {
   if (!matCache.has(key)) matCache.set(key, smat({ color, roughness: 0.8, ...o }));
   return matCache.get(key);
 }
-// Cheap materials for a low-poly look: Lambert for almost everything, Phong (a little shine) for glass,
-// metal, water and car paint. Accepts the same roughness/metalness hints as a standard material.
+// Physically based materials, lit by the soft room light the scene gives off (see createScene), so wood, tile, brick and
+// cloth read as what they are rather than as moulded plastic. Matte things are made a touch rougher still; metal, glass,
+// water and car paint keep their shine.
 export function smat(p = {}) {
-  const { roughness = 0.8, metalness = 0, ...rest } = p;
-  if (metalness >= 0.3 || roughness <= 0.3) {
-    return new THREE.MeshPhongMaterial({ shininess: Math.round((1 - roughness) * 70) + 15, specular: new THREE.Color(metalness >= 0.3 ? 0x555555 : 0x333333), ...rest });
+  const { roughness = 0.8, metalness = 0, shininess, specular, ...rest } = p; // (shininess/specular were for Phong)
+  return new THREE.MeshStandardMaterial({ roughness: roughness >= 0.5 ? Math.min(1, roughness + 0.12) : roughness, metalness, ...rest });
+}
+// How much each surface's texture stands out as relief (grain, mortar, grout, weave) when light rakes across it
+const RELIEF = { wood: 0.35, boards: 0.5, bark: 1.1, brick: 1.0, block: 0.8, stone: 0.8, concrete: 0.5, plaster: 0.3, tiles: 0.6,
+  leaf: 1.1, fabric: 0.6, fur: 0.8, foam: 0.5, card: 0.4, metal: 0.15, plate: 0.3, rubber: 0.5, epoxy: 0.1, glowgrid: 0,
+  leafgold: 0.25, velvet: 0.5 };
+export function relief(m, kind) {
+  const k = RELIEF[kind] ?? 0.5;
+  if (k > 0) { m.bumpMap = surface(kind); m.bumpScale = k; m.needsUpdate = true; }
+  return m;
+}
+// A smooth, gently lumpy ball (a tree's canopy, a bush): no flat facets, with a texture wrapped round it
+export function lumpy(r = 1, seed = 1, amount = 0.13, detail = 3) {
+  let g = new THREE.IcosahedronGeometry(r, detail);
+  g.deleteAttribute('normal'); g.deleteAttribute('uv');
+  g = mergeVertices(g);
+  const p = g.attributes.position, v = new THREE.Vector3(), uv = new Float32Array(p.count * 2);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    const n = Math.sin(v.x * 3.1 / r + seed) * Math.sin(v.y * 2.7 / r + seed * 1.7) * Math.sin(v.z * 3.4 / r + seed * 0.6) + 0.35 * Math.sin((v.x + v.z) * 6.3 / r + seed);
+    v.multiplyScalar(1 + amount * n);
+    p.setXYZ(i, v.x, v.y, v.z);
+    uv[i * 2] = (Math.atan2(v.z, v.x) / (2 * Math.PI) + 0.5) * 3; uv[i * 2 + 1] = (v.y / r * 0.5 + 0.5) * 2;
   }
-  return new THREE.MeshLambertMaterial(rest);
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  return g;
 }
 export function mesh(g, m, x = 0, y = 0, z = 0, cast = true) {
   const me = new THREE.Mesh(g, m);
@@ -221,7 +245,7 @@ export function surfaceTiled(kind, per = 1) {
 // A material with a chosen surface, shared like mat()
 export function tmat(color, kind, o = {}) {
   const key = 't|' + kind + color + JSON.stringify(o);
-  if (!matCache.has(key)) { const m = smat({ color, roughness: 0.8, ...o }); m.map = surface(kind); m.userData.surface = kind; matCache.set(key, m); }
+  if (!matCache.has(key)) { const m = smat({ color, roughness: 0.8, ...o }); m.map = surface(kind); relief(m, kind); m.userData.surface = kind; matCache.set(key, m); }
   return matCache.get(key);
 }
 // Give boxes and planes UVs in metres, projected from whichever way each face points, so a texture keeps its scale
@@ -249,12 +273,13 @@ export function worldUV(root, test) {
 }
 const texMatCache = new Map(), _hsl = {};
 function surfaceFor(m) {
-  if (!m || m.map || m.transparent || !m.color || !(m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return null;
+  if (!m || m.map || m.transparent || !m.color || !(m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return null;
+  const shiny = m.isMeshPhongMaterial || (m.isMeshStandardMaterial && (m.metalness >= 0.3 || m.roughness <= 0.3));
   if (m.userData.surface) return m.userData.surface === 'none' ? null : m.userData.surface;
   if (m.emissive && m.emissive.r + m.emissive.g + m.emissive.b > 0.05) return null; // lights, screens and signs
   m.color.getHSL(_hsl);
   const { h, s, l } = _hsl;
-  if (m.isMeshPhongMaterial) return s < 0.18 && l > 0.25 ? 'metal' : null;
+  if (shiny) return s < 0.18 && l > 0.25 ? 'metal' : null;
   if (h >= 0.03 && h <= 0.13 && s >= 0.25 && l >= 0.18 && l <= 0.55) return 'wood';
   if (h >= 0.07 && h <= 0.15 && s >= 0.2 && s <= 0.6 && l > 0.55 && l <= 0.8) return 'card';
   if (h >= 0.2 && h <= 0.45 && s >= 0.25 && l >= 0.2 && l <= 0.6) return 'leaf';
@@ -269,7 +294,7 @@ export function texturize(root) {
       const kind = surfaceFor(o.material);
       if (kind) {
         const key = o.material.uuid + kind;
-        if (!texMatCache.has(key)) { const m = o.material.clone(); m.map = surface(kind); m.needsUpdate = true; texMatCache.set(key, m); }
+        if (!texMatCache.has(key)) { const m = o.material.clone(); m.map = surface(kind); relief(m, kind); m.needsUpdate = true; texMatCache.set(key, m); }
         o.material = texMatCache.get(key);
       }
     }
