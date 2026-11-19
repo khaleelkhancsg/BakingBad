@@ -14,8 +14,8 @@ const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 const CHECKINS = [8, 12.5, 17.5, 21.5];
 const STRATS = {
   honest:  { crook: false, declare: 'full' },
-  careful: { crook: true, declare: 'most', coolAt: 40, bribeAt: 45, serveHinted: false, launder: 1.0 },
-  greedy:  { crook: true, declare: 'half', coolAt: 75, bribeAt: 65, serveHinted: true, launder: 1.3 },
+  careful: { crook: true, declare: 'most', coolAt: 40, bribeAt: 45, serveHinted: false, launder: 1.0, crewHeat: 50 },
+  greedy:  { crook: true, declare: 'half', coolAt: 75, bribeAt: 65, serveHinted: true, launder: 1.3, crewHeat: 80 },
 };
 
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -58,6 +58,7 @@ function placeSomeDecor(s) {
 
 function checkIn(s, st, t, next) {
   if (s.offerPending) G.answerOffer(s, st.crook);
+  if (st.crewHeat) G.setCrewHeat(s, st.crewHeat);
   G.setDeclare(s, st.declare);
   for (const o of [...s.orders]) G.deliverOrder(s, o.id, t, true);
   if (s.hmrc > 1) G.payHmrc(s);

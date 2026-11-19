@@ -19,7 +19,7 @@ export const CFG = {
   // Night trade: buyers come to the back door between nightStart and nightEnd (local hours)
   nightStart: 18, nightEnd: 7, buyersPerHour: 4, buyersGrow: 0.4, buyersMax: 14, buyersMaxPerLevel: 0.6, buyerPatienceMin: 3,
   dealerCut: 0.2, streetMult: 1, stockedPull: 5, swapChance: 0.5,
-  copBase: 0.03, copPerHeat: 1 / 500, copServedHeat: 15, copCrewHeat: 5, heatPerBag: 0.05,
+  copBase: 0.03, copPerHeat: 1 / 800, copServedHeat: 15, copCrewHeat: 4, heatPerBag: 0.05,
   heatDecayPerHour: 0.25, heatCoolPerLevel: 0.02, lieLowPerHour: 0.25, lieLowAfterHours: 12,
   raidAt: 60, inspectAt: 35, inspectChance: 0.2, inspectFine: 800,
   dealerArrestPerNight: 0.03, dealerArrestPerHeat: 1 / 400, dealerArrestHeat: 20,
@@ -33,7 +33,7 @@ export const CFG = {
   heaviesBase: 0.35, heaviesPerMiss: 0.1, heaviesMax: 0.6, heaviesCooldownDays: 3, heaviesPop: 5, prHeaviesPop: 2,
   tillTake: 0.15, repairShare: 0.3,
   bustFineClean: 1000, bustFineDirty: 0.3, bustSealHours: 72, bustHeat: 45, bustPop: 30, prBustPop: 12, bustCrewQuit: 0.5,
-  scandalHours: 96, scandalMult: 0.7, prScandalMult: 0.85, missPop: 5, prPopPerDay: 1.5,
+  scandalHours: 48, scandalMult: 0.7, prScandalMult: 0.85, missPop: 5, prPopPerDay: 1.5,
   campaignMax: 0.8, restructureFee: 0.1, restructureEveryDays: 30, loanFee: 0.2, loanEveryDays: 7,
   // Catch-up: how far back the game will simulate when you return (beyond this, time is skipped)
   maxCatchUpDays: 14,
@@ -131,11 +131,11 @@ export const INSURANCE = {
 export const RIVAL = { name: 'Crumbs & Co', level: 12, pop: 65, chance: 0.1, start: 0.12, grow: 0.01, max: 0.35, campaignHit: 0.04, lowPriceHit: 0.015,
   buyoutBase: 40000, buyoutPerLevel: 4000, closedDays: 30 };
 // The detective building a case. Evidence comes from seizures, stings, informants and unexplained money; at 100 it goes to court.
-export const CASE = { detective: 'DI Harrow', decay: 2.5, decayBusy: 1.2, doorCop: 1, stages: [25, 50, 75],
-  sting: 6, seizure: 7, riderStop: 2, sweep: 3, informant: 10, hmrc: 6, raid: 4, bust: 10,
+export const CASE = { detective: 'DI Harrow', decay: 4, decayBusy: 2.5, doorCop: 1, stages: [25, 50, 75],
+  sting: 6, seizure: 5, riderStop: 2, sweep: 3, informant: 10, hmrc: 6, raid: 4, bust: 10,
   bribeBase: 2000, bribePerLevel: 300, bribeCut: 30, bribeFail: 0.3, bribeBack: 20,
   frameBase: 5000, framePerLevel: 500, frameCut: 45, frameFail: 0.4, frameBack: 25,
-  courtSealDays: 7, courtClean: 0.25, courtCapPerLevel: 5000, courtDirty: 0.5, courtPop: 25, after: 0 };
+  courtSealDays: 7, courtClean: 0.25, courtCapPerLevel: 3000, courtDirty: 0.5, courtPop: 25, courtScandalDays: 3, after: 0 };
 // Crew loyalty: paid crew warm up over time; disloyal night crew may talk
 export const LOYALTY = { start: [55, 80], perDay: 1, informAt: 30, informChance: 0.05, bonusGain: 15, bailBase: 500, bailPerLevel: 60 };
 // Weekly black-market auction of rare kits (rare products can't be bought from Dez any other way)
@@ -1115,7 +1115,7 @@ export const TRAITS = {
   chatty:  { name: 'Chatty', emoji: '💬', desc: 'Customers love them (day crew: +5% customers), but they talk: they turn informant more easily.' },
   sharp:   { name: 'Sharp', emoji: '🦊', desc: 'Day crew collect batches perfectly half the time; night crew get 10% better prices.' },
 };
-export const INFORMANT = { at: 30, chattyAt: 45, chance: 0.08, perDay: 4, clearAt: 60 };
+export const INFORMANT = { at: 30, chattyAt: 45, chance: 0.08, perDay: 2, clearAt: 50, maxDays: 10 }; // an informant runs out of things to tell after maxDays
 
 // ---------- Crumbs & Co fights back ----------
 export const RIVAL_MOVES = { chance: 0.25, priceWarDays: 2, priceWarHit: 0.25, poachRaise: 0.15, leanCost: 3000, leanShare: 0.08, leanHeat: 8, leanEvidence: 5 };

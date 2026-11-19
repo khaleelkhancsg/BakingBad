@@ -132,11 +132,33 @@ export function prestigeReset(s, t = Date.now(), next = 'none') {
   pr.tokens = (pr.tokens || 0) + earned; pr.total = (pr.total || 0) + earned; pr.resets = (pr.resets || 0) + 1;
   pr.best = Math.max(pr.best || 0, netWorth(s));
   const n = newGame(t, pr);
+  keepThroughPrestige(s, n);
   n.challenge = CHALLENGES[next] ? next : 'none';
   if (n.challenge === 'bigdebt') n.balance *= 2;
   if (n.challenge === 'nolab') { n.labUnlocked = false; n.offerPending = false; n.offerAfter = Infinity; for (const x of n.shops) x.lab = []; }
   n.feed.push({ t, text: `⭐ A fresh start. ${earned} prestige tokens earned (${pr.tokens} to spend in Bank & tax).`, kind: 'good' });
   return n;
+}
+// What a fresh start keeps: the story so far (and how everyone sees you), so it carries on instead of starting over;
+// the collection and the recipes you've mastered; and the look of Rosa's bakery (floors, walls, wall art, the
+// decorations inside, the outside and the back room). The business itself (cash, shops, machines, terraces) starts again.
+function keepThroughPrestige(s, n) {
+  const copy = x => (x == null ? x : JSON.parse(JSON.stringify(x)));
+  if (s.story) { n.story = copy(s.story); n.story.queue = []; }
+  n.collect = copy(s.collect) || {};
+  n.mastery = copy(s.mastery) || {};
+  n.honest.awards = copy(s.honest?.awards) || {};
+  n.stats.perfect = s.stats?.perfect || 0;
+  const old = s.shops?.[0]?.design, d = n.shops[0].design;
+  if (!old) return;
+  const inside = key => { const [cx, cz] = key.split(',').map(Number); return cx <= 8 && cz <= 8; };
+  d.floor = Object.fromEntries(Object.entries(old.floor || {}).filter(([k]) => inside(k)));
+  d.wall = copy(old.wall) || {}; d.art = copy(old.art) || {};
+  if (old.base) d.base = copy(old.base);
+  d.decor = (old.decor || []).filter(it => it.cx <= 8 && it.cz <= 8).map(copy);
+  if (old.outside) d.outside = copy(old.outside);
+  if (old.back) d.back = { floor: old.back.floor, wall: old.back.wall, decor: [] }; // basement decor waits for the basement to be dug again
+  fixLayout(n); // anything that would now stand in the way comes down
 }
 // The perks you own shape the fresh start
 function applyPerks(s) {
@@ -187,7 +209,7 @@ function resolveDecision(s, d, yes, t, auto) {
       return note(s, `⚖️ You paid ${d.who}'s bail (£${d.cost.toLocaleString('en-GB')}). The crew notice you look after your own.`, 'good', t);
     }
     s.heat = clamp(s.heat - 5, 0, 100);
-    for (const r of nightCrew) staffOf(s, r).loyalty = Math.max(0, staffOf(s, r).loyalty - 10);
+    for (const r of nightCrew) staffOf(s, r).loyalty = Math.max(0, staffOf(s, r).loyalty - (auto ? 3 : 10)); // (not answering in time stings less than choosing to)
     return note(s, `⚖️ You cut ${d.who} loose${auto ? ' (no answer in time)' : ''}. Heat -5, but the crew don't like it.`, 'meh', t);
   }
   const c = d.kind;
@@ -308,7 +330,7 @@ function courtCase(s, t) {
   for (const x of s.shops) { for (const m of x.lab) m.job = null; x.door = []; x.stock = {}; }
   s.sealedUntil = Math.max(s.sealedUntil, t + CASE.courtSealDays * (lawyer ? 0.5 : 1) * DAY);
   s.rep = clamp(s.rep - CASE.courtPop * half, 0, 100);
-  s.scandalUntil = Math.max(s.scandalUntil, t + 7 * DAY);
+  s.scandalUntil = Math.max(s.scandalUntil, t + CASE.courtScandalDays * DAY);
   const gone = [];
   if (!lawyer) for (const r of Object.keys(CREW)) if (CREW[r].shift === 'night' && s.crew[r] && rand() < 0.6) { s.crew[r] = false; gone.push(CREW[r].name); }
   s.case.evidence = CASE.after; s.case.trials = (s.case.trials || 0) + 1; s.stats.busts++;
@@ -426,11 +448,16 @@ function reportCard(s, est) {
 
 // ---------- Small state helpers ----------
 export const has = (s, id) => !!s.upgrades[id];
+// While the game plays time forward (advance), the answers are remembered: it asks thousands of times a minute and
+// nothing it owns changes unless something's bought (which clears them)
+let effMemo = null;
 export function eff(s, key) { // the sum of every owned upgrade's and property's effect called key
+  if (effMemo && effMemo.has(key)) return effMemo.get(key);
   let v = 0;
   for (const u of UPGRADES) if (s.upgrades[u.id] && u.eff[key]) v += u.eff[key];
   for (const [id, p] of Object.entries(PROPERTY)) if (s.property?.[id] && p.eff[key]) v += p.eff[key];
   for (const [id, p] of Object.entries(LANDMARKS)) if (s.landmarks?.[id] && p.eff[key]) v += p.eff[key];
+  if (effMemo) effMemo.set(key, v);
   return v;
 }
 // ---------- Landmarks and the investment fund ----------
@@ -440,7 +467,7 @@ export function buyLandmark(s, id) {
   if (!unlocked(s, L.level)) return say(`${L.name} comes at level ${L.level}.`, 'bad');
   if (s.clean < L.price) return say('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - L.price); s.today.capex += L.price;
-  (s.landmarks ||= {})[id] = true;
+  (s.landmarks ||= {})[id] = true; effMemo?.clear();
   say(`${L.emoji} ${L.name}: done. ${L.desc}`, 'good');
 }
 export function invest(s, amount) {
@@ -528,7 +555,13 @@ export function settleCounters(s) {
 // After a sale: a counter frees up when its product sells out, or when one of its several counters empties
 function afterSale(s, id) {
   const l = counterList(s);
-  if (!(s.display[id] > 0) || l.indexOf(id) !== l.lastIndexOf(id)) settleCounters(s);
+  if (!(s.display[id] > 0)) return settleCounters(s);
+  const last = l.lastIndexOf(id);
+  if (l.indexOf(id) === last) return;
+  // several counters: only when what's left fits on the others does the last one empty and go free
+  let others = 0;
+  for (let k = 0; k < last; k++) if (l[k] === id) others += oneCounterCap(s, id, k);
+  if (s.display[id] <= others) settleCounters(s);
 }
 // Throw a product away: all of it, and its counters go free
 export function throwAway(s, id) {
@@ -1017,7 +1050,7 @@ function runCorners(s, t0, t1, mins) {
     if (s.crew.runner && k.stock < CORNERS[id].cap / 2 && (s.bags[k.product] || 0) > 0) {
       const n = Math.min(s.bags[k.product], CORNERS[id].cap - k.stock); s.bags[k.product] -= n; k.stock += n;
     }
-    if (k.stock <= 0) continue;
+    if (k.stock <= 0 || crewPaused(s)) continue;
     k.acc += cornerRate(s, id, t0) * mins / 60;
     const n = Math.min(k.stock, Math.floor(k.acc));
     if (n < 1) continue;
@@ -1099,7 +1132,7 @@ export function buyUpgrade(s, id) {
   if (!unlocked(s, u.level)) return say(`${u.name} unlocks at level ${u.level}.`, 'bad');
   if (s[u.cash] < u.cost) return say(`Not enough ${u.cash} cash.`, 'bad');
   s[u.cash] = round2(s[u.cash] - u.cost);
-  s.upgrades[u.id] = true;
+  s.upgrades[u.id] = true; effMemo?.clear();
   if (u.cash === 'clean') s.today.upgradesSpent += u.cost;
   say(`Bought: ${u.name}`, 'good');
 }
@@ -1110,7 +1143,7 @@ export function buyProperty(s, id) {
   if (p.afterDebt && !s.won) return say('The bank holds the deeds until the debt is cleared.', 'bad');
   if (s.clean < p.price) return say('Not enough clean cash.', 'bad');
   s.clean = round2(s.clean - p.price);
-  s.property[id] = true;
+  s.property[id] = true; effMemo?.clear();
   say(`${p.emoji} ${p.name}: done. It's yours.`, 'good');
 }
 
@@ -1210,7 +1243,7 @@ function buyerArrives(s, t) {
   const hint = (has(s, 'camera') && (cop ? rand() < 0.5 : rand() < 0.05)) || (s.crew.lookout && (cop ? rand() < CFG.lookoutCatch : rand() < CFG.lookoutFalse));
   const pr = PRODUCTS[product].price;
   const want = pr <= 20 ? 2 + Math.floor(rand() * 5) : pr <= 60 ? 1 + Math.floor(rand() * 3) : pr <= 250 ? 1 + (rand() < 0.4 ? 1 : 0) : 1;
-  if (s.delivery.on && ridersFree(s) > 0) {
+  if (s.delivery.on && ridersFree(s) > 0 && !crewPaused(s)) {
     const vetted = cop && rand() > DELIVERY.copMult; // most officers don't get past a phone call
     if (vetted) { s.today.copsTurned++; return; }
     s.deliveries.push({ id: s.nextId++, name: pick(BUYER_NAMES), product, cop, want, done: t + DELIVERY.minutes * MIN });
@@ -1271,7 +1304,14 @@ export function turnAway(s, id) {
   if (b.cop) s.today.copsTurned++; else s.today.buyersTurned++;
 }
 // Nobody served them in time: crew may step in, otherwise they leave.
+// The night crew's heat limit (a setting in Heat & police): above it Jay, Lena, the drivers, the corners and the
+// delivery riders stop selling until things cool down, so a night away can't run the heat up to a raid
+export const CREW_HEAT = { min: 30, max: 100, step: 10, start: 70 };
+export const crewHeatLimit = s => s.crewHeat ?? CREW_HEAT.start;
+export const crewPaused = s => crewHeatLimit(s) < CREW_HEAT.max && s.heat >= crewHeatLimit(s);
+export function setCrewHeat(s, v) { s.crewHeat = clamp(Math.round(v / CREW_HEAT.step) * CREW_HEAT.step, CREW_HEAT.min, CREW_HEAT.max); }
 function unattended(s, b, t) {
+  if (crewPaused(s)) { s.door = s.door.filter(x => x !== b); s.today.buyersLost++; return; } // lying low
   // Out of what they came for: the crew offers something else, and some take it
   if (!b.courier && !(s.bags[b.product] > 0) && (s.crew.host || s.crew.dealer) && rand() < CFG.swapChance) {
     const alt = {}; for (const id in s.bags) if (s.bags[id] > 0 && PRODUCTS[id]) alt[id] = PRODUCTS[id].share * (PRODUCTS[id].family === PRODUCTS[b.product].family ? 3 : 1);
@@ -1875,8 +1915,6 @@ export function newGame(t = Date.now(), prestige = null) {
   s.today = freshLedger(s, t);
   forecastPatrols(s, t);
   planRush(s, t);
-  if (s.invest > 0) { const gain = round2(s.invest * INVEST.daily); s.invest = round2(s.invest + gain); s.investEarned = round2((s.investEarned || 0) + gain); }
-  if (s.landmarks?.foundation) s.rep = Math.max(s.rep, 60);
   scheduleNight(s, t);
   return s;
 }
@@ -1965,6 +2003,7 @@ export function advance(s, now, { live: watching = false } = {}) {
   curSeason = seasonAt(s.last || now);
   if (!(now > s.last)) return;
   liveMode = watching;
+  effMemo = new Map();
   if (now - s.last > CFG.maxCatchUpDays * DAY) s.last = now - CFG.maxCatchUpDays * DAY;
   let t = s.last;
   while (t < now) {
@@ -1982,6 +2021,7 @@ export function advance(s, now, { live: watching = false } = {}) {
   checkMilestones(s, now);
   checkGoals(s, now);
   liveMode = false;
+  effMemo = null;
 }
 
 function span(s, t0, t1, showIt) {
@@ -2001,7 +2041,9 @@ function span(s, t0, t1, showIt) {
   if (s.hmrc > 0) s.hmrc += s.hmrc * TAX.interestDaily * mins / 1440;
 }
 function shopSpan(s, t0, t1, mins, showIt) {
-  settleCounters(s); // counters hold more after upgrades, cabinets and stars: a second counter may no longer be needed
+  // counters hold more after upgrades, cabinets and stars: a second counter may no longer be needed (checked every
+  // quarter of an hour; a sale, a batch and every return to the game check straight away)
+  if (Math.floor(t1 / MIN) % 15 === 0) settleCounters(s);
   // Kitchen: crew collect, food spoils if left too long
   s.machines.forEach((m, i) => {
     if (!m.job) { if (s.crew.chef && !m.broken && m.last) chefRestart(s, i, t1); return; }
@@ -2047,6 +2089,7 @@ function shared(s, t0, t1, mins) {
   const lyingLow = t1 - (s.lastLab || 0) > CFG.lieLowAfterHours * HOUR;
   s.heat = clamp(s.heat - (heatCool(s) * (s.crew.fixer ? 2 : 1) * backCool(s) + (lyingLow ? CFG.lieLowPerHour : 0)) * mins / 60, 0, 100);
   s.rep += (s.rep > CFG.popHome ? -1 : 1) * Math.min(Math.abs(s.rep - CFG.popHome), CFG.popDriftPerHour * mins / 60);
+  if (s.landmarks?.foundation && s.rep < 60) s.rep = 60; // the Rosa Foundation: popularity never falls below 60
   let popDay = s.crew.pr ? CFG.prPopPerDay : 0;
   for (const c of activeCampaigns(s, t0)) popDay += CAMPAIGNS[c.id].pop || 0;
   s.rep = clamp(s.rep + popDay * mins / 1440, 0, 100);
@@ -2098,7 +2141,7 @@ function bust(s, t, why) {
   s.heat = CFG.bustHeat;
   const pop = s.crew.pr ? CFG.prBustPop : CFG.bustPop;
   s.rep = clamp(s.rep - pop, 0, 100);
-  s.scandalUntil = Math.max(s.scandalUntil, t + (CFG.scandalHours - (s.crew.pr ? 48 : 0)) * HOUR);
+  s.scandalUntil = Math.max(s.scandalUntil, t + (CFG.scandalHours - (s.crew.pr ? 24 : 0)) * HOUR);
   const crew = [];
   if (!lawyer) {
     if (s.crew.dealer) { s.crew.dealer = false; crew.push('Jay was charged and is gone'); }
@@ -2158,6 +2201,8 @@ function rollover(s, t) {
   const rent = 0, dayWages = crewWages(s, 'day') + managerWages(s), income = eff(s, 'income'); // rent is monthly now (below)
   td.rent = rent; td.wages = dayWages; td.income = income;
   s.clean = round2(s.clean + income);
+  // The investment fund grows a little every morning
+  if (s.invest > 0) { const gain = round2(s.invest * INVEST.daily); s.invest = round2(s.invest + gain); s.investEarned = round2((s.investEarned || 0) + gain); td.fund = gain; }
   const bill = rent + dayWages;
   if (s.clean >= bill) s.clean = round2(s.clean - bill);
   else {
@@ -2284,7 +2329,9 @@ function rollover(s, t) {
     // An informant keeps feeding Harrow until loyalty is won back (or they're let go). You only learn who with a lawyer or a bent copper.
     const named = s.crew.lawyer || s.crew.copper;
     if (st.informant) {
-      if (st.loyalty >= INFORMANT.clearAt) { st.informant = false; note(s, `🤐 ${named ? CREW[r].name : 'Whoever it was'} has stopped talking to ${CASE.detective}.`, 'good', t); }
+      st.informDays = (st.informDays || 0) + 1;
+      if (st.loyalty >= INFORMANT.clearAt) { st.informant = false; st.informDays = 0; note(s, `🤐 ${named ? CREW[r].name : 'Whoever it was'} has stopped talking to ${CASE.detective}.`, 'good', t); }
+      else if (st.informDays > INFORMANT.maxDays) { st.informant = false; st.informDays = 0; note(s, `🤐 ${named ? CREW[r].name : 'The informant'} has told ${CASE.detective} all they know.`, 'info', t); }
       else addEvidence(s, INFORMANT.perDay, t);
     } else if (tr !== 'loyal' && st.loyalty < (tr === 'chatty' ? INFORMANT.chattyAt : INFORMANT.at) && rand() < INFORMANT.chance) {
       st.informant = true;

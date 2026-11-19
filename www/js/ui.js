@@ -393,6 +393,11 @@ function policeTab() {
     <span class="heat ${ev >= 60 ? 'hot' : ev >= 30 ? 'warm' : ''}"><span class="meter wide"><i style="width:${ev}%"></i></span></span>
     <div class="pbtns"><button class="small violet" data-act="case-bribe" ${s.dirty >= G.caseBribeCost(s) && ev > 0 ? '' : 'disabled'}>Bribe<small>${money(G.caseBribeCost(s))}</small></button>
       <button class="small violet" data-act="case-frame" ${s.dirty >= G.caseFrameCost(s) && ev > 0 ? '' : 'disabled'}>Frame rivals<small>${money(G.caseFrameCost(s))}</small></button></div>`, ibtn('case', 'x'), 'wide night');
+  {
+    const lim = G.crewHeatLimit(s), off = lim >= G.CREW_HEAT.max, paused = G.crewPaused(s);
+    cards += pcard(`<div class="ptop"><span class="em">🤫</span><div><b>Crew lie low at heat ${off ? '(never)' : lim}</b><small>${paused ? '<span class="bad">Lying low now:</span> nobody sells till heat drops below ' + lim : 'Above it, the night crew, corners and riders stop selling until things cool down'}</small></div></div>
+      <div class="pbtns stepper"><button class="small" data-act="crewheat" data-id="-1" ${lim <= G.CREW_HEAT.min ? 'disabled' : ''}>−</button><button class="small" data-act="crewheat" data-id="1" ${off ? 'disabled' : ''}>+</button></div>`, '', 'night');
+  }
   cards += pcard(`<div class="ptop"><span class="em">👮</span><div><b>Sergeant</b><small>Heat -${CFG.bribeHeat}, once a day</small></div></div>
     <div class="pbtns"><button class="small violet" data-act="bribe" ${s.dirty < CFG.bribeCost || s.today.bribe ? 'disabled' : ''}>💜 ${money(CFG.bribeCost)}</button></div>`, ibtn('bribe', 'x'), 'night');
   const stCls = s.street < 25 ? 'hot' : s.street < 45 ? 'warm' : '';
@@ -793,7 +798,7 @@ function infoFor(kind, id) {
   }
   if (kind === 'prestige') {
     const pr = s.prestige;
-    return T('⭐ Prestige', `<p>Hand the business on and start again from nothing: no shops, no machines, no cash, a fresh debt. In return you get prestige tokens for what the business was worth, to spend on perks that make every new start quicker.</p>`
+    return T('⭐ Prestige', `<p>Hand the business on and start again from nothing: no shops, no machines, no cash, a fresh debt. In return you get prestige tokens for what the business was worth, to spend on perks that make every new start quicker.</p><p>You keep the story so far (it carries on where it left off), your collection, the recipes you've mastered, and the look of Rosa's bakery: floors, walls, art, decorations, the outside and the back room's finish.</p>`
       + line('Net worth now', money(G.netWorth(s))) + line('Tokens if you prestige now', G.prestigeTokens(s), 'good')
       + line('Tokens to spend', pr.tokens) + line('Tokens ever earned', `${pr.total} (+${pct(PRESTIGE.tokenBonus * pr.total)} on every sale and bag)`) + line('Times', pr.resets)
       + `<p class="mute">Tokens grow with the square root of net worth (shops, machines, property, fronts, vans and cash, less debt): £1M is worth 10, £100M is worth 100. Prestige opens at level ${PRESTIGE.level}. Perks and token bonuses are kept for ever; everything else starts again, including milestones.</p>`);
@@ -1274,7 +1279,7 @@ function modalHTML() {
       <button class="big" data-act="close" style="margin-top:10px">Close</button>`;
   } else if (m.type === 'prestige') {
     const pt = G.prestigeTokens(s);
-    inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, decoration, crew member and penny. You start again at Aunt Rosa's bakery with a fresh debt.</p>
+    inner = `<h2>⭐ Start again?</h2><p>You hand the whole business on: every shop, machine, back room, front, van, crew member and penny. You start again at Aunt Rosa's bakery with a fresh debt. You keep the story so far, your collection, your mastered recipes and the look of the bakery.</p>
       <div class="card">${line('Net worth', money(G.netWorth(s)))}${line('Prestige tokens', `+${pt}`, 'good')}${line('Prices after', `+${pct(PRESTIGE.tokenBonus * (s.prestige.total + pt))} on everything`, 'good')}</div>
       <p><b>Challenge for the next run</b></p><div class="seg">${Object.entries(CHALLENGES).map(([k, c]) => `<button class="${(ui.challenge || 'none') === k ? 'on' : ''}" data-act="challenge" data-id="${k}">${c.name}${c.mult > 1 ? ` ×${c.mult}` : ''}</button>`).join('')}</div>
       <p class="mute">${CHALLENGES[ui.challenge || 'none'].desc} Your perks and tokens carry over. Spend the tokens in Bank & tax → Perks once you've started again.</p>
@@ -1688,6 +1693,7 @@ function act(el) {
     case 'manager-hire': case 'manager-fire': { const keep = s.cur; s.cur = Number(el.dataset.shop); if (a === 'manager-hire') G.hireManager(s, Number(el.dataset.skill)); else G.fireManager(s); s.cur = keep; break; }
     case 'cabinet': G.buyCabinet(s, Number(id)); break;
     case 'retro': settings.retro = !settings.retro; saveSettings(); save(); showToast(settings.retro ? 'Retro graphics on: redrawing the town…' : 'Retro graphics off: redrawing the town…', 'info'); setTimeout(() => location.reload(), 400); break;
+    case 'crewheat': G.setCrewHeat(s, G.crewHeatLimit(s) + Number(id) * G.CREW_HEAT.step); break;
     case 'setting': settings[id] = !settings[id]; saveSettings(); if (id === 'sound') { SFX.setSound(settings.sound); SFX.unlock(); } if (id === 'notify' && settings.notify) askNotify(); break;
     case 'guide-next': s.guide.step++; break;
     case 'guide-skip': s.guide.step = 99; break;
