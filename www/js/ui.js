@@ -1592,9 +1592,15 @@ function layoutScene() {
   const H = window.innerHeight;
   const top = app.querySelector('.hud')?.getBoundingClientRect().bottom || 0;
   document.documentElement.style.setProperty('--hud-h', `${Math.round(top)}px`);
-  const lower = app.querySelector('.designbar') || app.querySelector('.fabs');
+  const W = window.innerWidth;
+  const bar = app.querySelector('.designbar'), fabs = app.querySelector('.fabs');
+  // Sideways, an open section or the design catalogue is a column down the right: the game shifts left beside it.
+  // Upright, it's a sheet along the bottom: the game sits above it.
+  const side = bar && bar.getBoundingClientRect().left > W * 0.3;
+  const lower = side ? fabs : bar || fabs;
   const bottom = lower ? H - lower.getBoundingClientRect().top : 0;
-  world.setView({ zone: ui.room === 'back' ? 'back' : 'shop', top: top + 34, bottom: bottom + 8, design: ui.design ? { ...ui.design } : null });
+  const right = side ? W - bar.getBoundingClientRect().left : 0;
+  world.setView({ zone: ui.room === 'back' ? 'back' : 'shop', top: top + 34, bottom: bottom + 8, right: right ? right + 8 : 0, design: ui.design ? { ...ui.design } : null });
 }
 window.addEventListener('resize', () => layoutScene());
 

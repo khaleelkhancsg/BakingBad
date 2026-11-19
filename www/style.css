@@ -1221,3 +1221,29 @@ textarea.code {
 .modal.night .modal-head { border-bottom-color: var(--vrule); }
 .storyarc { margin: 0 0 2px; font-size: 12px; letter-spacing: .02em; }
 .storychoice { text-align: left; font-family: var(--serif); font-weight: 600; } /* story choices all look alike: no answer is the "right" one */
+
+/* =====================================================================
+   Sideways (the phone app is landscape): the top bar stays along the top; an open section, the design catalogue and
+   pop-ups become a full-height column down the right, so the game stays in view beside them; the round buttons and the
+   menu move to the bottom left, out of the column's way.
+   ===================================================================== */
+@media (orientation: landscape) and (max-height: 600px) {
+  .designbar, .designbar.plandock {
+    left: auto; right: calc(6px + env(safe-area-inset-right)); transform: none;
+    top: calc(var(--hud-h, 44px) + 4px); bottom: calc(6px + env(safe-area-inset-bottom));
+    width: min(440px, 50vw); max-height: none;
+  }
+  .designbar:not(.plandock) { max-height: none; }
+  .plandock .catalog.cards { max-height: none; }
+  .fabs { right: auto; left: calc(10px + env(safe-area-inset-left)); }
+  .panel { right: auto; left: calc(10px + env(safe-area-inset-left)); bottom: calc(66px + env(safe-area-inset-bottom));
+    max-height: calc(100vh - var(--hud-h, 44px) - 76px - env(safe-area-inset-bottom)); width: min(360px, 46vw); }
+  .modal-bg { align-items: stretch; justify-content: flex-end; }
+  .modal { width: min(460px, 58vw); max-width: none; max-height: none; border-radius: 0 !important;
+    padding-right: calc(12px + env(safe-area-inset-right)); padding-top: calc(14px + env(safe-area-inset-top)) !important; }
+  .hudbar { max-width: none; }
+  /* the design catalogue fills the column as a grid instead of one long scrolling row */
+  .designbar:not(.plandock) .catalog:not(.cards) { flex-wrap: wrap; overflow-x: hidden; overflow-y: auto; flex: 1 1 auto; min-height: 0; align-content: flex-start;
+    -webkit-mask-image: none; mask-image: none; }
+  .designbar:not(.plandock) .drow { flex: 0 0 auto; }
+}

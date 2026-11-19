@@ -3055,7 +3055,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     cam.target.lerp(z.center, 1 - Math.exp(-dt * 3.5));
     const bh = Math.max(140, H - view.top - view.bottom);
     const yc = view.top + bh / 2;
-    baseUnit = Math.max(z.needW / W, z.needH / bh); camYC = yc;
+    const bw = Math.max(160, W - (view.right || 0)); // the width left beside a side panel (sideways screens)
+    baseUnit = Math.max(z.needW / bw, z.needH / bh); camYC = yc;
     unit = baseUnit / cam.zoom;
     // the glide after a quick swipe
     if (cam.vR || cam.vU) {
@@ -3076,10 +3077,18 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     camera.updateProjectionMatrix();
     const look = cam.target.clone()
       .addScaledVector(RIGHT, cam.panR).addScaledVector(UPS, cam.panU)
-      .addScaledVector(UPS, -(H / 2 - yc) * unit);
+      .addScaledVector(UPS, -(H / 2 - yc) * unit)
+      .addScaledVector(RIGHT, (W - bw) / 2 * unit); // centred in the space beside a side panel
     camera.position.copy(look).addScaledVector(DIR, 60);
     camera.lookAt(look);
+    // Snap to whole screen pixels: the picture then slides a pixel at a time, so thin edges (window frames, posts,
+    // railings) stay put instead of shimmering between pixels as the view moves
+    const px = unit / renderer.getPixelRatio();
+    snapR.set(1, 0, 0).applyQuaternion(camera.quaternion); snapU.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    const r = camera.position.dot(snapR), u = camera.position.dot(snapU);
+    camera.position.addScaledVector(snapR, Math.round(r / px) * px - r).addScaledVector(snapU, Math.round(u / px) * px - u);
   }
+  const snapR = new THREE.Vector3(), snapU = new THREE.Vector3();
 
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
