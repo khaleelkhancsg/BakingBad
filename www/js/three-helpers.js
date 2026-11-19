@@ -50,6 +50,20 @@ export function cyl(rt, rb, h, m, x = 0, y = 0, z = 0, seg = 16, cast = true) {
 export function sphere(r, m, x = 0, y = 0, z = 0, cast = true) {
   return mesh(geo(`s${r}`, () => new THREE.SphereGeometry(r, 16, 12)), typeof m === 'string' ? mat(m) : m, x, y, z, cast);
 }
+// Retro graphics (a setting): the scene is drawn at a low resolution and scaled up with crisp pixels, and the main
+// surfaces become pixel art. Set before the scene is built.
+export let RETRO = false;
+export const setRetro = on => { RETRO = !!on; };
+// Crisp texels up close (no smoothing between them), mipmaps further off so distant tiles don't shimmer
+export function crisp(t) { t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestMipmapLinearFilter; t.needsUpdate = true; return t; }
+// Redraw a texture at `size` pixels across (each a blend of the detail it covers), shown with crisp texels: pixel art
+export function pixelArt(t, size = 64) {
+  const src = t.image, c = document.createElement('canvas');
+  c.width = size; c.height = Math.max(1, Math.round(size * src.height / src.width));
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, c.width, c.height);
+  t.image = c;
+  return crisp(t);
+}
 export function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
@@ -192,6 +206,7 @@ export function surface(kind) {
   const r = rng(kind.length * 977 + kind.charCodeAt(0));
   const t = canvasTex(256, 256, (c, w, h) => (SURFACES[kind] || SURFACES.plaster)(c, w, h, r));
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (RETRO) pixelArt(t, 64); // 64 texels a tile: detailed, but you can see the pixels
   surfCache.set(kind, t);
   return t;
 }

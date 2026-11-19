@@ -374,6 +374,11 @@ money that grows with your level. Any night trade starts the count again.
 
 ## Settings, the guide and sound
 
+**Retro graphics** (☰ Menu → ⚙️ Settings) gives the town a 32-bit look: the scene is drawn about 480 lines tall and
+scaled up with crisp pixels (edges keep their smoothing, so it's never chunky 8-bit), and the main surfaces (floors,
+walls, brick, wood, the street) become pixel art at 64 texels a tile. Menus, labels and lettering on signs stay sharp.
+It's lighter work for the phone too. Switching it redraws the town (the game reloads; your place is kept).
+
 ☰ Menu → ⚙️ Settings: sound on or off, phone notifications on or off, save backups, the first-day guide, and starting
 over. Settings stay the same through new games and prestige.
 - **Save backup**: Back up shows your whole game as a code (copy it, or save it as a file in the browser); Load a backup

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, BASEMENT_X } from './data.js';
 import * as G from './game.js';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, tmat, worldUV, surfaceTiled } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, tmat, worldUV, surfaceTiled, setRetro, RETRO, crisp } from './three-helpers.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { buildWorld } from './world.js';
 import { foodModel } from './food.js';
@@ -744,10 +744,16 @@ class Agent {
 
 // ---------- The scene ----------
 
-export function createScene(canvas, overlayEl, { onPick, onOutside }) {
+export function createScene(canvas, overlayEl, { onPick, onOutside, retro = false }) {
+  setRetro(retro);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 600;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, smallScreen ? 1.5 : 2));
+  const fullRatio = Math.min(window.devicePixelRatio || 1, smallScreen ? 1.5 : 2);
+  renderer.setPixelRatio(fullRatio);
+  // Retro: about 480 lines from top to bottom, scaled up with crisp pixels (edges stay smoothed, so it reads as 32-bit
+  // rather than chunky 8-bit). The menus and labels on top stay sharp.
+  const RETRO_LINES = 480;
+  if (retro) canvas.style.imageRendering = 'pixelated';
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.shadowMap.autoUpdate = false; // redrawn every other frame in frame()
@@ -1270,6 +1276,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
   function canvasOf(w, h) {
     const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    if (RETRO) crisp(tex); // the designed floors and walls already draw 64 pixels a square: shown crisp, they're pixel art
     return { cv, ctx: cv.getContext('2d'), tex };
   }
   function flatPlane(w, d, material, x, y, z) {
@@ -3071,6 +3078,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside }) {
 
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
+    if (retro) renderer.setPixelRatio(Math.min(fullRatio, RETRO_LINES / H));
     renderer.setSize(W, H);
   }
   window.addEventListener('resize', resize);

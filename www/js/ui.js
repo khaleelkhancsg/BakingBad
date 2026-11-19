@@ -23,6 +23,7 @@ SFX.setSound(settings.sound);
 let s = load() || G.newGame();
 
 const world = createScene(document.getElementById('scene'), document.getElementById('overlay'), {
+  retro: !!settings.retro,
   onPick: info => {
     if (info.act === 'design') { if (ui.design) designTap(info); return; }
     if (ui.design || ui.modal) return;
@@ -994,6 +995,8 @@ function settingsTab() {
     <div class="pbtns"><button class="small ${settings[key] ? 'primary' : ''}" data-act="setting" data-id="${key}">${settings[key] ? 'On' : 'Off'}</button></div>`);
   let cards = tog('sound', 'Sound', 'The till, the oven timer, the shop bell, the back door, and a hum in the back room at night.')
     + tog('notify', 'Notifications', NATIVE ? 'When the app is closed: food ready, food about to spoil, the back door opening, a bank payment due.' : 'Only in the phone app.');
+  cards += pcard(`<div class="ptop"><span class="em">👾</span><div><b>Retro graphics</b><small>A 32-bit look: the town drawn at a lower resolution with crisp pixels, and pixel-art floors, walls and streets. Menus stay sharp. Often smoother on older phones.</small></div></div>
+    <div class="pbtns"><button class="small ${settings.retro ? 'primary' : ''}" data-act="retro">${settings.retro ? 'On' : 'Off'}</button></div>`);
   cards += pcard(`<div class="ptop"><span class="em">💾</span><div><b>Save backup</b><small>Copy your whole game as a code (or a file) and load it back later, on this phone or another.</small></div></div>
     <div class="pbtns"><button class="small primary" data-act="backup-out">Back up</button><button class="small" data-act="backup-in">Load a backup</button></div>`, '', 'wide');
   cards += pcard(`<div class="ptop"><span class="em">🧭</span><div><b>First-day guide</b><small>${s.guide?.step < GUIDE.length ? `On step ${s.guide.step + 1} of ${GUIDE.length}` : 'Done'}</small></div></div>
@@ -1678,6 +1681,7 @@ function act(el) {
     case 'claim': G.claimSet(s, id); break;
     case 'manager-hire': case 'manager-fire': { const keep = s.cur; s.cur = Number(el.dataset.shop); if (a === 'manager-hire') G.hireManager(s, Number(el.dataset.skill)); else G.fireManager(s); s.cur = keep; break; }
     case 'cabinet': G.buyCabinet(s, Number(id)); break;
+    case 'retro': settings.retro = !settings.retro; saveSettings(); save(); showToast(settings.retro ? 'Retro graphics on: redrawing the town…' : 'Retro graphics off: redrawing the town…', 'info'); setTimeout(() => location.reload(), 400); break;
     case 'setting': settings[id] = !settings[id]; saveSettings(); if (id === 'sound') { SFX.setSound(settings.sound); SFX.unlock(); } if (id === 'notify' && settings.notify) askNotify(); break;
     case 'guide-next': s.guide.step++; break;
     case 'guide-skip': s.guide.step = 99; break;
