@@ -169,7 +169,7 @@ export function buildWorld(scene) {
     const mats = [facade(d, h, color, seed + 1, shopfront), side, mat(roof), side, facade(w, h, color, seed, shopfront), side];
     const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats);
     b.position.set((x0 + x1) / 2, h / 2 - 0.09, (z0 + z1) / 2); b.castShadow = true; b.receiveShadow = true;
-    b.userData.voxSize = 0.175; // walls in finer blocks than the rest of the town, so the windows come out square
+    b.userData.voxSize = 0.175; b.userData.voxStatic = true; // walls in finer blocks than the rest of the town, so the windows come out square
     root.add(b);
     // Parapet and roof clutter
     const top = h - 0.09, cap = mat('#d9d3c8');
@@ -249,7 +249,7 @@ export function buildWorld(scene) {
       if (colors) im.setColorAt(i, col.set(t.c || colors[i % colors.length]));
     });
     im.castShadow = shadow; im.receiveShadow = true;
-    im.userData.voxSize = 0.25; // trees, hedges, flowers and grass in blocks a little finer than the buildings
+    im.userData.voxSize = 0.25; im.userData.voxMerge = true; // trees, hedges, flowers and grass in blocks a little finer than the buildings
     scene.add(im);
     return im;
   }
@@ -403,6 +403,7 @@ export function buildWorld(scene) {
   });
 
   for (const o of root.children) if (!o.userData.fixed) { o.position.x = shiftX(o.position.x); o.position.z = shiftZ(o.position.z); }
+  root.userData.voxMerge = true; // merged into chunks once it's all blocks (voxels.js)
   root.userData.voxSize = 0.35; // the town in coarser blocks than the shop
   scene.add(mergeStatic(texturize(root)));
 

@@ -758,7 +758,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   if (retro) canvas.style.imageRendering = 'pixelated';
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap; // soft-edged shadows
-  renderer.shadowMap.autoUpdate = false; // redrawn every other frame in frame()
+  renderer.shadowMap.autoUpdate = false; // redrawn in frame() when things have moved
   renderer.toneMapping = THREE.NeutralToneMapping; // keeps the pastel colours, softens hot spots
   renderer.toneMappingExposure = 1.05;
   const scene = new THREE.Scene();
@@ -824,10 +824,11 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   }, [3, 4]);
 
   // Stone foundations, like the buildings along the street (the floor itself is painted by the design layer)
-  statics.add(box(9.25, 0.45, 9.25, '#c7bfb2', 0, -0.45, 0, false));
+  // (kept smooth, not blocks: when the shop is cut away to show the basement, blocks of its edge would hang in the view)
+  { const f = box(9.25, 0.45, 9.25, '#c7bfb2', 0, -0.45, 0, false); f.userData.keep = f.userData.voxKeep = true; statics.add(f); }
   // The small back room upstairs: a floor around the stairwell, on its own foundation
   { const f = mesh(new THREE.PlaneGeometry(3.0, 2.9), smat({ map: concreteTex, roughness: 0.95 }), -6.2, 0.001, 3.15, false); f.rotation.x = -PI / 2; f.receiveShadow = true; statics.add(f); }
-  statics.add(box(3.15, 0.45, 2.85, '#a79f95', -6.2, -0.45, 3.175, false));
+  { const f = box(3.15, 0.45, 2.85, '#a79f95', -6.2, -0.45, 3.175, false); f.userData.keep = f.userData.voxKeep = true; statics.add(f); }
   // The basement's floor, the same size as the shop; digging out adds more (basementShell)
   const backFloor = mesh(new THREE.PlaneGeometry(9.2, 9.2), smat({ color: '#595b62', map: surfaceTiled('concrete', 0.5), roughness: 0.95 }), BX, 0.001, 0, false);
   backFloor.rotation.x = -PI / 2; backFloor.receiveShadow = true; backFloor.userData.keep = true; cellar.add(backFloor); // its own mesh so its style can change
@@ -836,6 +837,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   const soilM = mat('#2d241e');
   cellar.add(box(44, 0.6, 44, soilM, BX + 4, -0.62, 6, false), box(16, 3.45, 8, soilM, BX + 1, -0.5, -8.75, false),
     box(8, 3.45, 5.3, soilM, BX - 8.75, -0.5, -2.1, false), box(8, 3.45, 3.0, soilM, BX - 8.75, -0.5, 3.2, false));
+  cellar.children.slice(-4).forEach(o => { o.userData.keep = o.userData.voxKeep = true; }); // plain earth stays smooth: big blocks of it would poke through the walls
 
   // Walls
   const shopWall = mat('#f6d2b0'), shopWain = mat('#c98f6b'), trim = mat('#fff0dc');
@@ -2475,7 +2477,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
 
   // Anything small (cups, fruit, knobs, pips, bulbs) gets no shadow: it barely shows and each one is another draw in the
   // shadow pass. Checked once a second for new things; each object is only looked at once.
-  let shadowT = 0, frameNo = 0;
+  let shadowT = 0, frameNo = 0, voxBacklog = 1;
+  const lastCam = new Float32Array(32); let lastShellK = -1, lastInput = 0; // what the last drawn frame showed (see frame())
   const _sph = new THREE.Sphere();
   function trimShadows(root) {
     root.traverse(o => {
@@ -3060,7 +3063,8 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     cam.target.lerp(z.center, 1 - Math.exp(-dt * 3.5));
     const bh = Math.max(140, H - view.top - view.bottom);
     const yc = view.top + bh / 2;
-    baseUnit = Math.max(z.needW / W, z.needH / bh); camYC = yc;
+    const bw = Math.max(160, W - (view.right || 0)); // the width left beside a side panel (sideways screens)
+    baseUnit = Math.max(z.needW / bw, z.needH / bh); camYC = yc;
     unit = baseUnit / cam.zoom;
     // the glide after a quick swipe
     if (cam.vR || cam.vU) {
@@ -3081,10 +3085,18 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     camera.updateProjectionMatrix();
     const look = cam.target.clone()
       .addScaledVector(RIGHT, cam.panR).addScaledVector(UPS, cam.panU)
-      .addScaledVector(UPS, -(H / 2 - yc) * unit);
+      .addScaledVector(UPS, -(H / 2 - yc) * unit)
+      .addScaledVector(RIGHT, (W - bw) / 2 * unit); // centred in the space beside a side panel
     camera.position.copy(look).addScaledVector(DIR, 60);
     camera.lookAt(look);
+    // Snap to whole screen pixels: the picture then slides a pixel at a time, so block edges, window frames and posts
+    // stay put instead of shimmering between pixels as the view moves
+    const px = unit / renderer.getPixelRatio();
+    snapR.set(1, 0, 0).applyQuaternion(camera.quaternion); snapU.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    const r = camera.position.dot(snapR), u = camera.position.dot(snapU);
+    camera.position.addScaledVector(snapR, Math.round(r / px) * px - r).addScaledVector(snapU, Math.round(u / px) * px - u);
   }
+  const snapR = new THREE.Vector3(), snapU = new THREE.Vector3();
 
   function resize() {
     W = window.innerWidth; H = window.innerHeight;
@@ -3160,6 +3172,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     if (ptrs.size === 0) drag = null;
   }
   canvas.addEventListener('pointerdown', e => pointerDown(e));
+  for (const ev of ['pointerdown', 'pointermove', 'wheel']) window.addEventListener(ev, () => { lastInput = performance.now() / 1000 + simClock; }, { passive: true }); // keep drawing while touched
   window.addEventListener('pointermove', pointerMove);
   window.addEventListener('pointerup', pointerEnd);
   window.addEventListener('pointercancel', pointerEnd);
@@ -3231,12 +3244,29 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       updateCamera(dt);
       updateShell(s, dt);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
-      if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
+      frameNo++;
       updateUnder(dt);
-      // Voxels: anything new becomes blocks (every few frames), and glowing blocks follow the lights every frame
-      voxelTick(scene); // a few milliseconds' worth a frame, so nothing freezes while the town turns to blocks
-      voxelGlow();
-      renderer.render(scene, camera);
+      // Only draw when something on screen changed. People, cars and machines move in 12 steps a second, so between
+      // steps the picture only changes while the camera glides, a finger is on the screen, or a fade is running; the
+      // rest of the time the last frame stays up (far less work for the phone, and the battery).
+      camera.updateMatrixWorld();
+      const cm = camera.matrixWorld.elements, pm = camera.projectionMatrix.elements;
+      let moved = false;
+      for (let i = 0; i < 16; i++) if (Math.abs(cm[i] - lastCam[i]) > 1e-5 || Math.abs(pm[i] - lastCam[16 + i]) > 1e-5) { moved = true; break; }
+      // Voxels: anything new becomes blocks. While there's a lot to do (the town, at the start) a good share of every
+      // frame goes on it; after that just a little on each step, so a customer walking in never stalls the game.
+      let built = false;
+      if (voxBacklog || adt) { voxBacklog = voxelTick(scene, voxBacklog > 20 ? 10 : 3); built = true; }
+      const busy = adt || built || moved || transT < 1 || Math.abs(shellK - lastShellK) > 1e-4 || now - lastInput < 0.4 || frameNo < 3;
+      // shadows only change when things move or appear (and the first frames must make the shadow map: drawing without
+      // one makes WebGL refuse the draw, and things go missing)
+      if (adt || built || frameNo < 3 || !sun.shadow.map) renderer.shadowMap.needsUpdate = true;
+      if (busy) {
+        voxelGlow();
+        renderer.render(scene, camera);
+        for (let i = 0; i < 16; i++) { lastCam[i] = cm[i]; lastCam[16 + i] = pm[i]; }
+        lastShellK = shellK;
+      }
       updateOverlay(s, now);
     },
     poke, sold,

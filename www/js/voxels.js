@@ -14,6 +14,7 @@
 // - Left as they are: see-through things (glass, water), unlit things (light beams, neon), and anything marked
 //   userData.voxKeep (lettering on signs and boards, the ground, which is drawn as pixel art instead).
 import * as THREE from 'three';
+import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 
 export const VOX = { size: 0.125, town: 0.35 }; // voxel sizes in metres: in and around the shop, and out in the town
 // A cell's key: its three grid coordinates packed into one number (much faster than text keys)
@@ -27,7 +28,8 @@ const voxMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9
 const pixelCache = new WeakMap();
 function pixels(tex) {
   if (!tex?.image) return null;
-  if (pixelCache.has(tex.image)) return pixelCache.get(tex.image);
+  const known = pixelCache.get(tex.image);
+  if (known !== undefined && (!known || known.version === tex.version)) return known; // (a redrawn canvas, a new floor design, is read again)
   let data = null;
   try {
     const img = tex.image, w = img.width || img.videoWidth, h = img.height || img.videoHeight;
@@ -35,7 +37,7 @@ function pixels(tex) {
       const W = Math.min(w, 256), H = Math.max(1, Math.round(h * W / w));
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, W, H);
-      data = { w: W, h: H, d: g.getImageData(0, 0, W, H).data, flipY: tex.flipY !== false };
+      data = { w: W, h: H, d: g.getImageData(0, 0, W, H).data, flipY: tex.flipY !== false, version: tex.version };
     }
   } catch { data = null; }
   pixelCache.set(tex.image, data);
@@ -238,14 +240,27 @@ function capped(o, S) {
 
 // ---------- Keeping up with the game ----------
 const tracked = new Set(); // voxelised meshes, watched for repaints and material swaps
-const glowPairs = []; // [the model's glowing material, the glow cubes' material]: kept in step every frame
+const glowPairs = new Set(); // [the model's glowing material, the glow cubes' material]: kept in step every frame
 const offMats = new Map(); // a model's material with drawing switched off (its children, the cubes, still draw)
 const off = m => { if (!offMats.has(m)) { const h = m.clone(); h.visible = false; h.userData.voxOff = true; offMats.set(m, h); } return offMats.get(m); };
 const sig = m => (Array.isArray(m) ? m : [m]).map(x => (x.color ? x.color.getHexString() : '') + (x.map ? x.map.uuid + '@' + x.map.version : '')).join('|'); // a repaint, or a redrawn texture (a redesigned floor)
 
+const free = g => { if (!g.userData.voxShared) g.dispose(); }; // shared blocks (see blockCache) stay
 function clear(o) {
-  for (const ch of [...o.children]) if (ch.userData.isVoxels) { o.remove(ch); ch.geometry.dispose(); }
-  if (o.userData.voxBeside) { o.userData.voxBeside.parent?.remove(o.userData.voxBeside); o.userData.voxBeside.geometry.dispose(); o.userData.voxBeside = null; }
+  for (const ch of [...o.children]) if (ch.userData.isVoxels) { o.remove(ch); free(ch.geometry); }
+  if (o.userData.voxBeside) { o.userData.voxBeside.parent?.remove(o.userData.voxBeside); free(o.userData.voxBeside.geometry); o.userData.voxBeside = null; }
+  if (o.userData.voxGlow) { glowPairs.delete(o.userData.voxGlow); o.userData.voxGlow = null; }
+}
+// Blocks already worked out for a part, reused for every copy of it: customers, crew and cars are built from the same
+// shapes in the same colours, so after the first few most of them cost nothing to turn into blocks
+const blockCache = new Map(), CACHE_MAX = 600;
+// A ready-made set of blocks as a mesh
+function voxMesh(geom, castShadow, material, cells) {
+  const vm = new THREE.Mesh(geom, material);
+  vm.castShadow = castShadow; vm.receiveShadow = true;
+  vm.userData.isVoxels = true; vm.userData.cells = cells;
+  vm.raycast = () => {};
+  return vm;
 }
 // Voxelise one mesh
 export function voxelize(o) {
@@ -262,7 +277,7 @@ export function voxelize(o) {
     if (!glowCells.size || !glowMat) return null;
     const gm = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, vertexColors: true, emissive: glowMat.emissive.clone(), emissiveIntensity: glowMat.emissiveIntensity,
       polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); // a window's glass lands in the same blocks as its wall: the glass wins
-    glowPairs.push([glowMat, gm]);
+    o.userData.voxGlow = [glowMat, gm]; glowPairs.add(o.userData.voxGlow);
     return cubes(cells, glowCells, vary, fromGrid, false, gm);
   };
   if (o.isInstancedMesh) {
@@ -275,6 +290,7 @@ export function voxelize(o) {
     }
     const back = v => v.multiplyScalar(S).applyMatrix4(parentInv);
     const vm = cubes(cells, cells, vary, back, o.castShadow, voxMat);
+    vm.userData.fixed = !!o.userData.voxMerge;
     o.parent.add(vm); o.userData.voxBeside = vm; o.visible = false;
     made = cells.size;
   } else {
@@ -290,14 +306,45 @@ export function voxelize(o) {
       const sx = S / Math.abs(sc.x || 1), sy = S / Math.abs(sc.y || 1), sz = S / Math.abs(sc.z || 1);
       toGrid = v => v.set(v.x / sx, v.y / sy, v.z / sz);
       back = v => v.set(v.x * sx, v.y * sy, v.z * sz);
+      // the same part in the same colours at the same size has been done before: reuse its blocks
+      const key = o.geometry.uuid + '|' + sig(source) + '|' + [sx, sy, sz].map(v => v.toFixed(4)).join(',');
+      const hit = blockCache.get(key);
+      if (hit) {
+        if (hit.unlit) o.add(voxMesh(hit.unlit, o.castShadow, voxMat, hit.cells));
+        if (hit.glow && hit.glowMat) {
+          const gm = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6, vertexColors: true, emissive: hit.glowMat.emissive.clone(), emissiveIntensity: hit.glowMat.emissiveIntensity,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 });
+          o.userData.voxGlow = [hit.glowMat, gm]; glowPairs.add(o.userData.voxGlow);
+          o.add(voxMesh(hit.glow, false, gm, hit.cells));
+        }
+        o.material = Array.isArray(source) ? source.map(off) : off(source);
+        o.userData.voxDone = true; o.userData.voxSig = sig(source); o.userData.voxS = S;
+        tracked.add(o);
+        return 0;
+      }
+      glowMat = sampleSurface(o.geometry, source, toGrid, cells);
+      const unlit = new Map();
+      for (const [k, c] of cells) (c[7] && glowMat ? glowCells : unlit).set(k, c); // lit blocks follow the model's glow
+      const um = unlit.size ? cubes(cells, unlit, vary, back, o.castShadow, voxMat) : null;
+      if (um) o.add(um);
+      const g = glowCubes(back); if (g) o.add(g);
+      if (blockCache.size < CACHE_MAX) {
+        if (um) um.geometry.userData.voxShared = true;
+        if (g) g.geometry.userData.voxShared = true;
+        blockCache.set(key, { unlit: um?.geometry, glow: g?.geometry, glowMat, cells: cells.size });
+      }
+      o.material = Array.isArray(source) ? source.map(off) : off(source);
+      made = cells.size;
     }
-    glowMat = sampleSurface(o.geometry, source, toGrid, cells);
-    const unlit = new Map();
-    for (const [k, c] of cells) (c[7] && glowMat ? glowCells : unlit).set(k, c); // lit blocks follow the model's glow
-    if (unlit.size) o.add(cubes(cells, unlit, vary, back, o.castShadow, voxMat));
-    const g = glowCubes(back); if (g) o.add(g);
-    o.material = Array.isArray(source) ? source.map(off) : off(source);
-    made = cells.size;
+    if (o.userData.voxStatic) {
+      glowMat = sampleSurface(o.geometry, source, toGrid, cells);
+      const unlit = new Map();
+      for (const [k, c] of cells) (c[7] && glowMat ? glowCells : unlit).set(k, c);
+      if (unlit.size) o.add(cubes(cells, unlit, vary, back, o.castShadow, voxMat));
+      const g = glowCubes(back); if (g) o.add(g);
+      o.material = Array.isArray(source) ? source.map(off) : off(source);
+      made = cells.size;
+    }
   }
   o.userData.voxDone = true; o.userData.voxSig = sig(source); o.userData.voxS = S;
   tracked.add(o);
@@ -305,18 +352,49 @@ export function voxelize(o) {
 }
 // Voxelise everything new under root, and keep up with what the game changed: a repainted model, a swapped material
 // (rebuilt), the glow of lit windows and lamps (copied every frame). Cheap to call often.
+let townMerged = false;
 export function voxelTick(root, budgetMs = 12) {
   const todo = [], t0 = performance.now();
   root.traverse(o => { if (o.isMesh && !o.userData.voxDone && plain(o)) todo.push(o); });
-  // nearest the middle of the view first would be nicer; smallest first gets the most of the scene done soonest
-  for (const o of todo) { voxelize(o); if (performance.now() - t0 > budgetMs) break; }
+  let done = 0;
+  for (const o of todo) { voxelize(o); done++; if (performance.now() - t0 > budgetMs) break; }
+  if (!todo.length && !townMerged) { townMerged = true; mergeFixed(root); }
   for (const o of tracked) {
-    if (!o.parent) { tracked.delete(o); continue; }
+    if (!inScene(o)) { tracked.delete(o); clear(o); o.material = o.userData.voxSource || o.material; o.userData.voxSource = null; o.userData.voxDone = false; continue; } // gone: free its blocks (rebuilt if it comes back)
     const cur = o.material, shown = Array.isArray(cur) ? cur[0] : cur;
     if (!o.isInstancedMesh && shown && !shown.userData.voxOff) { o.userData.voxSource = cur; voxelize(o); continue; } // the game gave it a new material
     if (sig(o.userData.voxSource) !== o.userData.voxSig) voxelize(o); // repainted
   }
-  return todo.length;
+  return todo.length - done; // still to do
+}
+const inScene = o => { for (let p = o; p; p = p.parent) if (p.isScene) return true; return false; };
+// The town never moves: once it's all blocks, its blocks are merged into a few big chunks (about 16 m square), so the
+// phone draws a handful of meshes instead of a couple of hundred. Only blocks of things marked voxMerge (the town and its
+// trees) that are fixed in place; lit windows, people and cars stay as they are.
+function mergeFixed(scene) {
+  scene.updateMatrixWorld(true);
+  const chunks = new Map(), gone = [];
+  scene.traverse(v => {
+    if (!v.userData.isVoxels || v.material !== voxMat) return;
+    let fixed = v.userData.fixed;
+    if (!fixed && v.parent?.userData.voxStatic) for (let p = v.parent; p; p = p.parent) if (p.userData.voxMerge) { fixed = true; break; }
+    if (!fixed) return;
+    for (let p = v; p; p = p.parent) if (!p.visible && !p.userData.voxDone) return; // (instanced sources are hidden on purpose)
+    const g = v.geometry.clone().applyMatrix4(v.matrixWorld);
+    g.computeBoundingBox();
+    const c = g.boundingBox.getCenter(new THREE.Vector3());
+    const key = Math.floor(c.x / 16) + ',' + Math.floor(c.z / 16) + (v.castShadow ? 's' : '');
+    if (!chunks.has(key)) chunks.set(key, { geos: [], cast: v.castShadow, cells: 0 });
+    const ch = chunks.get(key); ch.geos.push(g); ch.cells += v.userData.cells || 0;
+    gone.push(v);
+  });
+  for (const v of gone) { v.parent.remove(v); free(v.geometry); }
+  for (const ch of chunks.values()) {
+    const m = voxMesh(mergeGeometries(ch.geos, false), ch.cast, voxMat, ch.cells);
+    m.userData.merged = true; m.matrixAutoUpdate = false;
+    scene.add(m);
+    for (const g of ch.geos) g.dispose();
+  }
 }
 export function voxelGlow() {
   for (const [src, gm] of glowPairs) { gm.emissive.copy(src.emissive); gm.emissiveIntensity = src.emissiveIntensity; }
