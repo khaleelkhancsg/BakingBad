@@ -872,6 +872,29 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   statics.add(box(0.2, 0.95, 1.2, backWall, -7.7, 2.05, 2.0));
   statics.add(box(3.0, 0.5, 0.2, backWain, -6.2, 0, 4.6), box(3.04, 0.06, 0.26, trim, -6.2, 0.5, 4.6));
   statics.add(box(3.3, 0.12, 0.34, capM, -6.15, 3.0, 0.4), box(0.34, 0.12, 4.3, capM, -7.7, 3.0, 2.5));
+  // After a bust: police tape across the back door, and a squad car in the alley with its lights going
+  const policeScene = new THREE.Group(); policeScene.visible = false; scene.add(policeScene);
+  const tapeTex = canvasTex(128, 16, (c, w, h) => { for (let x = -h; x < w + h; x += 24) { c.fillStyle = '#ffd400'; c.fillRect(x, 0, 12, h); c.fillStyle = '#1b1b1b'; c.fillRect(x + 12, 0, 12, h); } });
+  const tapeM = new THREE.MeshBasicMaterial({ map: tapeTex, side: THREE.DoubleSide });
+  for (const [y, tilt] of [[1.35, 0.25], [0.8, -0.2]]) { const t = mesh(new THREE.PlaneGeometry(1.5, 0.09), tapeM, -7.82, y, 2.0, false); t.rotation.set(tilt, PI / 2, 0); policeScene.add(t); }
+  const flashBlue = new THREE.MeshBasicMaterial({ color: '#2f6bff' }), flashRed = new THREE.MeshBasicMaterial({ color: '#ff2a3a' });
+  {
+    const car = new THREE.Group(); car.position.set(-10.4, 0, 2.2); car.rotation.y = PI / 2;
+    car.add(box(2.1, 0.5, 0.95, '#f4f4f6', 0, 0.18, 0), box(1.1, 0.4, 0.88, '#f4f4f6', -0.1, 0.68, 0), box(1.06, 0.3, 0.9, '#3a4a66', -0.1, 0.72, 0));
+    car.add(box(2.12, 0.12, 0.97, '#2f6bff', 0, 0.38, 0), box(2.12, 0.06, 0.97, '#ffd400', 0, 0.5, 0)); // the stripes
+    for (const [x, z] of [[0.65, 0.45], [-0.65, 0.45], [0.65, -0.45], [-0.65, -0.45]]) { const w = cyl(0.17, 0.17, 0.12, '#1d1f25', x, 0.17, z, 10); w.rotation.x = PI / 2; car.add(w); }
+    car.add(mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), flashBlue, -0.1, 1.13, 0.2), mesh(new THREE.BoxGeometry(0.16, 0.1, 0.3), flashRed, -0.1, 1.13, -0.2));
+    policeScene.add(car);
+  }
+  const siren = new THREE.PointLight('#2f6bff', 0, 9, 1.4); siren.position.set(-10.3, 1.6, 2.2); policeScene.add(siren);
+  function updatePolice(s, now) {
+    const on = G.sealed(s, s.clock);
+    policeScene.visible = on;
+    if (!on) return;
+    const blue = Math.floor(now * 3) % 2 === 0;
+    flashBlue.color.set(blue ? '#5f8dff' : '#0b1a44'); flashRed.color.set(blue ? '#3a0a0e' : '#ff3a4a');
+    siren.color.set(blue ? '#2f6bff' : '#ff2a3a'); siren.intensity = 3 + Math.sin(now * 18) * 1.5;
+  }
   const backDoorPivot = new THREE.Group(); backDoorPivot.position.set(-7.68, 0, 1.42);
   const backDoor = box(0.08, 2.0, 1.15, '#55606b', 0, 0, 0.58); backDoorPivot.add(backDoor);
   backDoorPivot.add(box(0.1, 0.1, 0.1, '#c9ccd3', 0.05, 1.0, 1.02));
@@ -3265,6 +3288,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       updateCamera(dt);
       updateShell(s, dt);
       updateWeather(s, dt, now);
+      updatePolice(s, now);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
       if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
       updateUnder(dt);

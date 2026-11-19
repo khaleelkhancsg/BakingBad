@@ -1137,6 +1137,12 @@ function machineModal(m) {
     <div class="mright">${tier >= TIERS.max ? '<span class="lock good">Maxed</span>' : `<button class="small ${tcash === 'dirty' ? 'violet' : 'primary'}" data-act="tier" data-kind="${m.kind}" data-idx="${m.idx}" ${s[tcash] < tcost ? 'disabled' : ''}>${tcash === 'dirty' ? '💜' : '💷'} ${money(tcost)}</button>`}</div></div>`;
   let rows;
   if (!lab) {
+    // Two suggestions, so a long list needn't be read every time: the best money an hour among quick bakes (an hour or
+    // less, for while you're here) and the best batch among long ones (six hours or more, for before you go)
+    const mine = G.recipesFor(mc.type).filter(id => s.recipes.includes(id) && G.inSeason(id)), pb = id => recipeBatch(id, mc.tier || 0);
+    const quickPick = mine.filter(id => pb(id).minutes <= 60).sort((a, b) => pb(b).profit / pb(b).minutes - pb(a).profit / pb(a).minutes)[0];
+    const longPick = mine.filter(id => pb(id).minutes >= 360).sort((a, b) => pb(b).profit - pb(a).profit)[0];
+    const pickTag = id => id === quickPick ? '<small class="rtag">⚡ best while you’re here</small>' : id === longPick ? '<small class="rtag night">🌙 best before you go</small>' : '';
     rows = G.recipesFor(mc.type).sort((a, b) => ITEMS[a].level - ITEMS[b].level).filter(id => ITEMS[id].level <= s.level + 10).map(id => {
       const r = ITEMS[id], known = s.recipes.includes(id), open = G.unlocked(s, r.level), nc = G.countersFor(s, id).length;
       const batches = known ? G.batchesPossible(s, id) : 0, miss = known && !batches ? G.missingCost(s, id) : 0;
@@ -1148,7 +1154,7 @@ function machineModal(m) {
         `<button class="${s.priceLevel[id] === k ? 'on' : ''}" data-act="price" data-id="${id}" data-lvl="${k}">${L.label}</button>`).join('')}</div>` : '';
       return `<div class="mrow ${known ? '' : 'unknown'} ${open ? '' : 'locked'}">${ibtn('recipe', id)}
         <span class="em">${r.emoji}</span>
-        <div class="grow"><b>${r.name}${starTag(id)}</b>${(() => { const b = recipeBatch(id, mc.tier || 0); return `<div class="facts"><span>⏱ ${mins(b.minutes)}</span><span>×${b.servings} at ${money2(b.each)}</span><span class="money">${money(b.profit)} profit</span></div>`; })()}
+        <div class="grow"><b>${r.name}${starTag(id)}</b>${pickTag(id)}${(() => { const b = recipeBatch(id, mc.tier || 0); return `<div class="facts"><span>⏱ ${mins(b.minutes)}</span><span>×${b.servings} at ${money2(b.each)}</span><span class="money">${money(b.profit)} profit</span></div>`; })()}
           <small>${ingText(r)}${known ? ` · stock for ${batches}${nc ? ` · ${Math.floor(s.display[id] || 0)} out on ${nc} counter${nc === 1 ? '' : 's'}` : ''}` : ''}</small>${priceRow}</div>
         <div class="mright">${right}</div></div>`;
     }).join('');
