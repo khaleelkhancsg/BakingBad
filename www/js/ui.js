@@ -1219,7 +1219,7 @@ function reportModal(m) {
       ${line('Ingredients bought', '-' + money(t.ingSpent))}${t.upgradesSpent ? line('Spent on the business', '-' + money(t.upgradesSpent)) : ''}
       ${t.bills ? line('Monthly bills (rent, rates, council tax, utilities)', '-' + money(t.bills)) : ''}${line(t.rent ? 'Insurance and wages' : 'Wages', '-' + money(t.rent + t.wages))}${t.nightWages ? line('Night crew', '-' + money(t.nightWages)) : ''}
       ${t.income ? line('Property income', money(t.income), 'good') : ''}${t.laundered || t.washed ? line('Laundered', money(t.laundered + (t.washed || 0))) : ''}
-      ${t.interest ? line('Interest on arrears', '-' + money(t.interest), 'bad') : ''}${line('XP earned', `+${Math.round(t.xp)}`, 'good')}</div>
+      ${t.fund ? line('Investment fund grew', '+' + money(t.fund), 'good') : ''}${t.interest ? line('Interest on arrears', '-' + money(t.interest), 'bad') : ''}${line('XP earned', `+${Math.round(t.xp)}`, 'good')}</div>
     ${night}${t.events.slice(-12).map(e => `<div class="card ${e.kind === 'bad' ? 'alert' : ''}">${e.text}</div>`).join('')}
     ${r.tax?.grades ? `<div class="card grades"><h3>📊 Weekly report card</h3><div class="gradeRow">${[['Bakery', r.tax.grades.bakery], ['Back room', r.tax.grades.back], ['Books', r.tax.grades.books]].map(([k, v]) => `<div><b class="g${v}">${v}</b><small>${k}</small></div>`).join('')}</div></div>` : ''}
     ${r.tax ? `<div class="card"><h3>🧾 HMRC</h3>${line('VAT', money(r.tax.vat))}${line('Corporation tax', money(r.tax.corp))}${line('Employer NI', money(r.tax.ni))}${line('Total', money(r.tax.total), 'bad')}</div>` : ''}
