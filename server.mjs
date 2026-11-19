@@ -6,7 +6,7 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), 'www');
-const PORT = Number(process.env.PORT) || 5190;
+const PORT = Number(process.env.PORT) || 5191; // the voxel copy runs beside the original (5190)
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png',

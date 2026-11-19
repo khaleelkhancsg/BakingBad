@@ -1,4 +1,18 @@
-# Baking Bad
+# Baking Bad (voxel edition)
+
+> **This is the voxel edition**, a copy of the game (branch `voxel`) to compare against the original. It installs as its
+> own app, *Baking Bad Voxel* (`com.khaleel.bakingbad.voxel`), beside the original, and its dev server runs on port 5191.
+> - **Everything in the world is made of blocks.** `www/js/voxels.js` turns every model into voxels as it appears,
+>   coloured from the model (its colour, vertex colours and texture): 12.5 cm blocks in and around the shop, 25 cm for
+>   trees, hedges and flowers, 35 cm for the town, and bigger blocks for anything with a lot of surface, so no one model
+>   needs more than about 12,000. Only the faces you can see are built. Things that move (people, cars and their wheels,
+>   doors, machines) are voxelised in their own frame, so they still animate; glowing parts (lit windows, lamps, screens,
+>   brake lights) glow with the game; a repaint or a new material rebuilds a model's blocks. Glass, water and light beams
+>   stay see-through, and lettering on signs and the menu board stays readable. The ground is 12.5 cm pixel art.
+>   The town turns to blocks over the first moments, a few milliseconds a frame, so nothing freezes.
+> - **Retro movement**: people, cars, doors, machines and steam move in steps, 12 times a second; the camera stays smooth.
+> - **Retro interface**: the Pixelify Sans pixel font (bundled in `www/fonts/`, SIL Open Font License, `OFL.txt` beside
+>   it), square corners, pixel borders, chunky step shadows, and menus that snap in steps.
 
 An idle bakery game on the real clock. You inherit Aunt Rosa's bakery, and £24,000 of her debt.
 The bank wants £2,000 a week, starting after two weeks' grace. Dez, one of Rosa's regulars, knows what the back room used to be for.

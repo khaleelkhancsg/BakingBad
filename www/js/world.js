@@ -3,7 +3,7 @@
 // repeated things (trees, flowers, grass, bushes, pickets) drawn as instanced batches.
 // Tall things stay behind the bakery (screen top) so they never hide the shop; only low things sit in front.
 import * as THREE from 'three';
-import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, RETRO, crisp, lumpy, surface, relief } from './three-helpers.js';
+import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, RETRO, crisp, lumpy, surface, relief, pixelArt } from './three-helpers.js';
 import { loadCarModels, buildCar } from './carModels.js';
 
 // The ground square, in world units. Its centre is (-3, 2) and everything fades out towards its edge.
@@ -107,7 +107,7 @@ export function buildWorld(scene) {
     g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
     c.fillStyle = g; c.fillRect(0, 0, w, h);
   });
-  if (RETRO) crisp(groundTex); // about 30 pixels a metre: grass, pavement slabs and road markings as pixel art
+  pixelArt(groundTex, Math.round(GSIZE / 0.125)); // the ground as 12.5 cm pixels, to match the blocks on it
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(GSIZE, GSIZE),
     smat({ map: groundTex, transparent: true, roughness: 1, depthWrite: false }));
   ground.rotation.x = -PI / 2;
@@ -248,6 +248,7 @@ export function buildWorld(scene) {
       if (colors) im.setColorAt(i, col.set(t.c || colors[i % colors.length]));
     });
     im.castShadow = shadow; im.receiveShadow = true;
+    im.userData.voxSize = 0.25; // trees, hedges, flowers and grass in blocks a little finer than the buildings
     scene.add(im);
     return im;
   }
@@ -401,6 +402,7 @@ export function buildWorld(scene) {
   });
 
   for (const o of root.children) if (!o.userData.fixed) { o.position.x = shiftX(o.position.x); o.position.z = shiftZ(o.position.z); }
+  root.userData.voxSize = 0.35; // the town in coarser blocks than the shop
   scene.add(mergeStatic(texturize(root)));
 
   let nightK = 0;

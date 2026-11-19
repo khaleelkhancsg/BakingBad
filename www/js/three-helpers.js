@@ -326,6 +326,7 @@ export function mergeStatic(root) {
   for (const b of buckets.values()) {
     const m = new THREE.Mesh(mergeGeometries(b.geos, false), b.material);
     m.castShadow = b.cast; m.receiveShadow = true;
+    m.userData.voxStatic = true; // never moves: voxelised on the world's grid
     root.add(m);
   }
   return root;

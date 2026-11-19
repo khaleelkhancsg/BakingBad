@@ -5,6 +5,7 @@ import { CFG, ITEMS, MACHINES, LAB_MACHINES, SPOTS, LAB_SPOTS, PRODUCTS, BASEMEN
 import * as G from './game.js';
 import { V3, PI, geo, mat, smat, mesh, box, rbox, cyl, sphere, canvasTex, mergeStatic, texturize, tmat, worldUV, surfaceTiled, setRetro, RETRO, crisp, lumpy } from './three-helpers.js';
 import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
+import { voxelTick, voxelGlow } from './voxels.js';
 import { mergeGeometries } from '../vendor/BufferGeometryUtils.js';
 import { buildWorld } from './world.js';
 import { foodModel } from './food.js';
@@ -968,6 +969,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     ['Sourdough', 'Croissants', 'Cookies', 'Donuts', 'Tarts', 'Coffee'].forEach((t, i) => c.fillText('~ ' + t, 26, 92 + i * 24));
   });
   const menu = mesh(new THREE.PlaneGeometry(MENU.w, MENU.h), smat({ map: menuTex, roughness: 0.9 }), MENU.x, MENU.y, -4.475, false);
+  menu.userData.voxKeep = true; // lettering stays readable
   statics.add(menu);
   const drawSign = (c, w, h, text) => {
     c.fillStyle = '#8a5a36'; c.fillRect(0, 0, w, h);
@@ -981,6 +983,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
     const cv = woodSignTex.image; drawSign(cv.getContext('2d'), cv.width, cv.height, text); woodSignTex.needsUpdate = true;
   };
   const woodSign = mesh(new THREE.PlaneGeometry(1.4, 0.32), smat({ map: woodSignTex, roughness: 0.8 }), SIGN.x, SIGN.y, -4.475, false);
+  woodSign.userData.voxKeep = true;
   scene.add(woodSign);
   const neonTex = canvasTex(512, 128, (c, w, h) => {
     c.fillStyle = 'rgba(0,0,0,0)'; c.fillRect(0, 0, w, h);
@@ -2133,6 +2136,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   fadeEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;opacity:0;background:radial-gradient(ellipse at 50% 55%, rgba(14,10,20,.82) 0%, rgba(6,4,10,.98) 65%)';
   document.body.appendChild(fadeEl);
   let shownBack = false, transT = 1;
+  const ANIM_STEP = 1 / 12; let animAcc = 0; // movement 12 times a second, like a retro game
   const TRANS = 0.75; // seconds, dark in the middle
   function updateUnder(dt) {
     if ((clipSweep -= dt) <= 0) { clipSweep = 1; sweepClip(); }
@@ -3194,32 +3198,43 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       Object.assign(view, v);
     },
     frame(s, fixedDt) {
+      // (retro movement: see below)
       // fixedDt lets tests advance the scene clock without waiting in real time
       if (fixedDt) simClock += fixedDt;
       const now = performance.now() / 1000 + simClock;
       const dt = fixedDt || Math.min(0.1, now - last);
       last = now;
-      syncState(s, dt, now);
-      syncPeople(s, dt, now);
-      for (const p of parts) {
-        if (!p.mesh.visible) continue;
-        p.life += dt;
-        if (p.life > p.max) { p.mesh.visible = false; continue; }
-        p.mesh.position.addScaledVector(p.vel, dt);
-        const f = p.life / p.max;
-        p.mesh.scale.setScalar(0.6 + f * 1.6);
-        p.mesh.material.opacity = 0.55 * (1 - f);
+      // Retro movement: people, cars, doors, machines and steam move in steps, 12 times a second, like an old game;
+      // the camera, panning and zooming stay smooth
+      animAcc += dt;
+      const adt = fixedDt || animAcc >= ANIM_STEP ? animAcc : 0, anow = Math.floor(now / ANIM_STEP) * ANIM_STEP;
+      if (adt) {
+        animAcc = 0;
+        syncState(s, adt, anow);
+        syncPeople(s, adt, anow);
+        for (const p of parts) {
+          if (!p.mesh.visible) continue;
+          p.life += adt;
+          if (p.life > p.max) { p.mesh.visible = false; continue; }
+          p.mesh.position.addScaledVector(p.vel, adt);
+          const f = p.life / p.max;
+          p.mesh.scale.setScalar(0.6 + f * 1.6);
+          p.mesh.material.opacity = 0.55 * (1 - f);
+        }
       }
       const hr = G.localHour(s.clock);
       view.light = hr >= 7 && hr < 17 ? 'day' : hr >= 17 && hr < 20.5 ? 'evening' : 'night';
       const frac = Math.max(0, Math.min(1, (hr - 7) / 10));
       applyLights(dt, now, frac);
-      hood.update(dt, now, cur.nightK, onZebra());
+      if (adt) hood.update(adt, anow, cur.nightK, onZebra());
       updateCamera(dt);
       updateShell(s, dt);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
       if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
       updateUnder(dt);
+      // Voxels: anything new becomes blocks (every few frames), and glowing blocks follow the lights every frame
+      voxelTick(scene); // a few milliseconds' worth a frame, so nothing freezes while the town turns to blocks
+      voxelGlow();
       renderer.render(scene, camera);
       updateOverlay(s, now);
     },
