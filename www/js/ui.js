@@ -15,7 +15,7 @@ const app = document.getElementById('app');
 const toastBox = document.getElementById('toasts');
 const ui = { modal: null, design: null, tab: null, panel: null, room: 'shop', basket: {}, outside: false };
 import * as SFX from './sound.js';
-import { STORY_ARCS, BONDS, BILLS, LANDMARKS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
+import { STORY_ARCS, BONDS, BILLS, LANDMARKS, PROJECTS, INVEST, SPECIAL, CABINET, CLEAN_RECORD, SEASONS, MASTERY, STORY, COLLECTION, PATROL, TRAITS, MANAGER, TASTES, PERFECT } from './data.js';
 const SETTINGS_KEY = 'bakingbad.settings';
 const settings = (() => { try { return { sound: true, notify: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { return { sound: true, notify: true }; } })();
 const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* blocked */ } };
@@ -558,6 +558,12 @@ function shopsTab() {
   }
   if (G.unlocked(s, INVEST.level)) cards += pcard(`<div class="ptop"><span class="em">📈</span><div><b>Investment fund: ${money(s.invest || 0)}</b><small>Grows ${(INVEST.daily * 100).toFixed(1)}% a day${s.investEarned ? ` · earned ${money(s.investEarned)} so far` : ''}</small></div></div>
     <div class="pbtns"><button class="small" data-act="invest" data-share="0.1" ${s.clean < 10 ? 'disabled' : ''}>Put in 10%</button><button class="small" data-act="invest" data-share="0.5" ${s.clean < 10 ? 'disabled' : ''}>Put in half</button><button class="small" data-act="withdraw" ${s.invest ? '' : 'disabled'}>Take it all out</button></div>`, '', 'wide');
+  for (const [id, P] of Object.entries(PROJECTS)) {
+    if (P.level > s.level + 15) continue;
+    const n = s.projects?.[id] || 0, open = G.unlocked(s, P.level), cost = G.projectCost(s, id);
+    cards += pcard(`<div class="ptop"><span class="em">${P.emoji}</span><div><b>${P.name}${n ? ` · level ${n}/${P.max}` : ''}</b><small>${P.desc}</small></div></div>
+      ${!open ? lockTag(P.level) : n >= P.max ? '<span class="lock good">✓ All done</span>' : `<div class="pbtns"><button class="small primary" data-act="project" data-id="${id}" ${s.clean < cost ? 'disabled' : ''}>${n ? 'Level ' + (n + 1) + ' · ' : ''}${money(cost)}</button></div>`}`, '', `wide ${open ? '' : 'locked'} ${n ? 'hired' : ''}`);
+  }
   for (const [id, L] of Object.entries(LANDMARKS)) {
     const own = s.landmarks?.[id], open = G.unlocked(s, L.level);
     cards += pcard(`<div class="ptop"><span class="em">${L.emoji}</span><div><b>${L.name}</b><small>${L.desc}</small></div></div>
@@ -661,6 +667,12 @@ function unlocksAt(L) {
   for (const [l, n] of VANS.caps) if (l === L && l > 1) out.push(`🚚 Run ${n} vans`);
   for (const [, f] of Object.entries(FRONTS)) if (f.level === L) out.push(`${f.emoji} A ${f.name.toLowerCase()} to buy as a front (Wash)`);
   for (const [, d] of Object.entries(SHOPS)) if (d.level === L && L > 1) out.push(`${d.emoji} ${d.name} can open (Shops)`);
+  // the money side: easy to miss in Bank & tax and Shops
+  if (L === INVEST.level) out.push(`📈 The investment fund: ${(INVEST.daily * 100).toFixed(1)}% a day on what you put in (Shops & property)`);
+  if (L === PRESTIGE.level) out.push('⭐ Prestige: hand the business on for tokens and perks, once it is worth something (Bank & tax)');
+  for (const [, x] of Object.entries(SUPPLIERS)) if (x.level === L) out.push(`${x.emoji} ${x.name}: cheaper ingredients on contract (Supplies)`);
+  for (const [, x] of Object.entries(LANDMARKS)) if (x.level === L) out.push(`${x.emoji} ${x.name} (Shops & property)`);
+  for (const [, x] of Object.entries(PROJECTS)) if (x.level === L) out.push(`${x.emoji} ${x.name}, a town project (Shops & property)`);
   for (const [tbl, icon] of [[D.FLOORS, '🟫'], [D.WALLS, '🧱'], [D.DECOR, null], [D.ART, null], [D.EXPANSIONS, '➕']]) {
     for (const [, x] of Object.entries(tbl)) if (x.level === L && L > 1) out.push(`${x.emoji || icon} ${x.name} (Design)`);
   }
@@ -1085,9 +1097,8 @@ function dockHTML() {
   if (ui.tab && (!TABS[ui.tab] || (TABS[ui.tab].night && !s.labUnlocked))) ui.tab = null;
   const intro = !s.introSeen ? `<div class="floatcard">
       <h2>Aunt Rosa's bakery</h2>
-      <p>Aunt Rosa ran this bakery for thirty years. She left it to you, along with <b>${money(CFG.debtTotal)}</b> she owed the bank, at <b>${money(CFG.weekly)}</b> a week from two weeks today.</p>
-      <p>The game runs on the real clock and never closes. Tap a machine to start a batch, come back when it's done to put it on a counter by the till, and customers buy from the counters all day, even while you're away. Long recipes are for when you go out; don't leave food sitting in a machine or it spoils.</p>
-      <p class="mute">☰ Menu has everything else; 🗺️ Map takes you between your shops.</p>
+      <p>Aunt Rosa left you her bakery, and <b>${money(CFG.debtTotal)}</b> she owed the bank: <b>${money(CFG.weekly)}</b> a week, starting in two weeks.</p>
+      <p>Bake, fill the counters, and customers buy all day on the real clock, even while you're away. Short bakes while you're here, long ones before you go.</p>
       <button class="small" data-act="intro-ok">Got it</button></div>`
     : s.event && ui.tab === 'supplies' ? `<div class="floatbanner">${s.event.text}</div>` : '';
   let dock = '';
@@ -1683,6 +1694,7 @@ function act(el) {
       break;
     }
     case 'landmark': G.buyLandmark(s, id); break;
+    case 'project': G.buyProject(s, id); break;
     case 'invest': G.invest(s, Number(id) > 0 ? Number(id) : s.clean * Number(el.dataset.share || 1)); break;
     case 'withdraw': G.withdraw(s); break;
     case 'throw': G.throwAway(s, id); ui.modal = null; break;

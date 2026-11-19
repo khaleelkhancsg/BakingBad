@@ -2,7 +2,7 @@
 // node "C:\Users\khale\Documents\Claude projects\BakingBad\tools\sim.mjs" [runs] [days]
 import * as G from '../www/js/game.js';
 import * as D from '../www/js/design.js';
-import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, SHOPS, TIERS, FRONTS } from '../www/js/data.js';
+import { ITEMS, CFG, UPGRADES, MACHINES, LAB_MACHINES, PRODUCTS, CREW, PROPERTY, CAMPAIGNS, CORNERS, SHOPS, TIERS, FRONTS, LANDMARKS, PROJECTS } from '../www/js/data.js';
 G.onToast(() => {});
 
 const RUNS = Number(process.argv[2]) || 6;
@@ -86,6 +86,8 @@ function checkIn(s, st, t, next) {
   });
   for (const u of UPGRADES) if (G.upgradeAvailable(s, u) && G.unlocked(s, u.level) && (u.cash === 'clean' ? u.cost < spare() * 0.3 : st.crook && u.cost < s.dirty * 0.5)) G.buyUpgrade(s, u.id);
   for (const [id, p] of Object.entries(PROPERTY)) if (!s.property[id] && G.unlocked(s, p.level) && p.price < spare() * 0.4) G.buyProperty(s, id);
+  for (const [id, L] of Object.entries(LANDMARKS)) if (!s.landmarks?.[id] && G.unlocked(s, L.level) && L.price < spare() * 0.5) G.buyLandmark(s, id);
+  for (const id of Object.keys(PROJECTS)) if (G.unlocked(s, PROJECTS[id].level) && (s.projects?.[id] || 0) < PROJECTS[id].max && G.projectCost(s, id) < spare() * 0.2) G.buyProject(s, id);
   const hireIf = (r, ok) => { if (!s.crew[r] && G.unlocked(s, CREW[r].level) && ok) G.hire(s, r); };
   hireIf('baker', spare() > 100);
   hireIf('cashier', spare() > 1500);

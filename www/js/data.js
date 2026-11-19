@@ -110,6 +110,8 @@ export const PERKS = {
   headstart:{ name: 'A head start',    emoji: '🚀', max: 10, cost: 3, desc: 'Start two levels higher a level.' },
   contacts: { name: 'Old contacts',    emoji: '🤝', max: 5,  cost: 3, desc: 'The back room is open from day one, Dez sells you 2 more kits a day and 5% cheaper, a level.' },
   legend:   { name: 'Street legend',   emoji: '🕶️', max: 5,  cost: 3, desc: '+10 starting street rep and +5% on every bag, a level.' },
+  nightowl: { name: 'Night owls',      emoji: '🦉', max: 5,  cost: 2, desc: '+10% buyers at the back door after dark, a level.' },
+  franchise:{ name: 'The family café', emoji: '☕', max: 1,  cost: 12, desc: "Start every run with Rosa's Café in Kingsmere already yours (bring your own machines)." },
 };
 
 // Supplier contracts: cheaper ingredients for a weekly minimum order (a fine if you fall short)
@@ -148,6 +150,8 @@ export const GOALS = {
   orders:  { text: n => `Deliver ${n} special orders`, stat: 'orders', base: 1, per: 0.04 },
   bags:    { text: n => `Sell ${n} bags`, stat: 'totalBags', base: 10, per: 3, night: true },
   washed:  { text: n => `Launder £${n.toLocaleString('en-GB')}`, stat: 'totalLaundered', base: 300, per: 150, night: true },
+  perfect: { text: n => `Make ${n} perfect bake${n > 1 ? 's' : ''}`, stat: 'perfect', base: 1, per: 0.04 },
+  night:   { text: n => `Make £${n.toLocaleString('en-GB')} after dark`, stat: 'nightCash', base: 300, per: 140, night: true },
 };
 export const GOAL_REWARD = { dailyCash: 40, dailyXp: 3, weeklyMult: 5, weeklyTokens: 1 };
 // Risky choices that come up now and then (answered from a pop-up; ignored ones take the safe option)
@@ -184,6 +188,64 @@ export const NIGHT_EVENTS = {
   argument: { title: 'Trouble in the crew', need: 'crew', text: 'Two of the night crew are at each other\'s throats over who did the most work this week.',
     yes: { label: 'Give them the night off', fx: { loyalty: 8, heat: -3 }, reply: 'A quiet night, and they shake hands in the morning.' },
     no:  { label: 'Tell them to get on with it', fx: { loyalty: -5 }, reply: 'They get on with it, sulking. The work gets done, just.' } },
+  cousin: { title: "Dez's cousin", text: "Dez's cousin is fresh out and wants a place on the night crew. Dez swears he's sorted now.",
+    yes: { label: 'Take him on', fx: { street: 2, loyalty: -2 }, risk: { chance: 0.3, fx: { evidence: 4 }, reply: 'He bragged about it in the Crown.' }, reply: 'He turns up on time and keeps his head down. The others aren\'t sure about him.' },
+    no:  { label: 'No room', fx: { street: -1 }, reply: 'Dez takes it on the chin. His cousin takes it less well.' } },
+  camera: { title: 'A new camera', text: 'The shop opposite has put up a camera, and it points straight at your back door.',
+    yes: { label: 'Pay them to move it', fx: { dirty: -20, heat: -4 }, reply: 'It points at the bins now. Everyone\'s happy.' },
+    no:  { label: 'Leave it', fx: {}, risk: { chance: 0.4, fx: { evidence: 3 }, reply: 'Somebody asked to see the footage.' }, reply: 'You keep the back door busier at the darker end of the night.' } },
+  undercut: { title: 'Cheap on your corner', text: 'Another crew is selling cheap stuff on your corner and telling buyers yours is cut.',
+    yes: { label: 'Match their prices for a week', fx: { dirty: -15, street: 4 }, reply: 'Buyers try both and come back to you.' },
+    no:  { label: 'Let quality talk', fx: { street: -3 }, reply: 'Some buyers drift. The ones who stay are the ones who know.' } },
+  houseparty: { title: 'A house party', need: 'bags', text: 'A house party two streets away wants a delivery, right now, and they\'re loud about it.',
+    yes: { label: 'Send someone round', fx: { dirty: 35, heat: 5 }, risk: { chance: 0.2, fx: { evidence: 3 }, reply: 'Someone filmed the handover.' }, reply: 'Cash in hand, and the party goes on till four.' },
+    no:  { label: 'Too loud, too close', fx: {}, reply: 'The party carries on without you. So does the quiet.' } },
+  stash: { title: 'The stash spot', text: 'Your stash spot behind the bins is getting obvious. The binmen have started looking twice.',
+    yes: { label: 'Move it somewhere better', fx: { clean: -10, heat: -3 }, reply: 'A loose brick in the cellar wall. Nobody looks twice now.' },
+    no:  { label: 'It\'s fine', fx: {}, risk: { chance: 0.3, fx: { heat: 6 }, reply: 'One of the binmen mentioned it to a neighbour.' }, reply: 'It\'s fine. For now.' } },
+  bonus: { title: 'A good week', need: 'crew', text: 'It\'s been a big week out the back, and the night crew are hinting at a bonus.',
+    yes: { label: 'Share it round', fx: { dirty: -20, loyalty: 8 }, reply: 'Grins all round. They\'ll remember it.' },
+    no:  { label: 'That\'s what wages are for', fx: { loyalty: -4 }, reply: 'Nobody says anything. Nobody has to.' } },
+  collapse: { title: 'Trouble at the door', text: 'A buyer has collapsed by the back door. He\'s breathing, but he\'s not right.',
+    yes: { label: 'Call an ambulance', fx: { heat: 6, rep: 3, street: -2 }, reply: 'The paramedics are kind and quick. They ask a few questions, too.' },
+    no:  { label: 'Get him away from the door', fx: { street: 1 }, risk: { chance: 0.3, fx: { evidence: 5, rep: -5 }, reply: 'Someone saw, and it\'s all over the estate by morning.' }, reply: 'Two of the crew walk him to the bus stop and call it in from a phone box.' } },
+  dogs: { title: 'Dog patrol', text: 'A police dog unit is working its way down the street, shop by shop.',
+    yes: { label: 'Shut up early tonight', fx: { dirty: -10, heat: -5 }, reply: 'Lights off by ten. The dogs sniff the bins and move on.' },
+    no:  { label: 'Business as usual', fx: {}, risk: { chance: 0.4, fx: { heat: 8 }, reply: 'The dog sat down by your back door and wouldn\'t move.' }, reply: 'They don\'t come down your end. This time.' } },
+};
+// Daytime dilemmas: small choices about the bakery that turn up now and then (the same shape as the night ones; leave
+// one and it answers itself "no")
+export const DAY_EVENTS = {
+  busker: { title: 'A busker', text: 'A busker has set up by your door. He\'s good, and people stop to listen.',
+    yes: { label: 'Give him a pitch and a pasty', fx: { clean: -3, rep: 2 }, reply: 'He plays every Saturday now, and the queue sways along.' },
+    no:  { label: 'Move him on', fx: {}, reply: 'He moves to the bus stop. The bus stop gets a lot more cheerful.' } },
+  wedding: { title: 'A wedding cake', text: 'A couple\'s cake maker has let them down. The wedding is tomorrow. Can you help?',
+    yes: { label: 'Bake through the night', fx: { clean: 30, rep: 2 }, risk: { chance: 0.2, fx: { rep: -4 }, reply: 'The top tier leaned in the photos, and the photos went online.' }, reply: 'Four tiers, lemon and elderflower. The bride cried, the good kind.' },
+    no:  { label: 'Too short notice', fx: { rep: -1 }, reply: 'They find someone in the end. They don\'t forget who said no.' } },
+  sportsday: { title: 'Sports day', text: 'The primary school asks if you\'ll give buns for sports day.',
+    yes: { label: 'Of course', fx: { clean: -8, rep: 4 }, reply: 'Two hundred iced buns, and two hundred children who know your name.' },
+    no:  { label: 'Not this year', fx: { rep: -2 }, reply: 'The supermarket sends a tray of sad doughnuts. People notice.' } },
+  influencer: { title: 'An influencer', text: 'Someone with a lot of followers wants a free cake "for content".',
+    yes: { label: 'Give them a cake', fx: { clean: -5 }, risk: { chance: 0.5, fx: { rep: 6 }, reply: 'The video did numbers, and there\'s a queue of teenagers by lunch.' }, reply: 'They film it, eat half and leave.' },
+    no:  { label: 'Cakes are for paying customers', fx: {}, reply: 'They post about the bakery that said no. Nobody much watches it.' } },
+  lorry: { title: 'Off the back of a lorry', text: 'A man in a van offers butter at half price. Don\'t ask where it came from.',
+    yes: { label: 'Fill the fridge', fx: { clean: 15 }, risk: { chance: 0.3, fx: { rep: -3, heat: 2 }, reply: 'Trading Standards came asking about stolen dairy.' }, reply: 'Good butter, too. A lot of croissants for not much.' },
+    no:  { label: 'No thanks', fx: {}, reply: 'He tries the café next door. They say yes.' } },
+  pigeons: { title: 'Pigeons', text: 'Pigeons are nesting above the sign, and the pavement below shows it.',
+    yes: { label: 'Pay for netting', fx: { clean: -4, rep: 1 }, reply: 'Clean pavement, and the pigeons move to the bank.' },
+    no:  { label: 'They\'ll move on', fx: {}, risk: { chance: 0.4, fx: { rep: -3 }, reply: 'A customer got the full benefit. So did her new coat.' }, reply: 'They move on. Mostly.' } },
+  workexp: { title: 'Work experience', text: 'A teenager from the comprehensive asks for a week\'s work experience.',
+    yes: { label: 'Show them the ropes', fx: { clean: -2, rep: 3 }, reply: 'They\'re hopeless at piping and brilliant with customers.' },
+    no:  { label: 'Too busy', fx: {}, reply: 'They end up at the bank. They seem fine about it.' } },
+  critic: { title: 'A quiet word', text: 'A food critic\'s assistant hints that a free lunch for her boss tends to go well.',
+    yes: { label: 'Lay on a lunch', fx: { clean: -6 }, risk: { chance: 0.5, fx: { rep: 5 }, reply: 'A glowing paragraph in Sunday\'s paper.' }, reply: 'He eats everything and says nothing.' },
+    no:  { label: 'Let the food talk', fx: {}, risk: { chance: 0.3, fx: { rep: -3 }, reply: 'The review called your croissants "competent".' }, reply: 'He comes anyway, and pays. That\'s something.' } },
+  bakesale: { title: 'A bake sale', text: 'The hospice asks if you\'ll host their bake sale in the shop on Saturday.',
+    yes: { label: 'Host it', fx: { clean: -10, rep: 5 }, reply: 'Half the town turns up, and buys from you while they\'re there.' },
+    no:  { label: 'We\'re a shop, not a hall', fx: { rep: -1 }, reply: 'They hold it at the church. It rains.' } },
+  filming: { title: 'Lights, camera', text: 'A TV crew want to film a scene in the bakery. It\'ll mean closing for a morning.',
+    yes: { label: 'Roll out the red carpet', fx: { clean: 25, rep: 3 }, risk: { chance: 0.25, fx: { clean: -10 }, reply: 'A runner backed a dolly into the display case.' }, reply: 'You\'re in the background of episode four, holding a baguette.' },
+    no:  { label: 'Not on a working day', fx: {}, reply: 'They film at the deli instead. The deli is unbearable about it.' } },
 };
 // Prestige challenges: harder runs for more tokens next time
 export const CHALLENGES = {
@@ -191,6 +253,8 @@ export const CHALLENGES = {
   nolab:     { name: 'Clean hands',  mult: 1.5, desc: 'No back room this run: Dez never comes by. +50% tokens.' },
   doubletax: { name: 'The taxman cometh', mult: 1.5, desc: 'Every tax bill is doubled. +50% tokens.' },
   bigdebt:   { name: 'Rosa\'s real debts', mult: 1.4, desc: 'The debt you inherit is doubled. +40% tokens.' },
+  lean:      { name: 'Lean times',   mult: 1.4, desc: 'Every wage, day and night, is doubled. +40% tokens.' },
+  rivalry:   { name: 'Bad neighbours', mult: 1.3, desc: 'Crumbs & Co open across the road on day one, and come back sooner when beaten. +30% tokens.' },
 };
 // Heat in separate places: vans and the streets have their own, and cool faster than the back room
 export const AREA_HEAT = { decayPerHour: 1, mainShare: 0.3 };
@@ -936,6 +1000,14 @@ export const LANDMARKS = {
   foundation: { name: 'The Rosa Foundation', emoji: '❤️', level: 75, price: 25000000, eff: { quiet: 0.15 }, desc: 'A charity in her name: popularity never falls below 60, and heat from cooking rises 15% slower.' },
   tower:      { name: 'Rosa Tower', emoji: '🏙️', level: 90, price: 80000000, eff: { income: 60000, cust: 0.1 }, desc: 'Your own building in the capital: +£60,000 a day and +10% customers.' },
 };
+// Town projects: once the landmarks are done there's still a whole town to put money into. Each can be funded again
+// and again (every level costs grow× the last) for a small bonus that never goes away, until max.
+export const PROJECTS = {
+  square:  { name: 'Restore the market square', emoji: '⛲', level: 50, base: 250000, grow: 1.6, max: 20, eff: { cust: 0.02 },  desc: 'Cobbles, benches and a fountain where the car park was: +2% customers everywhere, a level.' },
+  hall:    { name: 'A covered market hall',     emoji: '🏛️', level: 55, base: 400000, grow: 1.6, max: 20, eff: { price: 0.015 }, desc: 'Somewhere grand to shop: people pay a little more, +1.5% on every price, a level.' },
+  school:  { name: 'Cookery scholarships',      emoji: '🎓', level: 60, base: 300000, grow: 1.6, max: 20, eff: { xp: 0.05 },    desc: 'Pay for local kids to train as bakers: +5% XP from everything, a level.' },
+  buses:   { name: 'A late-night bus route',    emoji: '🚌', level: 65, base: 350000, grow: 1.6, max: 20, eff: { buyers: 0.03 }, desc: 'The N47 now stops at the end of the road: +3% buyers after dark, a level.' },
+};
 export const INVEST = { daily: 0.003, level: 30 }; // 0.3% a day on what's in the fund
 
 // ---------- Rush hour: once a day, for an hour, everyone wants something ----------
@@ -1141,7 +1213,13 @@ export const CABINET = { level: 10, price: 1500, batches: 2 };
 export const CLEAN_RECORD = { perDays: 3, step: 0.01, cap: 0.2, awards: [[7, 'Local favourite', 500], [30, 'Best bakery in town', 3000], [90, 'Regional baker of the year', 15000], [180, 'National treasure', 60000]] };
 
 export const EVENTS = [
-  { id: 'rain',      p: 0.15, text: '🌧️ Rain today. Fewer people out.',                  cust: 0.7 },
+  { id: 'rain',      p: 0.10, text: '🌧️ Rain today. Fewer people out.',                  cust: 0.7 },
+  { id: 'marathon',  p: 0.05, text: '🏃 The town marathon runs past the door. Hungry crowds all day.', cust: 1.3 },
+  { id: 'roadworks', p: 0.05, text: '🚧 Roadworks outside. Fewer people can get to you.',   cust: 0.8 },
+  { id: 'snowday',   p: 0.04, text: '❄️ Snow day. Schools are shut and everyone wants something sweet and warm.', cust: 0.85, sweet: 1.5 },
+  { id: 'payday',    p: 0.06, text: '💷 Payday. People treat themselves.',                  cust: 1.2 },
+  { id: 'harvest',   p: 0.04, text: '🌾 A bumper harvest: flour is cheap today.',          flour: 0.6 },
+  { id: 'cupfinal',  p: 0.05, text: '⚽ Cup final tonight: everyone wants a snack before kick-off.', cust: 1.15 },
   { id: 'festival',  p: 0.08, text: '🎉 Street festival today. The market is packed.',     cust: 1.4 },
   { id: 'shortage',  p: 0.07, text: '🌾 Flour shortage. Flour costs a lot more today.',    flour: 1.8 },
   { id: 'heatwave',  p: 0.06, text: '☀️ Heatwave. Cold and sweet things fly.',            sweet: 2 },

@@ -997,6 +997,44 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
   const counterGroup = new THREE.Group(); scene.add(counterGroup);
   const hitM = new THREE.MeshBasicMaterial({ visible: false });
   const counterHits = [];
+  // ---------- Weather: rain on rainy days, snow on snow days and through Christmas ----------
+  // A box of falling drops that follows the view; none fall inside the shop or the back room while you're looking in
+  const WX = { n: 900, w: 40, h: 16 };
+  const wxDrops = new Float32Array(WX.n * 3);
+  for (let i = 0; i < WX.n; i++) { wxDrops[i * 3] = (Math.random() - 0.5) * WX.w; wxDrops[i * 3 + 1] = Math.random() * WX.h; wxDrops[i * 3 + 2] = (Math.random() - 0.5) * WX.w; }
+  const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WX.n * 6), 3));
+  const rainM = new THREE.LineBasicMaterial({ color: '#cbd6e6', transparent: true, opacity: 0, depthWrite: false });
+  const rain = new THREE.LineSegments(rainGeo, rainM); rain.frustumCulled = false; rain.visible = false; scene.add(rain);
+  const snowGeo = new THREE.BufferGeometry(); snowGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(WX.n * 3), 3));
+  const snowM = new THREE.PointsMaterial({ color: '#ffffff', size: 3, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false });
+  const snow = new THREE.Points(snowGeo, snowM); snow.frustumCulled = false; snow.visible = false; scene.add(snow);
+  let wxK = 0, wxType = null;
+  function updateWeather(s, dt, now) {
+    const ev = s.event?.id, season = G.currentSeason();
+    const want = ev === 'rain' ? 'rain' : ev === 'snowday' || season === 'christmas' ? 'snow' : null;
+    if (want && want !== wxType && wxK < 0.02) wxType = want;
+    wxK += ((want && want === wxType ? 1 : 0) - wxK) * Math.min(1, dt * 0.8);
+    rain.visible = wxType === 'rain' && wxK > 0.01; snow.visible = wxType === 'snow' && wxK > 0.01;
+    if (!rain.visible && !snow.visible) return;
+    const heavy = ev === 'snowday' || ev === 'rain' ? 1 : 0.45; // a light snow through Christmas, a proper one on a snow day
+    const inside = (shellK < 0.5 && view.zone === 'shop') || view.zone === 'back';
+    const cx = cam.target.x, cz = cam.target.z, fall = wxType === 'rain' ? 14 : 1.1;
+    const out = (wxType === 'rain' ? rainGeo : snowGeo).attributes.position, a = out.array;
+    const shown = Math.floor(WX.n * heavy);
+    for (let i = 0; i < WX.n; i++) {
+      let y = wxDrops[i * 3 + 1] - fall * dt * (0.8 + (i % 5) * 0.08);
+      if (y < -0.1) { y += WX.h; wxDrops[i * 3] = (Math.random() - 0.5) * WX.w; wxDrops[i * 3 + 2] = (Math.random() - 0.5) * WX.w; }
+      wxDrops[i * 3 + 1] = y;
+      let x = cx + wxDrops[i * 3], z = cz + wxDrops[i * 3 + 2];
+      if (wxType === 'snow') { x += Math.sin(now * 0.7 + i) * 0.35; z += Math.cos(now * 0.5 + i * 1.3) * 0.25; }
+      // not inside the shop or the back room while you're looking in, and only as many as the weather calls for
+      if (i >= shown || (inside && x > -9 && x < 5 && z > -5 && z < 5)) y = -50;
+      if (wxType === 'rain') { const k = i * 6; a[k] = x; a[k + 1] = y; a[k + 2] = z; a[k + 3] = x - 0.06; a[k + 4] = y - 0.45; a[k + 5] = z - 0.04; }
+      else { const k = i * 3; a[k] = x; a[k + 1] = y; a[k + 2] = z; }
+    }
+    out.needsUpdate = true;
+    rainM.opacity = 0.42 * wxK; snowM.opacity = 0.9 * wxK;
+  }
   const seasonGroup = new THREE.Group(); scene.add(seasonGroup);
   let seasonSig = null;
   function syncSeason(s) {
@@ -3226,6 +3264,7 @@ export function createScene(canvas, overlayEl, { onPick, onOutside, retro = fals
       hood.update(dt, now, cur.nightK, onZebra());
       updateCamera(dt);
       updateShell(s, dt);
+      updateWeather(s, dt, now);
       if ((shadowT -= dt) <= 0) { shadowT = 1; trimShadows(scene); }
       if ((frameNo++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
       updateUnder(dt);

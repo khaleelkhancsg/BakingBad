@@ -3,7 +3,7 @@
 // whether that was a few milliseconds of live play or the hours you were away.
 import { CFG, HOUR_TRADE, HOUR_TASTE, ITEMS, INGREDIENTS, PRICE_LEVELS, UPGRADES, EVENTS, LINES, BUYER_NAMES,
          START_RECIPES, CREW, FEATURES, MACHINES, MACHINE_PRICE_STEP, SPOTS, MACHINE_WALL, LAB_MACHINES, LAB_SPOTS,
-         PRODUCTS, CAMPAIGNS, PROPERTY, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS, NIGHT_EVENTS, BONDS } from './data.js';
+         PRODUCTS, CAMPAIGNS, PROPERTY, PROJECTS, CAPS, capAt, nextCap, CUTS, purityMult, TIERS, CORNERS, SHOPS, TAX, DECLARE, CLIENTS, DEZ_CLIENTS, ORDERS, MILESTONES, CRITIC, WASH, FRONTS, FRONT_AUDIT, VANS, DELIVERY, PRESTIGE, PERKS, SHOP_BASE, SHOP_GROW, SUPPLIERS, INSURANCE, RIVAL, CASE, LOYALTY, AUCTION, GOALS, GOAL_REWARD, CHOICES, CHALLENGES, AREA_HEAT , COUNTERS, PER_COUNTER , SPECIAL, CABINET, CLEAN_RECORD, SEASONS, PERFECT, MASTERY, STORY, COLLECTION, PATROL, TRAITS, INFORMANT, RIVAL_MOVES, MANAGER, TASTES, LANDMARKS, INVEST, RUSH, SEASON_CLIENTS, BILLS, NIGHT_EVENTS, DAY_EVENTS, BONDS } from './data.js';
 import { charmBonus, defaultDesign, allCells, cellKey, PANELS, EXPANSIONS, backHide, backCool, backLoyalty, shopPlaceProblem, backPlaceProblem, autoSpot, backAutoSpot, kitchenRoom, labRoom, cellFromSpot, backCellFromSpot, bestRot, backBestRot, fixLayout } from './design.js';
 
 export const SAVE_VERSION = 5;
@@ -174,6 +174,7 @@ function applyPerks(s) {
     s.kits.homegrown = 2;
   }
   s.street = Math.min(100, s.street + 10 * perk(s, 'legend'));
+  if (perk(s, 'franchise') && !ownsShop(s, 'cafe')) { s.shops.push(makeShop('cafe')); s.shops.at(-1).paid = 0; bindShops(s); }
 }
 
 // ---------- Crew loyalty, decisions and the detective ----------
@@ -253,13 +254,13 @@ function resolveDecision(s, d, yes, t, auto) {
     s.dirty += d.cost; s.packageUntil = t + 7 * DAY;
     return note(s, `📦 Dez's package is in the back room. £${d.cost.toLocaleString('en-GB')} for your trouble. A raid this week would go badly.`, 'meh', t);
   }
-  if (c === 'night') {
-    const E = NIGHT_EVENTS[d.ev];
+  if (c === 'night' || c === 'dayev') {
+    const E = (c === 'night' ? NIGHT_EVENTS : DAY_EVENTS)[d.ev];
     if (!E) return;
     const side = yes ? E.yes : E.no, bits = applyFx(s, side.fx);
     let reply = side.reply, bad = false;
     if (side.risk && rand() < side.risk.chance) { bits.push(...applyFx(s, side.risk.fx)); reply += ' ' + side.risk.reply; bad = !side.risk.fx.dirty || side.risk.fx.dirty < 0; }
-    return note(s, `🌙 ${reply}${auto ? ' (No answer in time.)' : ''}${bits.length ? ` (${bits.join(', ')})` : ''}`, bad ? 'bad' : yes ? 'good' : 'info', t);
+    return note(s, `${c === 'night' ? '🌙' : '☀️'} ${reply}${auto ? ' (No answer in time.)' : ''}${bits.length ? ` (${bits.join(', ')})` : ''}`, bad ? 'bad' : yes ? 'good' : 'info', t);
   }
   if (c === 'charity') {
     if (yes && s.clean >= d.cost) { s.clean = round2(s.clean - d.cost); s.rep = clamp(s.rep + 6, 0, 100); s.heat = clamp(s.heat - 3, 0, 100); return note(s, `❤️ You gave £${d.cost.toLocaleString('en-GB')}. Popularity +6.`, 'good', t); }
@@ -294,6 +295,11 @@ function nightEvent(s, t) {
   pushDecision(s, { kind: 'night', ev, night: true, title: `🌙 ${E.title}`, text: E.text, yes: E.yes.label, no: E.no.label, until: t + 8 * HOUR }, t);
 }
 function randomChoice(s, t) {
+  // Half the time one of the daytime dilemmas (the bakery's own little stories), otherwise one of the bigger choices
+  if (rand() < 0.5) {
+    const ev = pick(Object.keys(DAY_EVENTS)), E = DAY_EVENTS[ev];
+    return pushDecision(s, { kind: 'dayev', ev, title: `☀️ ${E.title}`, text: E.text, yes: E.yes.label, no: E.no.label, until: t + 8 * HOUR }, t);
+  }
   const pool = Object.keys(CHOICES).filter(k => !CHOICES[k].night || s.labUnlocked);
   const kind = pick(pool), C = CHOICES[kind], d = { kind, title: C.title, text: C.text, yes: C.yes, no: C.no };
   if (kind === 'bulk') {
@@ -418,7 +424,7 @@ function makeGoals(s, kind) {
   while (picked.length < (kind === 'daily' ? 3 : 2) && keys.length) picked.push(keys.splice(Math.floor(rand() * keys.length), 1)[0]);
   return picked.map(k => {
     const g = GOALS[k], mult = kind === 'daily' ? 1 : 6;
-    const n = Math.max(1, Math.round((g.base + g.per * s.level * (k === 'sales' || k === 'washed' ? s.level / 10 + 1 : 1)) * mult));
+    const n = Math.max(1, Math.round((g.base + g.per * s.level * (k === 'sales' || k === 'washed' || k === 'night' ? s.level / 10 + 1 : 1)) * mult));
     return { key: k, target: n, base: s.stats[g.stat] || 0, done: false };
   });
 }
@@ -457,6 +463,7 @@ export function eff(s, key) { // the sum of every owned upgrade's and property's
   for (const u of UPGRADES) if (s.upgrades[u.id] && u.eff[key]) v += u.eff[key];
   for (const [id, p] of Object.entries(PROPERTY)) if (s.property?.[id] && p.eff[key]) v += p.eff[key];
   for (const [id, p] of Object.entries(LANDMARKS)) if (s.landmarks?.[id] && p.eff[key]) v += p.eff[key];
+  for (const [id, p] of Object.entries(PROJECTS)) if (s.projects?.[id] && p.eff[key]) v += p.eff[key] * s.projects[id];
   if (effMemo) effMemo.set(key, v);
   return v;
 }
@@ -469,6 +476,19 @@ export function buyLandmark(s, id) {
   s.clean = round2(s.clean - L.price); s.today.capex += L.price;
   (s.landmarks ||= {})[id] = true; effMemo?.clear();
   say(`${L.emoji} ${L.name}: done. ${L.desc}`, 'good');
+}
+export const projectCost = (s, id) => Math.round(PROJECTS[id].base * Math.pow(PROJECTS[id].grow, s.projects?.[id] || 0) / 1000) * 1000;
+export function buyProject(s, id) {
+  const P = PROJECTS[id];
+  if (!P) return;
+  const n = s.projects?.[id] || 0;
+  if (n >= P.max) return say(`${P.name}: all done.`, 'info');
+  if (!unlocked(s, P.level)) return say(`${P.name} opens at level ${P.level}.`, 'bad');
+  const cost = projectCost(s, id);
+  if (s.clean < cost) return say('Not enough clean cash.', 'bad');
+  s.clean = round2(s.clean - cost); s.today.capex += cost;
+  (s.projects ||= {})[id] = n + 1; effMemo?.clear();
+  say(`${P.emoji} ${P.name}: level ${n + 1}.`, 'good');
 }
 export function invest(s, amount) {
   if (!unlocked(s, INVEST.level)) return say(`The investment fund opens at level ${INVEST.level}.`, 'bad');
@@ -712,7 +732,7 @@ export const labXp = id => { const p = PRODUCTS[id]; return Math.round(6 + p.min
 export const bagXp = id => Math.max(1, Math.round(PRODUCTS[id].price / 20));
 export function addXp(s, n) {
   if (!n) return;
-  n *= 1 + 0.1 * perk(s, 'learner');
+  n *= 1 + 0.1 * perk(s, 'learner') + eff(s, 'xp');
   s.xp += n; s.today.xp += n; s.stats.xp += n;
   while (s.level < CFG.maxLevel && s.xp >= xpToNext(s.level)) {
     s.xp -= xpToNext(s.level);
@@ -1157,7 +1177,7 @@ export function hire(s, role) {
   say(`${c.name} (${c.role.toLowerCase()}) starts now.`, 'good');
 }
 export function fire(s, role) { s.crew[role] = false; if (s.staff?.[role]) { s.staff[role].informant = false; delete s.staff[role]; } }
-export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [r, c]) => a + Math.round(c.wage * (s.staff?.[r]?.greed || 1)), 0);
+export const crewWages = (s, shift) => Object.entries(CREW).filter(([r, c]) => s.crew[r] && c.shift === shift).reduce((a, [r, c]) => a + Math.round(c.wage * (s.staff?.[r]?.greed || 1)), 0) * (s.challenge === 'lean' ? 2 : 1);
 
 // ---------- Customers ----------
 export function customersPerHour(s, t) {
@@ -1178,6 +1198,10 @@ function customerVisit(s, t, showIt) {
   if (!stock.length) {
     td.missed++; s.stats.missed = (s.stats.missed || 0) + 1;
     s.rep = clamp(s.rep + CFG.popUnserved, 0, 100);
+    // Say so when the counters have been empty a while: a dozen walking out within the hour (once every 3 hours)
+    const w = (s.missWin ||= { from: t, n: 0, told: 0 });
+    if (t - w.from > HOUR) { w.from = t; w.n = 0; }
+    if (++w.n === 12 && t - w.told > 3 * HOUR) { w.told = t; note(s, `🧺 The counters at ${(shopDef(s).short || 'the bakery').toLowerCase()} are empty: a dozen customers walked out in the last hour. Cook something, or try longer recipes before you go.`, 'meh', t); }
     return show({ kind: 'bad', text: 'nothing left', want: pick(menu.length ? menu : START_RECIPES) });
   }
   const w = { ...tasteAt(t) };
@@ -1216,7 +1240,7 @@ function customerVisit(s, t, showIt) {
   if (regular) s.rep = clamp(s.rep + 0.01, 0, 100);
   td.sales = round2(td.sales + rev); td.itemsSold += qty; td.served++; s.stats.served = (s.stats.served || 0) + 1;
   s.stats.totalSales = round2(s.stats.totalSales + rev);
-  s.rep = clamp(s.rep + CFG.popServed, 0, 100);
+  s.rep = clamp(s.rep + CFG.popServed * Math.max(0, 100 - s.rep) / 50, 0, 100); // harder to win the last few points
   addXp(s, xp);
   show({ kind: 'good', text: `+£${rev.toFixed(2)}${combo ? ' combo' : ''}${regular ? ' 🫶' : ''}`, want: id });
 }
@@ -1231,7 +1255,7 @@ export function forecastPatrols(s, t) {
 export function patrolBand(t) { const h = localHour(t); return PATROL.bands.findIndex(([a, b]) => (a < b ? h >= a && h < b : h >= a || h < b)); }
 export const patrolAt = (s, t) => { const b = patrolBand(t); return b < 0 || !s.patrol ? 1 : PATROL.levels[s.patrol.lv[b]][1]; };
 const patrolNight = s => (s.patrol ? s.patrol.lv.reduce((a, l) => a + PATROL.levels[l][1], 0) / s.patrol.lv.length : 1);
-export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel * (s.level || 1), CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers')) * (0.5 + (s.street ?? CFG.streetStart) / 100);
+export const buyersPerHour = s => Math.min(CFG.buyersMax + CFG.buyersMaxPerLevel * (s.level || 1), CFG.buyersPerHour + CFG.buyersGrow * s.nightsActive) * (1 + eff(s, 'buyers') + 0.1 * perk(s, 'nightowl')) * (0.5 + (s.street ?? CFG.streetStart) / 100);
 export const knownProducts = s => Object.keys(PRODUCTS).filter(id => unlocked(s, PRODUCTS[id].level) && (!PRODUCTS[id].rare || (s.bags[id] || 0) > 0));
 function buyerArrives(s, t) {
   const choices = {};
@@ -2020,8 +2044,15 @@ export function advance(s, now, { live: watching = false } = {}) {
   seasonCheck(s, now); storyCheck(s);
   checkMilestones(s, now);
   checkGoals(s, now);
+  prestigeNudge(s, now);
   liveMode = false;
   effMemo = null;
+}
+// Say when prestige opens, and again when the story's told and there's nothing left to climb
+function prestigeNudge(s, t) {
+  if (!s.prestigeTold && prestigeReady(s)) { s.prestigeTold = true; note(s, `⭐ Prestige is open: hand the business on for ${prestigeTokens(s)} tokens (more as it grows) and start again faster. Bank & tax → Prestige. No rush: it pays more the bigger you get.`, 'good', t); }
+  const told = STORY.filter(c => c.final).every(c => s.story?.seen?.includes(c.id));
+  if (!s.legacyTold && s.level >= CFG.maxLevel && told) { s.legacyTold = true; note(s, `🌟 Rosa's is everything she dreamed of, and the story's told. Whenever you're ready, hand it on (Bank & tax → Prestige): the next run keeps her story, your recipes and the bakery's look, and goes faster.`, 'good', t); }
 }
 
 function span(s, t0, t1, showIt) {
@@ -2345,7 +2376,7 @@ function rollover(s, t) {
     const low = menuOf(s).filter(id => s.priceLevel[id] === 'low').length > menuOf(s).length / 2;
     s.rival.share = clamp(s.rival.share + RIVAL.grow - (low ? RIVAL.lowPriceHit * 2 : 0), 0, RIVAL.max);
     if (s.rival.share <= 0.02) { s.rival = { open: false, share: 0, closedUntil: t + RIVAL.closedDays * DAY }; note(s, `🏳️ ${RIVAL.name} closed down. Their regulars are back.`, 'good', t); }
-  } else if (s.level >= RIVAL.level && s.rep >= RIVAL.pop && t > (s.rival.closedUntil || 0) && rand() < RIVAL.chance) {
+  } else if ((s.challenge === 'rivalry' ? t > (s.rival.closedUntil || 0) - RIVAL.closedDays * DAY / 2 : s.level >= RIVAL.level && s.rep >= RIVAL.pop && t > (s.rival.closedUntil || 0)) && rand() < (s.challenge === 'rivalry' ? 1 : RIVAL.chance)) {
     s.rival = { open: true, share: RIVAL.start }; note(s, `🥐 ${RIVAL.name} opened across the road, and some of your customers are trying it.`, 'bad', t);
   }
   if (di % 7 === AUCTION.day) startAuction(s, t);

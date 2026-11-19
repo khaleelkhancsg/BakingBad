@@ -302,7 +302,13 @@ export function buildWorld(scene) {
 
   // ---------- Street furniture ----------
   const lampM = night(smat({ color: '#fff1cc', emissive: '#ffd27a', emissiveIntensity: 0 }), 2.4);
+  // A soft warm pool of light on the pavement under each lamp, there after dark
+  const poolTex = canvasTex(64, 64, (c, w, h) => { const g = c.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(255,214,150,0.9)'); g.addColorStop(0.45, 'rgba(255,196,120,0.35)'); g.addColorStop(1, 'rgba(255,190,110,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
+  const poolM = new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
   function streetLamp(x, z, ry = 0) {
+    const pool = new THREE.Mesh(geo('lampPool', () => new THREE.PlaneGeometry(4.2, 4.2)), poolM);
+    pool.rotation.x = -PI / 2; pool.position.set(x + Math.cos(ry) * 0.5, -0.075, z - Math.sin(ry) * 0.5); pool.renderOrder = 1; pool.userData.keep = true; root.add(pool);
     root.add(cyl(0.05, 0.08, 3.0, '#2b2d36', x, -0.09, z, 8));
     const arm = box(0.55, 0.06, 0.06, '#2b2d36', x + Math.cos(ry) * 0.25, 2.85, z - Math.sin(ry) * 0.25); arm.rotation.y = ry; root.add(arm);
     const m = lampM;
@@ -408,6 +414,7 @@ export function buildWorld(scene) {
     update(dt, now, k, crossingBusy = false) {
       nightK = k;
       for (const { m, k: mult } of nightMats) m.emissiveIntensity = nightK * mult;
+      poolM.opacity = nightK * 0.75;
       water.color.setHSL(0.56, 0.5, 0.52 + Math.sin(now * 1.3) * 0.02 - nightK * 0.25);
       for (const m of movers) {
         if (!m.active) {
